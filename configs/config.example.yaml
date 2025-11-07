@@ -1,0 +1,48 @@
+# Terminal Velocity Server Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 2222
+  max_players: 100
+  tick_rate: 10  # Game loop updates per second
+
+database:
+  # PostgreSQL connection string
+  url: "postgres://terminal_velocity:password@localhost:5432/terminal_velocity?sslmode=disable"
+  max_connections: 20
+  min_connections: 5
+
+security:
+  # SSH host key path (will be generated if not exists)
+  host_key_path: "configs/ssh_host_key"
+
+  # Password hashing
+  bcrypt_cost: 10
+
+  # Session timeout (minutes)
+  session_timeout: 60
+
+game:
+  # Universe generation settings
+  num_systems: 100
+  starting_credits: 10000
+  starting_ship: "shuttle"
+
+  # Economy
+  market_update_interval: 300  # seconds
+  price_volatility: 0.2
+
+  # Combat
+  enable_pvp: true
+  safe_zone_radius: 2  # Systems around capitals
+
+  # Factions
+  faction_creation_cost: 100000
+  min_combat_rating_for_faction: 3
+  default_member_limit: 10
+
+logging:
+  level: "info"  # debug, info, warn, error
+  file: "logs/server.log"
+  max_size_mb: 100
+  max_backups: 3
