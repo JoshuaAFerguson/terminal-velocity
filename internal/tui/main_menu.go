@@ -30,6 +30,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Advanced Outfitting", screen: ScreenOutfitterEnhanced},
 			{label: "Ship Management", screen: ScreenShipManagement},
 			{label: "Missions", screen: ScreenMissions},
+			{label: "Quests", screen: ScreenQuests},
 			{label: "Achievements", screen: ScreenAchievements},
 			{label: "Leaderboards", screen: ScreenLeaderboards},
 			{label: "Players", screen: ScreenPlayers},
@@ -124,6 +125,14 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.tutorialModel = newTutorialModel()
 				m.tutorialModel.viewMode = tutorialViewList
 				m.tutorialModel.allTutorials = m.tutorialManager.GetAllTutorials()
+				return m, nil
+			}
+			if selected.screen == ScreenQuests {
+				m.questsModel = newQuestsModel()
+				m.questsModel.viewMode = questViewActive
+				m.questsModel.activeQuests = m.questManager.GetActiveQuests(m.playerID)
+				m.questsModel.availableQuests = m.questManager.GetAvailableQuests(m.playerID)
+				m.questsModel.completedQuests = m.questManager.GetCompletedQuests(m.playerID)
 				return m, nil
 			}
 

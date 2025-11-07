@@ -15,6 +15,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/outfitting"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/quests"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/settings"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/trade"
@@ -51,6 +52,7 @@ const (
 	ScreenSettings
 	ScreenAdmin
 	ScreenTutorial
+	ScreenQuests
 	ScreenRegistration
 )
 
@@ -102,6 +104,7 @@ type Model struct {
 	settingsModel  settingsModel
 	adminModel     adminModel
 	tutorialModel  tutorialModel
+	questsModel    questsModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -145,6 +148,9 @@ type Model struct {
 
 	// Tutorial system
 	tutorialManager *tutorial.Manager
+
+	// Quest system
+	questManager *quests.Manager
 
 	// Error message
 	err error
@@ -208,6 +214,8 @@ func NewModel(
 		adminManager:        admin.NewManager(playerRepo),
 		tutorialModel:       newTutorialModel(),
 		tutorialManager:     tutorial.NewManager(),
+		questsModel:         newQuestsModel(),
+		questManager:        quests.NewManager(),
 	}
 }
 
@@ -364,6 +372,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateAdmin(msg)
 	case ScreenTutorial:
 		return m.updateTutorial(msg)
+	case ScreenQuests:
+		return m.updateQuests(msg)
 	default:
 		return m, nil
 	}
@@ -433,6 +443,8 @@ func (m Model) View() string {
 		return m.viewAdmin()
 	case ScreenTutorial:
 		return m.viewTutorial()
+	case ScreenQuests:
+		return m.viewQuests()
 	default:
 		return "Unknown screen"
 	}

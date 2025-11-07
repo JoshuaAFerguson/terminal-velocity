@@ -8,6 +8,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Quest & Storyline System (Phase 7, Content)**:
+  - Comprehensive quest system with branching storylines
+  - Quest types and categories:
+    - Main storyline quests (The Void Threat storyline with 3 quests)
+    - Side quests for additional content
+    - Faction-specific quests
+    - Daily repeatable quests
+    - Quest chains with sequential progression
+    - Hidden/secret quests
+    - Special event quests
+  - Quest objective types (12 types):
+    - Deliver items to locations
+    - Destroy/kill specific targets
+    - Travel to destinations
+    - Collect items or resources
+    - Escort NPCs
+    - Defend locations
+    - Investigate areas
+    - Talk to NPCs
+    - Scan objects
+    - Mine resources
+    - Complete trades
+    - Kill specific enemies
+  - Quest progression features:
+    - Optional objectives (not required for completion)
+    - Hidden objectives (revealed during quest)
+    - Progress tracking (current/required counts)
+    - Objective completion states
+    - Multi-objective quests with dependencies
+  - Quest rewards system:
+    - Credits and experience points
+    - Items and equipment
+    - Reputation gains with factions
+    - Ship unlocks
+    - Star system unlocks
+    - Special unique rewards
+  - Quest management:
+    - Active quests tracking
+    - Available quests based on prerequisites
+    - Completed quest history
+    - Quest abandonment system
+    - Prerequisite quest chains
+    - Quest time limits (optional)
+    - Repeatable quest support
+  - Branching quest system:
+    - Dialogue choices with consequences
+    - Multiple quest paths
+    - Alternate endings
+    - Next quest unlocking based on choices
+    - Failure quests (quests triggered by failing others)
+  - Quest UI with 4 views:
+    - Active Quests: Track ongoing quests with progress
+    - Available Quests: Browse and accept new quests
+    - Completed Quests: Review finished quests
+    - Quest Detail: View objectives, rewards, and lore
+  - Quest UI features:
+    - Tab navigation between quest views
+    - Visual quest type icons (★ main, ○ side, ⚑ faction, etc.)
+    - Progress percentage display
+    - Objective completion checkmarks (○ incomplete, ✓ complete)
+    - Quest level recommendations
+    - Giver NPC information
+    - Reward previews before acceptance
+  - Storyline system:
+    - Multi-quest storylines
+    - Main story vs side stories
+    - Storyline progress tracking
+    - Sequential quest ordering
+  - Pre-defined content:
+    - "The Void Threat" main storyline (3 quests)
+    - Merchant delivery side quest (repeatable)
+    - Federation patrol faction quest
+    - Ancient artifact hidden quest
+    - Daily resource gathering quest
+  - Thread-safe concurrent operations
+  - Quest statistics tracking (active, completed, failed, abandoned)
 - **Interactive Tutorial & Onboarding System (Phase 7, Content & Polish)**:
   - Comprehensive tutorial system for new player onboarding
   - Tutorial categories and progression:
