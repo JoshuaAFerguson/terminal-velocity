@@ -76,18 +76,18 @@ jobs:
           sed -i 's/changeme_in_production/test_password_123/' .env
 
       - name: Start services
-        run: docker-compose up -d
+        run: docker compose up -d
 
       - name: Wait for services
         run: |
-          timeout 60 sh -c 'until docker-compose exec -T postgres pg_isready -U terminal_velocity; do sleep 1; done'
+          timeout 60 sh -c 'until docker compose exec -T postgres pg_isready -U terminal_velocity; do sleep 1; done'
           timeout 60 sh -c 'until nc -z localhost 2222; do sleep 1; done'
 
       - name: Check service health
         run: |
-          docker-compose ps
-          docker-compose logs server
-          docker-compose exec -T postgres psql -U terminal_velocity -d terminal_velocity -c "\dt"
+          docker compose ps
+          docker compose logs server
+          docker compose exec -T postgres psql -U terminal_velocity -d terminal_velocity -c "\dt"
 
       - name: Stop services
-        run: docker-compose down -v
+        run: docker compose down -v
