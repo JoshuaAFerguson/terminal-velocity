@@ -25,6 +25,7 @@ const (
 	ScreenCombat
 	ScreenMissions
 	ScreenAchievements
+	ScreenEncounter
 	ScreenSettings
 	ScreenRegistration
 )
@@ -64,6 +65,7 @@ type Model struct {
 	combat         combatModel
 	missions       missionsModel
 	achievementsUI achievementsModel
+	encounterModel encounterModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -105,6 +107,7 @@ func NewModel(
 		achievementsUI:      newAchievementsModel(),
 		achievementManager:  achievements.NewManager(),
 		pendingAchievements: []*models.Achievement{},
+		encounterModel:      newEncounterModel(),
 	}
 }
 
@@ -192,6 +195,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateMissions(msg)
 	case ScreenAchievements:
 		return m.updateAchievements(msg)
+	case ScreenEncounter:
+		return m.updateEncounter(msg)
 	default:
 		return m, nil
 	}
@@ -235,6 +240,8 @@ func (m Model) View() string {
 		return m.viewMissions()
 	case ScreenAchievements:
 		return m.viewAchievements()
+	case ScreenEncounter:
+		return m.viewEncounter()
 	default:
 		return "Unknown screen"
 	}

@@ -27,6 +27,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bounty target cleanup on mission completion
   - Support for multi-target bounty missions
   - Progress messages for partial bounty completion
+- **Random Encounter System (Phase 5, Issue #25)**:
+  - 8 encounter types with unique mechanics
+  - Encounter types: Pirate, Trader, Distress, Police, Faction Patrol, Derelict, Merchant, Asteroid
+  - Probability-based encounter generation (10% base chance, scales with danger)
+  - Dynamic encounter difficulty based on system danger level (1-10)
+  - Player status influence (criminals get more police encounters)
+  - Multiple response options per encounter
+  - Encounter-specific ships with appropriate equipment
+  - Combat integration (hostile encounters trigger combat)
+  - Trade opportunities with independent traders
+  - Rescue missions with reputation rewards
+  - Police scans and criminal detection
+  - Faction relationship checks
+  - Salvage mechanics for derelict ships
+  - Flee success calculation based on ship stats
+  - Automatic exploration tracking (jump recording)
+  - Achievement checks after jumps
 - **Achievement System (Phase 5, Issue #24)**:
   - 25 predefined achievements across 7 categories
   - Achievement categories: Combat, Trading, Exploration, Missions, Wealth, Ships, Special
@@ -108,8 +125,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added normalStyle for neutral text
 - **Main Menu (internal/tui/main_menu.go)**:
   - Added Achievements menu item
+- **Navigation System (internal/tui/navigation.go)**:
+  - Added encounter generation after successful jumps
+  - Added jump recording for exploration tracking
+  - Added achievement checks after jumps
+  - Integrated encounter probability system
 
 ### Added Files
+- **Encounter Model (internal/models/encounter.go)**:
+  - Encounter data structures with 8 types
+  - Encounter generation methods for each type
+  - GetOptions() for dynamic option generation
+  - CanAffordOption() for requirement checking
+  - Ship name and weapon generation
+- **Encounter Generator (internal/encounters/generator.go)**:
+  - Probability-based encounter generation
+  - Weighted encounter type selection
+  - Dynamic difficulty scaling
+  - Ship generation for encounters
+  - Flee success calculation
+- **Encounter UI (internal/tui/encounter.go)**:
+  - Complete encounter screen
+  - Option selection interface
+  - Combat integration
+  - Trade and reward handling
+  - Status-based response logic
 - **Achievement Model (internal/models/achievement.go)**:
   - Complete achievement data structures
   - 25 predefined achievements with criteria

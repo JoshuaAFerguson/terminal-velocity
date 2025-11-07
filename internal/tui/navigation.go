@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/charmbracelet/bubbletea"
 )
@@ -143,6 +144,33 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.currentShip.Fuel < 0 {
 					m.currentShip.Fuel = 0
 				}
+			}
+
+			// Record jump for exploration tracking
+			if m.player != nil {
+				m.player.RecordJump()
+				m.checkAchievements()
+			}
+
+			// Check for random encounter
+			generator := encounters.NewGenerator()
+			dangerLevel := 5 // Default danger level, could be from system data
+			if msg.system != nil {
+				// Use system's actual danger level if available
+				// For now using default 5
+			}
+
+			if generator.ShouldGenerateEncounter(dangerLevel, m.player) {
+				// Generate encounter
+				encounter := generator.GenerateEncounter(msg.system.ID, dangerLevel, m.player)
+				m.encounterModel.encounter = encounter
+				m.encounterModel.resolved = false
+				m.encounterModel.message = ""
+				m.encounterModel.cursor = 0
+
+				// Switch to encounter screen
+				m.screen = ScreenEncounter
+				return m, nil
 			}
 
 			// Reload systems for new location
