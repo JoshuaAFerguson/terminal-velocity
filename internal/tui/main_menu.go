@@ -27,6 +27,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Cargo Hold", screen: ScreenCargo},
 			{label: "Shipyard", screen: ScreenShipyard},
 			{label: "Outfitter", screen: ScreenOutfitter},
+			{label: "Advanced Outfitting", screen: ScreenOutfitterEnhanced},
 			{label: "Ship Management", screen: ScreenShipManagement},
 			{label: "Missions", screen: ScreenMissions},
 			{label: "Achievements", screen: ScreenAchievements},
@@ -83,6 +84,13 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if selected.screen == ScreenOutfitter {
 				m.outfitter = newOutfitterModel()
 				return m, m.loadOutfitter()
+			}
+			if selected.screen == ScreenOutfitterEnhanced {
+				m.outfitterEnhanced = newOutfitterEnhancedModel()
+				// Load player inventory and loadouts
+				m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
+				m.outfitterEnhanced.loadouts = m.outfittingManager.GetPlayerLoadouts(m.playerID)
+				return m, nil
 			}
 			if selected.screen == ScreenShipManagement {
 				m.shipManagement = newShipManagementModel()

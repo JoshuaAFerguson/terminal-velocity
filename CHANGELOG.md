@@ -8,6 +8,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Advanced Ship Customization & Outfitting (Phase 7, Content)**:
+  - Comprehensive equipment system with 6 slot types:
+    - Weapon: Gun/missile hardpoints for offensive capabilities
+    - Shield: Shield generators for defense
+    - Engine: Propulsion systems for speed and maneuverability
+    - Reactor: Power generation and energy storage
+    - Utility: Cargo pods, fuel tanks, scanners, repair drones
+    - Special: Experimental equipment (cloaking, advanced systems)
+  - Equipment slot system:
+    - Size-based slots (Small/Medium/Large/Capital)
+    - Type-specific slot requirements
+    - Equipment compatibility checking
+    - Locked slots for essential systems
+  - Equipment catalog with 16 items:
+    - Weapons (4): Laser Cannon, Plasma Turret, Railgun, Missile Launcher
+    - Shields (3): Basic, Advanced, Military-Grade
+    - Engines (3): Ion Drive, Afterburner, Military Fusion Drive
+    - Reactors (3): Fission, Fusion, Antimatter
+    - Utilities (4): Cargo Pod, Fuel Tank, Advanced Scanner, Repair Drone
+  - Equipment categories and stats:
+    - Weapon stats: Damage, range, accuracy, cooldown, energy cost, shield penetration
+    - Defense stats: Shield HP, regen rate, hull bonus, armor rating
+    - Power stats: Energy output, storage capacity
+    - Propulsion stats: Speed bonus, turn rate, afterburner boost
+    - Utility stats: Cargo bonus, fuel bonus, scanner range, jump range
+    - Special stats: Cloaking power, ECM strength, repair rate
+  - Ship loadout system:
+    - Save multiple loadouts per ship type
+    - Clone and modify existing loadouts
+    - Equipment slot management (install/uninstall)
+    - Loadout validation (outfit space, requirements)
+    - Combined stats calculation from all equipment
+  - Outfitting manager:
+    - Thread-safe equipment catalog
+    - Player inventory system for owned equipment
+    - Purchase/sell equipment (70% sell-back price)
+    - Install/uninstall equipment in loadout slots
+    - Loadout CRUD operations (create, load, save, delete)
+    - Compatibility checking for equipment installation
+  - Enhanced outfitter UI:
+    - Equipment Browser: Browse by category (Weapons, Defense, Power, Propulsion, Utility)
+    - Ship Slots: View and manage installed equipment
+    - Loadouts: Create, save, and load ship configurations
+    - Inventory: Manage owned equipment, sell unused items
+    - Tab-based navigation for easy access
+    - Real-time combined stats display
+    - Equipment purchase/install workflow
+  - Equipment metadata:
+    - Tech level requirements
+    - License requirements for military/experimental gear
+    - Rarity tiers (common, uncommon, rare, military, experimental)
+    - Faction-specific equipment
+    - Outfit space costs
+    - Price ranges (5K cr - 200K cr)
+  - Loadout features:
+    - Total cost calculation
+    - Outfit space usage tracking
+    - Required systems validation (reactor, engine)
+    - Equipment bonus stacking
+    - Loadout cloning for variations
+  - Player inventory management:
+    - Track owned equipment quantities
+    - Purchase equipment from stations
+    - Sell equipment for credits
+    - Install from inventory to ship
+    - Uninstall returns to inventory
+  - Foundation for future features:
+    - Ship-specific equipment bonuses
+    - Set bonuses for matching equipment
+    - Legendary/unique equipment drops
+    - Equipment modification/upgrading
+    - Equipment crafting system
+    - Equipment wear and maintenance
+    - Tech tree progression
+
 - **Random Encounter System (Phase 7, Content)**:
   - Dynamic random encounters during space travel
   - 14 encounter types across 5 rarity tiers:

@@ -11,6 +11,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/outfitting"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
@@ -43,6 +44,7 @@ const (
 	ScreenTrade
 	ScreenPvP
 	ScreenHelp
+	ScreenOutfitterEnhanced
 	ScreenSettings
 	ScreenRegistration
 )
@@ -91,6 +93,7 @@ type Model struct {
 	tradeModel     tradeModel
 	pvpModel       pvpModel
 	helpModel      helpModel
+	outfitterEnhanced outfitterEnhancedModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -122,6 +125,9 @@ type Model struct {
 
 	// Encounter system
 	encounterManager *encounters.Manager
+
+	// Outfitting system
+	outfittingManager *outfitting.Manager
 
 	// Error message
 	err error
@@ -177,6 +183,8 @@ func NewModel(
 		pvpManager:          pvp.NewManager(),
 		helpModel:           newHelpModel(),
 		encounterManager:    encounters.NewManager(),
+		outfitterEnhanced:   newOutfitterEnhancedModel(),
+		outfittingManager:   outfitting.NewManager(),
 	}
 }
 
@@ -316,6 +324,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updatePvP(msg)
 	case ScreenHelp:
 		return m.updateHelp(msg)
+	case ScreenOutfitterEnhanced:
+		return m.updateOutfitterEnhanced(msg)
 	default:
 		return m, nil
 	}
@@ -377,6 +387,8 @@ func (m Model) View() string {
 		return m.viewPvP()
 	case ScreenHelp:
 		return m.viewHelp()
+	case ScreenOutfitterEnhanced:
+		return m.viewOutfitterEnhanced()
 	default:
 		return "Unknown screen"
 	}
