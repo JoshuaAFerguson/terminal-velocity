@@ -167,6 +167,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - DPS calculation utilities
   - Weapon state tracking (ammo, cooldowns, last fired turn)
   - Ammo reload functionality
+- **Combat AI (Phase 4, Issue #16)**:
+  - 5 AI difficulty levels (Easy, Medium, Hard, Expert, Ace)
+  - Level-based attributes (aggression, accuracy, reaction time)
+  - Intelligent target selection with threat assessment
+  - Multi-factor targeting (hull/shield damage, threat level, distance)
+  - Weapon usage strategies (range optimization, ammo conservation)
+  - Shield penetration awareness in weapon selection
+  - Strategic missile usage (save for weakened targets)
+  - Evasion patterns based on ship condition
+  - Retreat conditions with morale system
+  - Level-dependent retreat thresholds
+  - Formation flying framework
+  - Position maintenance in formations
+  - AI action priority system
+  - Morale system (affected by hull damage)
+  - Reaction time delays (0.25s-2.0s based on level)
+  - Accuracy modifiers per difficulty level
 
 ### Changed
 - Module path corrected from github.com/s0v3r1gn to github.com/JoshuaAFerguson
