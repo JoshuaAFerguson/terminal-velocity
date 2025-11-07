@@ -17,6 +17,7 @@ const (
 	ScreenGame
 	ScreenNavigation
 	ScreenTrading
+	ScreenCargo
 	ScreenShipyard
 	ScreenMissions
 	ScreenSettings
@@ -51,6 +52,7 @@ type Model struct {
 	registration registrationModel
 	navigation   navigationModel
 	trading      tradingModel
+	cargo        cargoModel
 
 	// Error message
 	err error
@@ -79,6 +81,7 @@ func NewModel(
 		height:     24,
 		mainMenu:   newMainMenuModel(),
 		trading:    newTradingModel(),
+		cargo:      newCargoModel(),
 	}
 }
 
@@ -152,6 +155,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateNavigation(msg)
 	case ScreenTrading:
 		return m.updateTrading(msg)
+	case ScreenCargo:
+		return m.updateCargo(msg)
 	default:
 		return m, nil
 	}
@@ -181,6 +186,8 @@ func (m Model) View() string {
 		return m.viewNavigation()
 	case ScreenTrading:
 		return m.viewTrading()
+	case ScreenCargo:
+		return m.viewCargo()
 	default:
 		return "Unknown screen"
 	}

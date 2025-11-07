@@ -24,6 +24,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Launch", screen: ScreenGame},
 			{label: "Navigation", screen: ScreenNavigation},
 			{label: "Trading", screen: ScreenTrading},
+			{label: "Cargo Hold", screen: ScreenCargo},
 			{label: "Shipyard", screen: ScreenShipyard},
 			{label: "Missions", screen: ScreenMissions},
 			{label: "Settings", screen: ScreenSettings},
@@ -59,6 +60,10 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if selected.screen == ScreenTrading {
 				m.trading = newTradingModel()
 				return m, m.loadTradingMarket()
+			}
+			if selected.screen == ScreenCargo {
+				m.cargo = newCargoModel()
+				return m, nil
 			}
 
 			return m, nil
