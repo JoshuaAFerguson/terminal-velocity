@@ -107,7 +107,10 @@ func main() {
 		}
 
 	case "list":
-		listCmd.Parse(os.Args[2:])
+		if err := listCmd.Parse(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to parse flags: %v\n", err)
+			os.Exit(1)
+		}
 		err := listAccounts(ctx, playerRepo, *listVerbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to list accounts: %v\n", err)

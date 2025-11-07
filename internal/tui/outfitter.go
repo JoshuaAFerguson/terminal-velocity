@@ -620,7 +620,7 @@ func (m Model) executeInstall() tea.Cmd {
 			err = m.shipRepo.Update(ctx, m.currentShip)
 			if err != nil {
 				// Rollback credits
-				m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
+				_ = m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
 				return equipmentChangedMsg{success: false, err: err}
 			}
 
@@ -651,7 +651,7 @@ func (m Model) executeInstall() tea.Cmd {
 			err = m.shipRepo.Update(ctx, m.currentShip)
 			if err != nil {
 				// Rollback credits
-				m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
+				_ = m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
 				return equipmentChangedMsg{success: false, err: err}
 			}
 
@@ -688,7 +688,7 @@ func (m Model) executeRemove() tea.Cmd {
 			err = m.shipRepo.Update(ctx, m.currentShip)
 			if err != nil {
 				// Rollback credits
-				m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
+				_ = m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
 				return equipmentChangedMsg{success: false, err: err}
 			}
 
@@ -718,7 +718,7 @@ func (m Model) executeRemove() tea.Cmd {
 			err = m.shipRepo.Update(ctx, m.currentShip)
 			if err != nil {
 				// Rollback credits
-				m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
+				_ = m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
 				return equipmentChangedMsg{success: false, err: err}
 			}
 

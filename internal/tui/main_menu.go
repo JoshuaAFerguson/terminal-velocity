@@ -113,8 +113,9 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if selected.screen == ScreenSettings {
 				m.settingsModel = newSettingsModel()
 				// Load player settings
-				playerSettings, _ := m.settingsManager.LoadSettings(m.playerID)
-				m.settingsModel.settings = playerSettings
+				if playerSettings, err := m.settingsManager.LoadSettings(m.playerID); err == nil {
+					m.settingsModel.settings = playerSettings
+				}
 				return m, nil
 			}
 			if selected.screen == ScreenAdmin {

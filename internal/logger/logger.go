@@ -272,7 +272,16 @@ func WithComponent(component string) *Logger {
 		return defaultLogger.WithComponent(component)
 	}
 	// Return a basic logger if default is not initialized
-	l, _ := New(Config{Level: "info", ToStdout: true})
+	l, err := New(Config{Level: "info", ToStdout: true})
+	if err != nil {
+		// Fallback to a minimal logger
+		return &Logger{
+			logger:     log.New(os.Stdout, "", log.LstdFlags),
+			level:      LevelInfo,
+			component:  component,
+			withCaller: false,
+		}
+	}
 	return l.WithComponent(component)
 }
 
