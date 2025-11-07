@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/admin"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
@@ -47,6 +48,7 @@ const (
 	ScreenHelp
 	ScreenOutfitterEnhanced
 	ScreenSettings
+	ScreenAdmin
 	ScreenRegistration
 )
 
@@ -96,6 +98,7 @@ type Model struct {
 	helpModel      helpModel
 	outfitterEnhanced outfitterEnhancedModel
 	settingsModel  settingsModel
+	adminModel     adminModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -133,6 +136,9 @@ type Model struct {
 
 	// Settings system
 	settingsManager *settings.Manager
+
+	// Admin system
+	adminManager *admin.Manager
 
 	// Error message
 	err error
@@ -192,6 +198,8 @@ func NewModel(
 		outfittingManager:   outfitting.NewManager(),
 		settingsModel:       newSettingsModel(),
 		settingsManager:     settings.NewManager(".config/terminal-velocity"),
+		adminModel:          newAdminModel(),
+		adminManager:        admin.NewManager(playerRepo),
 	}
 }
 
@@ -335,6 +343,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateOutfitterEnhanced(msg)
 	case ScreenSettings:
 		return m.updateSettings(msg)
+	case ScreenAdmin:
+		return m.updateAdmin(msg)
 	default:
 		return m, nil
 	}
@@ -400,6 +410,8 @@ func (m Model) View() string {
 		return m.viewOutfitterEnhanced()
 	case ScreenSettings:
 		return m.viewSettings()
+	case ScreenAdmin:
+		return m.viewAdmin()
 	default:
 		return "Unknown screen"
 	}

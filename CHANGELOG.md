@@ -8,6 +8,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Server Administration & Monitoring System (Phase 7, Infrastructure & Polish)**:
+  - Role-based admin system with granular permissions
+  - Admin roles and hierarchy:
+    - Player: Normal player (no admin privileges)
+    - Moderator: Can kick, mute players, view sessions/metrics
+    - Admin: Full server settings, ban management, economy control
+    - SuperAdmin: Complete server control including shutdown/restart
+  - Permission system with 20+ specific permissions:
+    - Player management: kick, ban, mute, view/edit player data
+    - Server management: settings, shutdown, restart, view logs, execute commands
+    - Content management: edit economy, spawn items, edit systems/factions
+    - Monitoring: view metrics, sessions, database stats
+    - Communication: broadcast messages, view all chat
+  - Moderation tools:
+    - Player ban system with temporary or permanent bans
+    - IP-based banning support
+    - Ban expiration tracking
+    - Player mute system with configurable durations
+    - Automatic mute expiration
+    - Active ban/mute management and removal
+    - Protection against admins affecting other admins
+  - Server metrics collection:
+    - Real-time performance monitoring (CPU, memory, goroutines)
+    - Player statistics (total, active, peak, new players)
+    - Session metrics (active sessions, average time, commands)
+    - Game activity (trades, combats, jumps, transactions)
+    - Database health (connections, latency, errors)
+    - Background metrics worker (10-second intervals)
+  - Server settings management:
+    - General: server name, MOTD, max players, tick rate
+    - Economy: starting credits, multiplier, tax rate
+    - Difficulty: combat difficulty, pirate frequency, price volatility
+    - Rules: PvP enabled, permadeath mode, friendly fire
+    - Limits: max ships per player, cargo space, credits
+    - Timeouts: session timeout, autosave interval, cleanup interval
+    - Features: encounters, factions, achievements, leaderboards toggles
+  - Comprehensive audit logging:
+    - All admin actions logged with timestamps
+    - Action details: admin ID/name, target player, action type
+    - Success/failure tracking with error messages
+    - IP address logging for security
+    - Searchable action history (10,000 action buffer)
+    - Automatic log trimming to prevent memory bloat
+  - Admin UI dashboard with 7 views:
+    - Main menu: Quick access to all admin functions
+    - Player management: View and manage online players
+    - Ban management: View, create, and remove bans
+    - Mute management: View, create, and remove mutes
+    - Server metrics: Real-time performance and statistics
+    - Server settings: Configure server parameters
+    - Action log: View recent admin actions (last 20)
+  - Thread-safe concurrent operations with RWMutex
+  - Graceful shutdown with cleanup
+  - Admin statistics (total admins, active bans/mutes, action count)
 - **Session Management & Auto-Persistence System (Phase 7, Server Infrastructure)**:
   - Server-side session management for multiplayer gameplay
   - Automatic state persistence (no player-controlled saves)

@@ -40,6 +40,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "News", screen: ScreenNews},
 			{label: "Help", screen: ScreenHelp},
 			{label: "Settings", screen: ScreenSettings},
+			{label: "Admin Panel", screen: ScreenAdmin},
 			{label: "Quit", action: func(m *Model) tea.Cmd { return tea.Quit }},
 		},
 	}
@@ -105,6 +106,17 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Load player settings
 				playerSettings, _ := m.settingsManager.LoadSettings(m.playerID)
 				m.settingsModel.settings = playerSettings
+				return m, nil
+			}
+			if selected.screen == ScreenAdmin {
+				m.adminModel = newAdminModel()
+				// Check if player is admin
+				m.adminModel.isAdmin = m.adminManager.IsAdmin(m.playerID)
+				if m.adminModel.isAdmin {
+					// Get admin role from manager
+					// For now, default to moderator
+					m.adminModel.role = "moderator"
+				}
 				return m, nil
 			}
 
