@@ -27,6 +27,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bounty target cleanup on mission completion
   - Support for multi-target bounty missions
   - Progress messages for partial bounty completion
+- **Achievement System (Phase 5, Issue #24)**:
+  - 25 predefined achievements across 7 categories
+  - Achievement categories: Combat, Trading, Exploration, Missions, Wealth, Ships, Special
+  - 5 rarity tiers: Common, Uncommon, Rare, Epic, Legendary
+  - Achievement point system (10-200 points per achievement)
+  - Automatic unlock detection based on player stats
+  - Progress tracking toward locked achievements (0-100%)
+  - Hidden achievements for special accomplishments
+  - Achievement UI with filtering and sorting
+  - Tab-based navigation (All/Unlocked/Locked/Category filters)
+  - Visual progress bars for locked achievements
+  - Real-time unlock notifications in combat and trading
+  - Integration with progression system
+  - Achievement manager for tracking unlocks
+  - GetRecentUnlocks() for displaying latest achievements
 - **Player Progression System (Phase 5, Issue #23)**:
   - Combat rating calculation (0-100 scale with sqrt diminishing returns)
   - Trading rating calculation (profit-based with volume multiplier)
@@ -79,6 +94,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mission UI (internal/tui/missions.go)**:
   - Updated mission abandonment to track failures
   - Added player parameter to FailMission() calls
+- **Main Model (internal/tui/model.go)**:
+  - Added achievement manager integration
+  - Added ScreenAchievements to screen constants
+  - Added achievementsUI and achievementManager fields
+  - Added pendingAchievements queue for unlock notifications
+  - Added checkAchievements() helper method
+  - Added getAchievementNotification() and clearAchievementNotification()
+  - Integrated achievements screen routing in Update() and View()
+- **View Styles (internal/tui/views.go)**:
+  - Added highlightStyle for emphasized text
+  - Added successStyle for positive indicators
+  - Added normalStyle for neutral text
+- **Main Menu (internal/tui/main_menu.go)**:
+  - Added Achievements menu item
+
+### Added Files
+- **Achievement Model (internal/models/achievement.go)**:
+  - Complete achievement data structures
+  - 25 predefined achievements with criteria
+  - IsUnlocked() and CalculateProgress() methods
+  - Rarity color system
+- **Achievement Manager (internal/achievements/manager.go)**:
+  - Achievement tracking and unlock detection
+  - Progress calculation
+  - Filtering by category and status
+  - Point calculation system
+- **Achievement UI (internal/tui/achievements.go)**:
+  - Complete achievements screen
+  - Tab-based filtering
+  - Progress bar rendering
+  - Unlock status display
 
 ## [0.4.0] - 2025-01-07
 

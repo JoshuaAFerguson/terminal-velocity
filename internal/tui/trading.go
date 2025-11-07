@@ -142,11 +142,24 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.player != nil {
 				m.player.RecordTrade(msg.profit)
 
+				// Check for achievement unlocks
+				m.checkAchievements()
+
 				// Show rank update on milestone achievements
 				tradingRating := m.player.TradingRating
 				if tradingRating > 0 && tradingRating%10 == 0 { // Every 10 points
 					rankTitle := m.player.GetTradingRankTitle()
 					m.trading.error = fmt.Sprintf("Trading Rank: %s (Rating: %d)", rankTitle, tradingRating)
+				}
+
+				// Show achievement notification if any
+				if notification := m.getAchievementNotification(); notification != "" {
+					if m.trading.error == "" {
+						m.trading.error = notification
+					} else {
+						m.trading.error += "\n" + notification
+					}
+					m.clearAchievementNotification()
 				}
 			}
 

@@ -222,10 +222,19 @@ func (m Model) executeFireWeapon() (tea.Model, tea.Cmd) {
 		if m.player != nil {
 			m.player.RecordKill()
 
+			// Check for achievement unlocks
+			m.checkAchievements()
+
 			// Show rating update if it changed
 			newRating := m.player.CombatRating
 			if newRating%10 == 0 { // Show message every 10 points
 				m.addCombatLog(fmt.Sprintf("Combat Rating: %d (%s)", newRating, m.player.GetCombatRankTitle()))
+			}
+
+			// Show achievement notification if any
+			if notification := m.getAchievementNotification(); notification != "" {
+				m.addCombatLog(notification)
+				m.clearAchievementNotification()
 			}
 		}
 

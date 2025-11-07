@@ -45,6 +45,16 @@ var (
 	statsStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("228")). // Yellow
 			Bold(true)
+
+	highlightStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("39")). // Cyan
+			Bold(true)
+
+	successStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("46")) // Green
+
+	normalStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("255")) // White
 )
 
 // loadingView shows a loading screen

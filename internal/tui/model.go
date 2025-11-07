@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/charmbracelet/bubbletea"
@@ -23,6 +24,7 @@ const (
 	ScreenShipManagement
 	ScreenCombat
 	ScreenMissions
+	ScreenAchievements
 	ScreenSettings
 	ScreenRegistration
 )
@@ -61,6 +63,11 @@ type Model struct {
 	shipManagement shipManagementModel
 	combat         combatModel
 	missions       missionsModel
+	achievementsUI achievementsModel
+
+	// Achievement tracking
+	achievementManager *achievements.Manager
+	pendingAchievements []*models.Achievement // Newly unlocked, pending display
 
 	// Error message
 	err error
@@ -77,24 +84,27 @@ func NewModel(
 	marketRepo *database.MarketRepository,
 ) Model {
 	return Model{
-		screen:         ScreenMainMenu,
-		playerID:       playerID,
-		username:       username,
-		playerRepo:     playerRepo,
-		systemRepo:     systemRepo,
-		sshKeyRepo:     sshKeyRepo,
-		shipRepo:       shipRepo,
-		marketRepo:     marketRepo,
-		width:          80,
-		height:         24,
-		mainMenu:       newMainMenuModel(),
-		trading:        newTradingModel(),
-		cargo:          newCargoModel(),
-		shipyard:       newShipyardModel(),
-		outfitter:      newOutfitterModel(),
-		shipManagement: newShipManagementModel(),
-		combat:         newCombatModel(),
-		missions:       newMissionsModel(),
+		screen:              ScreenMainMenu,
+		playerID:            playerID,
+		username:            username,
+		playerRepo:          playerRepo,
+		systemRepo:          systemRepo,
+		sshKeyRepo:          sshKeyRepo,
+		shipRepo:            shipRepo,
+		marketRepo:          marketRepo,
+		width:               80,
+		height:              24,
+		mainMenu:            newMainMenuModel(),
+		trading:             newTradingModel(),
+		cargo:               newCargoModel(),
+		shipyard:            newShipyardModel(),
+		outfitter:           newOutfitterModel(),
+		shipManagement:      newShipManagementModel(),
+		combat:              newCombatModel(),
+		missions:            newMissionsModel(),
+		achievementsUI:      newAchievementsModel(),
+		achievementManager:  achievements.NewManager(),
+		pendingAchievements: []*models.Achievement{},
 	}
 }
 
@@ -180,6 +190,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCombat(msg)
 	case ScreenMissions:
 		return m.updateMissions(msg)
+	case ScreenAchievements:
+		return m.updateAchievements(msg)
 	default:
 		return m, nil
 	}
@@ -221,6 +233,8 @@ func (m Model) View() string {
 		return m.viewCombat()
 	case ScreenMissions:
 		return m.viewMissions()
+	case ScreenAchievements:
+		return m.viewAchievements()
 	default:
 		return "Unknown screen"
 	}
@@ -260,4 +274,38 @@ func (m Model) loadPlayer() tea.Cmd {
 func (m *Model) changeScreen(screen Screen) tea.Cmd {
 	m.screen = screen
 	return nil
+}
+
+// checkAchievements checks for newly unlocked achievements and queues them for display
+//
+// This should be called after any player action that might unlock achievements
+// (kills, trades, mission completions, etc.)
+func (m *Model) checkAchievements() {
+	if m.player == nil || m.achievementManager == nil {
+		return
+	}
+
+	newUnlocks := m.achievementManager.CheckNewUnlocks(m.player)
+	if len(newUnlocks) > 0 {
+		m.pendingAchievements = append(m.pendingAchievements, newUnlocks...)
+	}
+}
+
+// getAchievementNotification returns a notification message for pending achievements
+//
+// Returns empty string if no pending achievements
+func (m *Model) getAchievementNotification() string {
+	if len(m.pendingAchievements) == 0 {
+		return ""
+	}
+
+	achievement := m.pendingAchievements[0]
+	return achievement.Icon + " Achievement Unlocked: " + achievement.Title + " (" + string(achievement.Rarity) + ", " + string(achievement.Points) + " pts)"
+}
+
+// clearAchievementNotification removes the first pending achievement from the queue
+func (m *Model) clearAchievementNotification() {
+	if len(m.pendingAchievements) > 0 {
+		m.pendingAchievements = m.pendingAchievements[1:]
+	}
 }
