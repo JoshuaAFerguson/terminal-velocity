@@ -246,11 +246,20 @@ When you connect, you'll be greeted by an interactive tutorial system that guide
 
 ## Documentation
 
+### Essential Guides
+- **[📖 Wiki](https://github.com/JoshuaAFerguson/terminal-velocity/wiki)** - Comprehensive player and developer guides
+- [QUICKSTART.md](QUICKSTART.md) - Quick start guide
 - [ROADMAP.md](ROADMAP.md) - Development phases and status
 - [CHANGELOG.md](CHANGELOG.md) - Complete feature history
-- [QUICKSTART.md](QUICKSTART.md) - Quick start guide
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community standards
+
+### Wiki Highlights
+- [Getting Started](https://github.com/JoshuaAFerguson/terminal-velocity/wiki/Getting-Started) - Installation and first steps
+- [Gameplay Guide](https://github.com/JoshuaAFerguson/terminal-velocity/wiki/Gameplay-Guide) - Core mechanics
+- [Trading Guide](https://github.com/JoshuaAFerguson/terminal-velocity/wiki/Trading-Guide) - Economic strategies
+- [FAQ](https://github.com/JoshuaAFerguson/terminal-velocity/wiki/FAQ) - Common questions
+- [Architecture Overview](https://github.com/JoshuaAFerguson/terminal-velocity/wiki/Architecture-Overview) - Technical documentation
 
 ## Project Structure
 
@@ -290,13 +299,23 @@ terminal-velocity/
 └── scripts/             # Database migrations
 ```
 
+## Community
+
+### Get Involved
+- **[💬 Discussions](https://github.com/JoshuaAFerguson/terminal-velocity/discussions)** - Join the community!
+  - [Announcements](https://github.com/JoshuaAFerguson/terminal-velocity/discussions/categories/announcements) - Official updates
+  - [Q&A](https://github.com/JoshuaAFerguson/terminal-velocity/discussions/categories/q-a) - Ask questions
+  - [Show and Tell](https://github.com/JoshuaAFerguson/terminal-velocity/discussions/categories/show-and-tell) - Share achievements
+  - [Ideas](https://github.com/JoshuaAFerguson/terminal-velocity/discussions/categories/ideas) - Suggest features
+- **[🐛 Issues](https://github.com/JoshuaAFerguson/terminal-velocity/issues)** - Report bugs and track progress
+
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **Ways to Contribute**:
-- Report bugs via GitHub Issues
-- Suggest features or improvements
+- Report bugs via [GitHub Issues](https://github.com/JoshuaAFerguson/terminal-velocity/issues)
+- Suggest features in [Discussions](https://github.com/JoshuaAFerguson/terminal-velocity/discussions/categories/ideas)
 - Submit pull requests
 - Write documentation
 - Create content (quests, events, ships)
