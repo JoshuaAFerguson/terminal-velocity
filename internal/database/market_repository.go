@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/errors"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
@@ -47,12 +48,16 @@ func (r *MarketRepository) GetMarketPrice(ctx context.Context, planetID uuid.UUI
 	)
 
 	if err == sql.ErrNoRows {
+		log.Debug("Market price not found: planet_id=%s, commodity_id=%s", planetID, commodityID)
 		return nil, ErrMarketPriceNotFound
 	}
 	if err != nil {
+		errors.RecordGlobalError("market_repository", "query_price", err)
+		log.Error("Failed to query market price: planet_id=%s, commodity_id=%s, error=%v", planetID, commodityID, err)
 		return nil, fmt.Errorf("failed to query market price: %w", err)
 	}
 
+	log.Debug("Retrieved market price: planet_id=%s, commodity_id=%s", planetID, commodityID)
 	return &price, nil
 }
 
@@ -67,6 +72,8 @@ func (r *MarketRepository) GetMarketPricesForPlanet(ctx context.Context, planetI
 
 	rows, err := r.db.QueryContext(ctx, query, planetID)
 	if err != nil {
+		errors.RecordGlobalError("market_repository", "query_planet_prices", err)
+		log.Error("Failed to query market prices for planet: planet_id=%s, error=%v", planetID, err)
 		return nil, fmt.Errorf("failed to query market prices: %w", err)
 	}
 	defer rows.Close()
@@ -84,15 +91,18 @@ func (r *MarketRepository) GetMarketPricesForPlanet(ctx context.Context, planetI
 			&price.LastUpdate,
 		)
 		if err != nil {
+			log.Error("Failed to scan market price row: planet_id=%s, error=%v", planetID, err)
 			return nil, fmt.Errorf("failed to scan market price: %w", err)
 		}
 		prices = append(prices, &price)
 	}
 
 	if err := rows.Err(); err != nil {
+		log.Error("Error iterating market prices: planet_id=%s, error=%v", planetID, err)
 		return nil, fmt.Errorf("error iterating market prices: %w", err)
 	}
 
+	log.Debug("Retrieved %d market prices for planet: planet_id=%s", len(prices), planetID)
 	return prices, nil
 }
 
@@ -121,9 +131,12 @@ func (r *MarketRepository) UpsertMarketPrice(ctx context.Context, price *models.
 	)
 
 	if err != nil {
+		errors.RecordGlobalError("market_repository", "upsert_price", err)
+		log.Error("Failed to upsert market price: planet_id=%s, commodity_id=%s, error=%v", price.PlanetID, price.CommodityID, err)
 		return fmt.Errorf("failed to upsert market price: %w", err)
 	}
 
+	log.Debug("Upserted market price: planet_id=%s, commodity_id=%s", price.PlanetID, price.CommodityID)
 	return nil
 }
 
@@ -146,18 +159,23 @@ func (r *MarketRepository) UpdateMarketPrice(ctx context.Context, price *models.
 	)
 
 	if err != nil {
+		errors.RecordGlobalError("market_repository", "update_price", err)
+		log.Error("Failed to update market price: planet_id=%s, commodity_id=%s, error=%v", price.PlanetID, price.CommodityID, err)
 		return fmt.Errorf("failed to update market price: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		log.Error("Failed to get rows affected: planet_id=%s, commodity_id=%s, error=%v", price.PlanetID, price.CommodityID, err)
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
+		log.Debug("Market price not found for update: planet_id=%s, commodity_id=%s", price.PlanetID, price.CommodityID)
 		return ErrMarketPriceNotFound
 	}
 
+	log.Debug("Updated market price: planet_id=%s, commodity_id=%s", price.PlanetID, price.CommodityID)
 	return nil
 }
 
@@ -167,18 +185,23 @@ func (r *MarketRepository) DeleteMarketPrice(ctx context.Context, planetID uuid.
 
 	result, err := r.db.ExecContext(ctx, query, planetID, commodityID)
 	if err != nil {
+		errors.RecordGlobalError("market_repository", "delete_price", err)
+		log.Error("Failed to delete market price: planet_id=%s, commodity_id=%s, error=%v", planetID, commodityID, err)
 		return fmt.Errorf("failed to delete market price: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		log.Error("Failed to get rows affected: planet_id=%s, commodity_id=%s, error=%v", planetID, commodityID, err)
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
+		log.Debug("Market price not found for deletion: planet_id=%s, commodity_id=%s", planetID, commodityID)
 		return ErrMarketPriceNotFound
 	}
 
+	log.Debug("Deleted market price: planet_id=%s, commodity_id=%s", planetID, commodityID)
 	return nil
 }
 
@@ -202,6 +225,7 @@ func (r *MarketRepository) GetStaleMarkets(ctx context.Context, olderThanSeconds
 	currentTime := sql.NullInt64{Int64: olderThanSeconds, Valid: true}
 	rows, err := r.db.QueryContext(ctx, query, currentTime)
 	if err != nil {
+		log.Error("Failed to query stale markets: olderThan=%d, error=%v", olderThanSeconds, err)
 		return nil, fmt.Errorf("failed to query stale markets: %w", err)
 	}
 	defer rows.Close()
@@ -219,15 +243,18 @@ func (r *MarketRepository) GetStaleMarkets(ctx context.Context, olderThanSeconds
 			&price.LastUpdate,
 		)
 		if err != nil {
+			log.Error("Failed to scan stale market price row: error=%v", err)
 			return nil, fmt.Errorf("failed to scan market price: %w", err)
 		}
 		prices = append(prices, &price)
 	}
 
 	if err := rows.Err(); err != nil {
+		log.Error("Error iterating stale markets: error=%v", err)
 		return nil, fmt.Errorf("error iterating stale markets: %w", err)
 	}
 
+	log.Debug("Found %d stale markets older than %d seconds", len(prices), olderThanSeconds)
 	return prices, nil
 }
 
