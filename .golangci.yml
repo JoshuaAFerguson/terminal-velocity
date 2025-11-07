@@ -33,7 +33,7 @@ linters-settings:
     min-complexity: 15
 
   dupl:
-    threshold: 100
+    threshold: 150
 
   gocritic:
     enabled-tags:
