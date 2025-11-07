@@ -11,6 +11,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/trade"
 	"github.com/charmbracelet/bubbletea"
@@ -39,6 +40,7 @@ const (
 	ScreenChat
 	ScreenFactions
 	ScreenTrade
+	ScreenPvP
 	ScreenSettings
 	ScreenRegistration
 )
@@ -85,6 +87,7 @@ type Model struct {
 	chatModel      chatModel
 	factionsModel  factionsModel
 	tradeModel     tradeModel
+	pvpModel       pvpModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -110,6 +113,9 @@ type Model struct {
 
 	// Trade system
 	tradeManager *trade.Manager
+
+	// PvP system
+	pvpManager *pvp.Manager
 
 	// Error message
 	err error
@@ -161,6 +167,8 @@ func NewModel(
 		territoryManager:    territory.NewManager(),
 		tradeModel:          newTradeModel(),
 		tradeManager:        trade.NewManager(),
+		pvpModel:            newPvPModel(),
+		pvpManager:          pvp.NewManager(),
 	}
 }
 
@@ -296,6 +304,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateFactions(msg)
 	case ScreenTrade:
 		return m.updateTrade(msg)
+	case ScreenPvP:
+		return m.updatePvP(msg)
 	default:
 		return m, nil
 	}
@@ -353,6 +363,8 @@ func (m Model) View() string {
 		return m.viewFactions()
 	case ScreenTrade:
 		return m.viewTrade()
+	case ScreenPvP:
+		return m.viewPvP()
 	default:
 		return "Unknown screen"
 	}

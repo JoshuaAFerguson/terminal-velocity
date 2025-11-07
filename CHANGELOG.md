@@ -8,6 +8,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **PvP Combat System with Bounties (Phase 6, Issue #33)**:
+  - Complete player-versus-player combat system with consent mechanics
+  - Combat challenge models:
+    - 5 challenge types: Duel, Aggression, Bounty Hunt, Faction War, Defense
+    - 6 status states: Pending, Accepted, Active, Declined, Expired, Complete
+    - Wager system for stakes-based combat
+    - Consent system (required for duels, optional for faction wars)
+    - 5-minute expiration on pending challenges
+    - Location tracking (system/planet requirements)
+  - Bounty system:
+    - Automatic bounties for aggressive players
+    - Wanted levels (1-5 stars): Minor → Suspect → Wanted → Dangerous → Most Wanted
+    - Crime tracking (kills, thefts, attacks, total value)
+    - Bounty amounts scale with crimes
+    - 7-day bounty expiration
+    - Bounty claiming rewards for hunters
+    - System-issued and faction-issued bounties
+  - Combat statistics and progression:
+    - Win/loss/draw record tracking
+    - Combat rating (0-1000) with 7 tiers: Novice → Elite
+    - Honor rating (0.0-1.0): Honorable → Villain
+    - Kill/death ratio calculation
+    - Win rate percentage
+    - Type-specific tracking (duels, bounty hunts, pirate kills)
+    - Aggression count and notoriety level
+    - Win streak tracking (current and longest)
+    - Total damage dealt/taken
+    - Financial tracking (credits won/lost)
+  - Combat results and resolution:
+    - Detailed result recording (damage, credits, cargo)
+    - Automatic bounty effects (added for aggression, claimed for hunts)
+    - Reputation changes based on combat type
+    - Combat duration tracking
+    - Loot system for cargo capture
+  - PvP manager with thread-safe operations:
+    - Create/accept/decline/complete challenges
+    - Bounty issuance and claiming
+    - Stats tracking and leaderboard
+    - Automatic challenge expiry cleanup
+    - Combat result history
+    - Player filtering (pending, all challenges)
+  - PvP UI with multiple views:
+    - Challenges tab: View sent/received challenges
+    - Bounties tab: See active bounties and your wanted status
+    - Stats tab: Personal statistics and leaderboard (top 10)
+    - Create Challenge dialog: Set target, type, wager, message
+    - Accept/Reject/Hunt controls
+    - Time remaining countdown
+    - Challenge type icons and status indicators
+  - Combat mechanics:
+    - Instant combat resolution (placeholder for full system)
+    - Winner determination
+    - Credit/cargo transfer
+    - Honor and rating adjustments
+    - Bounty consequence system
+  - Foundation for future features:
+    - Full turn-based combat system
+    - Ship damage and destruction
+    - Escape mechanics
+    - Territory defense battles
+    - Faction war campaigns
+    - Piracy and cargo raiding
 - **Player Trading System with Escrow (Phase 6, Issue #32)**:
   - Secure player-to-player trading with escrow protection
   - Trade offer models with comprehensive tracking:
