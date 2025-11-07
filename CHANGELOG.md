@@ -206,6 +206,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Weapon firing with full damage integration
   - Target destruction and removal
   - Three viewing modes (tactical, target_select, weapons)
+- **Reputation System (Phase 4, Issue #18)**:
+  - ReputationChange tracking with faction cascade effects
+  - 8 reputation event types (kill hostile/neutral/ally/civilian, defend, piracy, bounty)
+  - CalculateCombatReputation() with multi-faction relationship system
+  - Bounty system with expiration tracking
+  - BountyInfo structure (amount, reason, expiration)
+  - Legal status tracking (clean, offender, wanted, fugitive)
+  - LegalStatus with crime count and severity tracking
+  - Bounty amount calculation based on ship value and crime severity
+  - Pay-off system (1.5x bounty cost for bribes)
+  - Faction reinforcement logic based on reputation and territory
+  - WillFactionsReinforce() with turn-based arrival system
+  - Reinforcement strength calculation (1-5 ships based on patrol strength)
+  - Reinforcement delay based on faction capabilities (2-5 turns)
+  - Hostility level calculation (allied/friendly/neutral/unfriendly/hostile/at_war)
+  - ApplyReputationChanges() with -100 to +100 clamping
+  - Active bounty tracking across multiple factions
+  - GetReputationChangeMessage() for player feedback
 
 ### Changed
 - Module path corrected from github.com/s0v3r1gn to github.com/JoshuaAFerguson
