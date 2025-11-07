@@ -238,7 +238,7 @@ When you connect, you'll be greeted by an interactive tutorial system that guide
 
 ## Technology Stack
 
-- **Language**: Go 1.23+
+- **Language**: Go 1.24+
 - **UI Framework**: Bubble Tea + Lipgloss
 - **Database**: PostgreSQL with pgx
 - **SSH**: golang.org/x/crypto/ssh
