@@ -1,3 +1,10 @@
+// File: internal/game/universe/generator.go
+// Project: Terminal Velocity
+// Description: Procedural universe generation: generator
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package universe
 
 import (

@@ -1,3 +1,10 @@
+// File: internal/news/manager.go
+// Project: Terminal Velocity
+// Description: News generation system
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 // Package news provides news feed management and generation.
 //
 // This package handles:

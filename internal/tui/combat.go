@@ -1,3 +1,10 @@
+// File: internal/tui/combat.go
+// Project: Terminal Velocity
+// Description: Terminal UI component for combat
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package tui
 
 import (

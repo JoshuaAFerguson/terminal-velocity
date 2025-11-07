@@ -2,7 +2,7 @@
 // Project: Terminal Velocity
 // Description: Session management and auto-persistence for multiplayer server
 // Version: 1.0.0
-// Author: Terminal Velocity Development Team
+// Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package session

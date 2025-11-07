@@ -1,3 +1,10 @@
+// File: internal/game/trading/pricing.go
+// Project: Terminal Velocity
+// Description: Trading and pricing system
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package trading
 
 import (

@@ -1,3 +1,10 @@
+// File: internal/database/connection.go
+// Project: Terminal Velocity
+// Description: Database repository for connection
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package database
 
 import (

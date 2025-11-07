@@ -1,3 +1,10 @@
+// File: internal/encounters/generator.go
+// Project: Terminal Velocity
+// Description: Random encounter system
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 // Package encounters provides random encounter generation and management.
 //
 // This package handles:

@@ -1,3 +1,10 @@
+// File: internal/tui/main_menu.go
+// Project: Terminal Velocity
+// Description: Terminal UI component for main_menu
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package tui
 
 import (

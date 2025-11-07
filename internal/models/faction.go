@@ -1,3 +1,10 @@
+// File: internal/models/faction.go
+// Project: Terminal Velocity
+// Description: Data models for faction
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package models
 
 import (

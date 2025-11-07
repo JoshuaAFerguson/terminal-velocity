@@ -1,3 +1,10 @@
+// File: internal/models/achievement.go
+// Project: Terminal Velocity
+// Description: Data models for achievement
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 // Package models - Achievement system definitions
 //
 // This file defines the achievement system for tracking player accomplishments.

@@ -1,3 +1,10 @@
+// File: internal/combat/ai.go
+// Project: Terminal Velocity
+// Description: Combat system: ai
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package combat
 
 import (

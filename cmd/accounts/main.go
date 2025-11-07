@@ -1,3 +1,10 @@
+// File: cmd/accounts/main.go
+// Project: Terminal Velocity
+// Description: Account management CLI tool
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package main
 
 import (

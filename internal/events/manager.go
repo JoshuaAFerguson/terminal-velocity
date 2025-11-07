@@ -2,7 +2,7 @@
 // Project: Terminal Velocity
 // Description: Dynamic event management and scheduling
 // Version: 1.0.0
-// Author: Terminal Velocity Development Team
+// Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package events

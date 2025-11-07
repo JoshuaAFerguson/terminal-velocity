@@ -1,3 +1,10 @@
+// File: internal/models/news.go
+// Project: Terminal Velocity
+// Description: Data models for news
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 // Package models - News and events system definitions
 //
 // This file defines the dynamic news and events system that generates

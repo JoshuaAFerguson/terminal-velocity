@@ -1,3 +1,10 @@
+// File: internal/missions/manager.go
+// Project: Terminal Velocity
+// Description: Mission system manager
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 // Package missions provides mission lifecycle management and generation.
 //
 // This package handles all aspects of the mission system including:

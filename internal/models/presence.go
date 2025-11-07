@@ -2,7 +2,7 @@
 // Project: Terminal Velocity
 // Description: Player presence tracking for multiplayer visibility and interaction
 // Version: 1.0.0
-// Author: Terminal Velocity Development Team
+// Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package models

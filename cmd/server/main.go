@@ -1,3 +1,10 @@
+// File: cmd/server/main.go
+// Project: Terminal Velocity
+// Description: Main SSH game server entry point
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package main
 
 import (

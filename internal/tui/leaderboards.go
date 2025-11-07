@@ -2,7 +2,7 @@
 // Project: Terminal Velocity
 // Description: Leaderboard UI displaying competitive rankings across multiple categories
 // Version: 1.0.0
-// Author: Terminal Velocity Development Team
+// Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package tui

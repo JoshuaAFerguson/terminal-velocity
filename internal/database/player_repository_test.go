@@ -1,3 +1,10 @@
+// File: internal/database/player_repository_test.go
+// Project: Terminal Velocity
+// Description: Database repository for player_repository_test
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package database
 
 import (

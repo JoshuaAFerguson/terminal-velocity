@@ -1,3 +1,10 @@
+// File: internal/models/encounter.go
+// Project: Terminal Velocity
+// Description: Data models for encounter
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 // Package models - Random encounter definitions
 //
 // This file defines the random encounter system for dynamic space events.

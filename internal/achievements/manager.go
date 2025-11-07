@@ -1,3 +1,10 @@
+// File: internal/achievements/manager.go
+// Project: Terminal Velocity
+// Description: Achievement tracking system
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 // Package achievements provides achievement tracking and management.
 //
 // This package handles:

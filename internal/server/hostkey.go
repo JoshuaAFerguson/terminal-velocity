@@ -1,3 +1,10 @@
+// File: internal/server/hostkey.go
+// Project: Terminal Velocity
+// Description: SSH server implementation and hostkey
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package server
 
 import (

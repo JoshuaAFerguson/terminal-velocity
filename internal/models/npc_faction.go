@@ -1,3 +1,10 @@
+// File: internal/models/npc_faction.go
+// Project: Terminal Velocity
+// Description: Data models for npc_faction
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package models
 
 // NPCFaction represents a non-player faction/government in the universe

@@ -1,3 +1,10 @@
+// File: internal/models/equipment.go
+// Project: Terminal Velocity
+// Description: Data models for equipment
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package models
 
 // Standard weapons available in the game

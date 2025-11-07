@@ -1,3 +1,10 @@
+// File: internal/database/system_repository.go
+// Project: Terminal Velocity
+// Description: Database repository for system_repository
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package database
 
 import (

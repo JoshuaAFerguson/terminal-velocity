@@ -2,7 +2,7 @@
 // Project: Terminal Velocity
 // Description: Tutorial system models and progression
 // Version: 1.0.0
-// Author: Terminal Velocity Development Team
+// Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package models

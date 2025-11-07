@@ -1,3 +1,10 @@
+// File: internal/models/ship_types.go
+// Project: Terminal Velocity
+// Description: Data models for ship_types
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package models
 
 // Standard ship types available in the game

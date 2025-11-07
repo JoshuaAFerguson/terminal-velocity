@@ -1,3 +1,10 @@
+// File: cmd/genmap/main.go
+// Project: Terminal Velocity
+// Description: Universe generation and preview tool
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package main
 
 import (

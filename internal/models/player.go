@@ -1,3 +1,10 @@
+// File: internal/models/player.go
+// Project: Terminal Velocity
+// Description: Data models for player
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 // Package models defines core game data structures.
 //
 // This package provides data models for all game entities including:

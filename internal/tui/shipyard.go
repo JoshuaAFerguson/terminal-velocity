@@ -1,3 +1,10 @@
+// File: internal/tui/shipyard.go
+// Project: Terminal Velocity
+// Description: Terminal UI component for shipyard
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package tui
 
 import (

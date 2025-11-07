@@ -1,3 +1,10 @@
+// File: internal/models/mission.go
+// Project: Terminal Velocity
+// Description: Data models for mission
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+
 package models
 
 import (
