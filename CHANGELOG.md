@@ -8,6 +8,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Help System & Interactive Tutorial (Phase 7, QoL)**:
+  - Comprehensive help documentation system
+  - Help topics covering all game systems:
+    - Getting Started: First steps and basic gameplay
+    - Navigation & Travel: Jumping, fuel, planets
+    - Trading & Economics: Profitable routes, pricing factors
+    - Combat System: Weapons, tactics, rewards
+    - Ships & Equipment: All 11 ship classes, upgrades
+    - Multiplayer Features: Factions, PvP, chat, trading
+    - Keyboard Shortcuts: Complete reference guide
+  - Interactive tutorial system:
+    - 13-step guided tutorial for new players
+    - Automatic progress tracking
+    - Objectives with hints for each step
+    - Tutorial covers: trading → navigation → upgrades → multiplayer
+    - Skip option available
+    - Progress percentage tracking
+  - Quick Reference Card:
+    - Condensed one-page game guide
+    - All essential information at a glance
+    - Key bindings summary
+    - Profitable trading tips
+    - Progression roadmap
+  - Help UI with multiple views:
+    - Topics list with icons
+    - Scrollable content viewer
+    - Tutorial progress display
+    - Quick reference viewer
+    - Navigation breadcrumbs
+  - Topic organization:
+    - 7 main topics
+    - Subtopic linking
+    - Context-specific key bindings
+    - Searchable content
+  - Tutorial objectives system:
+    - Action-based progression
+    - Automatic objective detection
+    - Completion rewards (future)
+    - Reset and skip functionality
+  - Accessibility features:
+    - Scroll support for long content
+    - Clear navigation controls
+    - Visual progress indicators
+    - Consistent UI patterns
 - **PvP Combat System with Bounties (Phase 6, Issue #33)**:
   - Complete player-versus-player combat system with consent mechanics
   - Combat challenge models:

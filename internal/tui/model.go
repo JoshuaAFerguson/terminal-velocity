@@ -41,6 +41,7 @@ const (
 	ScreenFactions
 	ScreenTrade
 	ScreenPvP
+	ScreenHelp
 	ScreenSettings
 	ScreenRegistration
 )
@@ -88,6 +89,7 @@ type Model struct {
 	factionsModel  factionsModel
 	tradeModel     tradeModel
 	pvpModel       pvpModel
+	helpModel      helpModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -169,6 +171,7 @@ func NewModel(
 		tradeManager:        trade.NewManager(),
 		pvpModel:            newPvPModel(),
 		pvpManager:          pvp.NewManager(),
+		helpModel:           newHelpModel(),
 	}
 }
 
@@ -306,6 +309,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTrade(msg)
 	case ScreenPvP:
 		return m.updatePvP(msg)
+	case ScreenHelp:
+		return m.updateHelp(msg)
 	default:
 		return m, nil
 	}
@@ -365,6 +370,8 @@ func (m Model) View() string {
 		return m.viewTrade()
 	case ScreenPvP:
 		return m.viewPvP()
+	case ScreenHelp:
+		return m.viewHelp()
 	default:
 		return "Unknown screen"
 	}
