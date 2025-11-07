@@ -142,6 +142,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade path recommendations
   - Value-per-credit analysis
   - Specific recommendations (combat vs trading focus)
+- **Ship Management Screens (Phase 3, Issue #14)**:
+  - Ship inventory view with all owned ships
+  - Active ship indicator and selection
+  - Ship switching functionality
+  - Ship renaming with input validation
+  - Configuration viewer (weapons, outfits, cargo)
+  - Hull/shield/fuel status display
+  - Maintenance status indicators
+  - Comprehensive ship details view
 
 ### Changed
 - Module path corrected from github.com/s0v3r1gn to github.com/JoshuaAFerguson

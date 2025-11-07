@@ -20,6 +20,7 @@ const (
 	ScreenCargo
 	ScreenShipyard
 	ScreenOutfitter
+	ScreenShipManagement
 	ScreenMissions
 	ScreenSettings
 	ScreenRegistration
@@ -48,14 +49,15 @@ type Model struct {
 	height int
 
 	// Sub-models for different screens
-	mainMenu     mainMenuModel
-	gameView     gameViewModel
-	registration registrationModel
-	navigation   navigationModel
-	trading      tradingModel
-	cargo        cargoModel
-	shipyard     shipyardModel
-	outfitter    outfitterModel
+	mainMenu       mainMenuModel
+	gameView       gameViewModel
+	registration   registrationModel
+	navigation     navigationModel
+	trading        tradingModel
+	cargo          cargoModel
+	shipyard       shipyardModel
+	outfitter      outfitterModel
+	shipManagement shipManagementModel
 
 	// Error message
 	err error
@@ -72,21 +74,22 @@ func NewModel(
 	marketRepo *database.MarketRepository,
 ) Model {
 	return Model{
-		screen:     ScreenMainMenu,
-		playerID:   playerID,
-		username:   username,
-		playerRepo: playerRepo,
-		systemRepo: systemRepo,
-		sshKeyRepo: sshKeyRepo,
-		shipRepo:   shipRepo,
-		marketRepo: marketRepo,
-		width:      80,
-		height:     24,
-		mainMenu:   newMainMenuModel(),
-		trading:    newTradingModel(),
-		cargo:      newCargoModel(),
-		shipyard:   newShipyardModel(),
-		outfitter:  newOutfitterModel(),
+		screen:         ScreenMainMenu,
+		playerID:       playerID,
+		username:       username,
+		playerRepo:     playerRepo,
+		systemRepo:     systemRepo,
+		sshKeyRepo:     sshKeyRepo,
+		shipRepo:       shipRepo,
+		marketRepo:     marketRepo,
+		width:          80,
+		height:         24,
+		mainMenu:       newMainMenuModel(),
+		trading:        newTradingModel(),
+		cargo:          newCargoModel(),
+		shipyard:       newShipyardModel(),
+		outfitter:      newOutfitterModel(),
+		shipManagement: newShipManagementModel(),
 	}
 }
 
@@ -166,6 +169,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateShipyard(msg)
 	case ScreenOutfitter:
 		return m.updateOutfitter(msg)
+	case ScreenShipManagement:
+		return m.updateShipManagement(msg)
 	default:
 		return m, nil
 	}
@@ -201,6 +206,8 @@ func (m Model) View() string {
 		return m.viewShipyard()
 	case ScreenOutfitter:
 		return m.viewOutfitter()
+	case ScreenShipManagement:
+		return m.viewShipManagement()
 	default:
 		return "Unknown screen"
 	}
