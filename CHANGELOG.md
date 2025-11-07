@@ -8,6 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Player Presence and Visibility System (Phase 6, Issue #28)**:
+  - Real-time player presence tracking for multiplayer visibility
+  - PlayerPresence model tracking:
+    - Online/offline status with last seen timestamps
+    - Current system and planet location
+    - Ship information (name and type)
+    - Current activity status (idle, trading, combat, navigating, etc.)
+    - Combat status and docked status
+    - Idle duration and AFK detection (5min threshold)
+    - Criminal status display
+  - Presence manager with thread-safe operations:
+    - Connect/disconnect handling
+    - Activity updates (11 activity types)
+    - Location tracking
+    - Ship information updates
+    - Heartbeat system for keepalive
+    - Stale session cleanup (15min timeout)
+  - Players UI with multiple views:
+    - All online players view
+    - Same system filter
+    - Nearby players (same system, not AFK)
+    - In combat filter
+    - Four sort modes (name, rating, online time, activity)
+    - Player statistics dashboard (combat, trading, docked, in space, AFK)
+  - Automatic presence initialization on player login
+  - Activity status indicators with emojis
+  - Online duration tracking and display
+  - Player interaction capability checking
+  - Foundation for multiplayer features (chat, PvP, trading)
 - **Leaderboards System (Phase 5, Issue #27)**:
   - Comprehensive competitive ranking system across 7 categories
   - Category leaderboards:

@@ -8,6 +8,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
@@ -30,6 +31,7 @@ const (
 	ScreenEncounter
 	ScreenNews
 	ScreenLeaderboards
+	ScreenPlayers
 	ScreenSettings
 	ScreenRegistration
 )
@@ -72,6 +74,7 @@ type Model struct {
 	encounterModel encounterModel
 	newsModel      newsModel
 	leaderboardsModel leaderboardsModel
+	playersModel   playersModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -82,6 +85,9 @@ type Model struct {
 
 	// Leaderboards system
 	leaderboardManager *leaderboards.Manager
+
+	// Presence system
+	presenceManager *presence.Manager
 
 	// Error message
 	err error
@@ -124,6 +130,8 @@ func NewModel(
 		newsManager:         news.NewManager(),
 		leaderboardsModel:   newLeaderboardsModel(),
 		leaderboardManager:  leaderboards.NewManager(),
+		playersModel:        newPlayersModel(),
+		presenceManager:     presence.NewManager(),
 	}
 }
 
@@ -131,6 +139,27 @@ func NewModel(
 func (m *Model) InitializeNews() {
 	if m.newsManager != nil {
 		m.newsManager.GenerateInitialNews()
+	}
+}
+
+// InitializePresence registers the player as online
+func (m *Model) InitializePresence() {
+	if m.presenceManager != nil && m.player != nil {
+		m.presenceManager.Connect(m.player, m.currentShip)
+	}
+}
+
+// UpdatePresenceActivity updates the player's current activity
+func (m *Model) UpdatePresenceActivity(activity models.ActivityType) {
+	if m.presenceManager != nil {
+		m.presenceManager.UpdateActivity(m.playerID, activity)
+	}
+}
+
+// UpdatePresenceLocation updates the player's location
+func (m *Model) UpdatePresenceLocation(systemID uuid.UUID, planetID *uuid.UUID) {
+	if m.presenceManager != nil {
+		m.presenceManager.UpdateLocation(m.playerID, systemID, planetID)
 	}
 }
 
@@ -189,6 +218,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.player = msg.player
 		m.currentShip = msg.ship
 		m.err = msg.err
+
+		// Initialize presence when player loads
+		if m.player != nil && m.err == nil {
+			m.InitializePresence()
+		}
+
 		return m, nil
 	}
 
@@ -224,6 +259,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateNews(msg)
 	case ScreenLeaderboards:
 		return m.updateLeaderboards(msg)
+	case ScreenPlayers:
+		return m.updatePlayers(msg)
 	default:
 		return m, nil
 	}
@@ -273,6 +310,8 @@ func (m Model) View() string {
 		return m.viewNews()
 	case ScreenLeaderboards:
 		return m.viewLeaderboards()
+	case ScreenPlayers:
+		return m.viewPlayers()
 	default:
 		return "Unknown screen"
 	}
