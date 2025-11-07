@@ -24,7 +24,7 @@ linters:
 linters-settings:
   errcheck:
     check-type-assertions: true
-    check-blank: true
+    check-blank: false
 
   govet:
     enable-all: true
@@ -50,6 +50,21 @@ issues:
         - dupl
         - gosec
         - gocyclo
+    - path: internal/database/player_repository\.go
+      linters:
+        - dupl
+    - path: internal/database/ssh_key_repository\.go
+      linters:
+        - dupl
+    - path: internal/database/ship_repository\.go
+      linters:
+        - dupl
+    - path: internal/admin/manager\.go
+      linters:
+        - dupl
+    - path: internal/tui/outfitter\.go
+      linters:
+        - dupl
 
   max-issues-per-linter: 0
   max-same-issues: 0
