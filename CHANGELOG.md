@@ -8,6 +8,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Session Management & Auto-Persistence System (Phase 7, Server Infrastructure)**:
+  - Server-side session management for multiplayer gameplay
+  - Automatic state persistence (no player-controlled saves)
+  - Session tracking and monitoring:
+    - Active player session tracking
+    - Connection time and last activity timestamps
+    - Per-session statistics (actions, commands, errors)
+    - Current screen/state tracking
+    - IP address logging for security
+  - Auto-persistence features:
+    - Automatic saving every 30 seconds for dirty state
+    - Background autosave worker
+    - Dirty state tracking (unsaved changes detection)
+    - Graceful disconnect handling with final save
+    - Last save timestamp tracking
+  - Session lifecycle management:
+    - Session creation on player connect
+    - Activity updates on player actions
+    - Command execution tracking
+    - Error logging per session
+    - Session termination with state preservation
+  - Inactivity management:
+    - Background cleanup worker
+    - Configurable inactivity timeout (default: 15 minutes)
+    - Automatic session cleanup for disconnected players
+    - Final state save before cleanup
+  - Session statistics:
+    - Total and active session counts
+    - Commands executed per session
+    - Errors encountered tracking
+    - Session duration calculation
+    - Idle time monitoring
+  - Configuration options:
+    - Adjustable autosave interval (default: 30 seconds)
+    - Configurable inactivity timeout
+    - Enable/disable autosave toggle
+    - Per-player session isolation
+  - Database integration:
+    - Automatic player state persistence
+    - Ship state saving
+    - Repository-based architecture
+    - Context-aware operations for cancellation
+  - Background workers:
+    - Autosave worker (periodic state saving)
+    - Cleanup worker (inactive session removal)
+    - Graceful shutdown handling
+    - WaitGroup synchronization for clean exits
+  - Thread safety:
+    - Sync.RWMutex for concurrent access
+    - Safe session creation/deletion
+    - Lock-free statistics gathering
+    - Atomic state updates
+  - Foundation for future features:
+    - Session migration for server upgrades
+    - Cross-server session transfer
+    - Session replay/history
+    - Player reconnection with state restoration
+    - Admin tools for session management
+    - Analytics and monitoring integration
+
 - **Settings & Configuration System (Phase 7, Polish)**:
   - Comprehensive settings system with 6 categories:
     - Display: Visual appearance and UI customization
