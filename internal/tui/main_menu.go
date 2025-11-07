@@ -40,6 +40,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "News", screen: ScreenNews},
 			{label: "Help", screen: ScreenHelp},
 			{label: "Settings", screen: ScreenSettings},
+			{label: "Tutorials", screen: ScreenTutorial},
 			{label: "Admin Panel", screen: ScreenAdmin},
 			{label: "Quit", action: func(m *Model) tea.Cmd { return tea.Quit }},
 		},
@@ -117,6 +118,12 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// For now, default to moderator
 					m.adminModel.role = "moderator"
 				}
+				return m, nil
+			}
+			if selected.screen == ScreenTutorial {
+				m.tutorialModel = newTutorialModel()
+				m.tutorialModel.viewMode = tutorialViewList
+				m.tutorialModel.allTutorials = m.tutorialManager.GetAllTutorials()
 				return m, nil
 			}
 

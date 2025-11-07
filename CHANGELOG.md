@@ -8,6 +8,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Interactive Tutorial & Onboarding System (Phase 7, Content & Polish)**:
+  - Comprehensive tutorial system for new player onboarding
+  - Tutorial categories and progression:
+    - Basics: Welcome, navigation, credits system (3 steps)
+    - Trading: Market mechanics, buying/selling, price understanding (3 steps)
+    - Navigation: Star map, jumping between systems (2 steps)
+    - Ship Management: Shipyard, outfitting, cargo management (3 steps)
+    - Combat: Encounters, fighting, strategy (3 steps)
+    - Missions: Mission board, accepting, completing (3 steps)
+    - Multiplayer: Players, chat, factions (3 steps, optional)
+  - Tutorial features:
+    - Step-by-step guided tutorials with clear objectives
+    - Progressive hint system (3 hint levels per step)
+    - Tutorial overlay system on active screens
+    - Tutorial list view showing progress for all tutorials
+    - Full-screen tutorial view with detailed instructions
+    - Completion tracking with percentage progress
+    - Step skipping and tutorial disabling options
+    - Toggle tutorial overlay visibility (press T)
+  - Tutorial progression:
+    - Prerequisite system (tutorials unlock sequentially)
+    - Auto-triggered tutorials on first actions
+    - Context-aware tutorials based on current screen
+    - Per-player tutorial progress tracking
+    - Category-based progress tracking
+    - Optional vs required tutorial distinction
+  - Tutorial triggers:
+    - First login: Welcome tutorial
+    - First trade: Trading tutorial
+    - First combat: Combat tutorial
+    - First jump: Navigation tutorial
+    - First mission: Missions tutorial
+    - Screen enter: Context-specific tutorials
+  - Tutorial UI:
+    - Elegant bordered overlay design
+    - Text wrapping for readable descriptions
+    - Progress indicators (overall and per-category)
+    - Visual completion icons (○ not started, ◐ in progress, ✓ complete)
+    - Color-coded UI elements
+    - Compact and non-intrusive overlay
+  - Tutorial management:
+    - 7 pre-defined tutorial sequences (20+ total steps)
+    - Thread-safe concurrent operations
+    - Per-player tutorial state persistence
+    - Enable/disable tutorial system per player
+    - Statistics tracking (completion %, steps completed/skipped)
+    - Tutorial customization support
 - **Server Administration & Monitoring System (Phase 7, Infrastructure & Polish)**:
   - Role-based admin system with granular permissions
   - Admin roles and hierarchy:

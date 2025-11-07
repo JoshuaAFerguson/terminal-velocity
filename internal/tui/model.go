@@ -18,6 +18,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/settings"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/trade"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/tutorial"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
@@ -49,6 +50,7 @@ const (
 	ScreenOutfitterEnhanced
 	ScreenSettings
 	ScreenAdmin
+	ScreenTutorial
 	ScreenRegistration
 )
 
@@ -99,6 +101,7 @@ type Model struct {
 	outfitterEnhanced outfitterEnhancedModel
 	settingsModel  settingsModel
 	adminModel     adminModel
+	tutorialModel  tutorialModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -139,6 +142,9 @@ type Model struct {
 
 	// Admin system
 	adminManager *admin.Manager
+
+	// Tutorial system
+	tutorialManager *tutorial.Manager
 
 	// Error message
 	err error
@@ -200,6 +206,17 @@ func NewModel(
 		settingsManager:     settings.NewManager(".config/terminal-velocity"),
 		adminModel:          newAdminModel(),
 		adminManager:        admin.NewManager(playerRepo),
+		tutorialModel:       newTutorialModel(),
+		tutorialManager:     tutorial.NewManager(),
+	}
+}
+
+// InitializeTutorials initializes tutorial progress for the player
+func (m *Model) InitializeTutorials() {
+	if m.tutorialManager != nil && m.playerID != uuid.Nil {
+		m.tutorialManager.InitializePlayer(m.playerID)
+		// Trigger first login tutorial
+		m.tutorialManager.HandleTrigger(m.playerID, models.TriggerFirstLogin)
 	}
 }
 
@@ -345,6 +362,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateSettings(msg)
 	case ScreenAdmin:
 		return m.updateAdmin(msg)
+	case ScreenTutorial:
+		return m.updateTutorial(msg)
 	default:
 		return m, nil
 	}
@@ -412,9 +431,16 @@ func (m Model) View() string {
 		return m.viewSettings()
 	case ScreenAdmin:
 		return m.viewAdmin()
+	case ScreenTutorial:
+		return m.viewTutorial()
 	default:
 		return "Unknown screen"
 	}
+}
+
+// ViewWithTutorial wraps screen content with tutorial overlay if active
+func (m Model) ViewWithTutorial(content string) string {
+	return m.renderTutorialOverlay(content)
 }
 
 // playerLoadedMsg is sent when player data is loaded
