@@ -50,3 +50,7 @@ dist/
 # Environment
 .env
 .env.local
+.env.secret
+
+# Docker
+.env.prod

@@ -1,0 +1,68 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+LICENSE
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+terminal-velocity
+server
+genmap
+
+# Test files
+*_test.go
+*.test
+*.out
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config files (will use example)
+configs/config.yaml
+configs/*.local.yaml
+
+# Database
+*.db
+*.sqlite
+
+# Environment
+.env
+.env.local
+
+# GitHub
+.github/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Build directories
+build/
+dist/
+vendor/
+
+# Temporary files
+tmp/
+temp/

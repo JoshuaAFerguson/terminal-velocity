@@ -40,7 +40,27 @@ Terminal Velocity is a persistent multiplayer universe where players can:
 
 ## Quick Start
 
-### Server Setup
+### Docker (Recommended)
+
+```bash
+# Clone repository
+git clone https://github.com/JoshuaAFerguson/terminal-velocity.git
+cd terminal-velocity
+
+# Configure environment
+cp .env.example .env
+# Edit .env and set DB_PASSWORD
+
+# Start the stack
+docker-compose up -d
+
+# Connect to game
+ssh -p 2222 username@localhost
+```
+
+See [Docker Guide](docs/DOCKER.md) for detailed instructions.
+
+### Manual Setup
 
 ```bash
 # Install dependencies

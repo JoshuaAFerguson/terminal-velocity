@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: terminal-velocity-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: terminal_velocity
+      POSTGRES_USER: terminal_velocity
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_in_production}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - terminal-velocity-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U terminal_velocity -d terminal_velocity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Terminal Velocity Server
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+    container_name: terminal-velocity-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: terminal_velocity
+      DB_USER: terminal_velocity
+      DB_PASSWORD: ${DB_PASSWORD:-changeme_in_production}
+
+      # Server configuration
+      SSH_PORT: 2222
+      MAX_PLAYERS: ${MAX_PLAYERS:-100}
+
+      # Game configuration
+      UNIVERSE_SEED: ${UNIVERSE_SEED:-0}
+      NUM_SYSTEMS: ${NUM_SYSTEMS:-100}
+    ports:
+      - "2222:2222"
+    volumes:
+      - ./configs:/app/configs:ro
+      - server_logs:/app/logs
+      - server_data:/app/data
+    networks:
+      - terminal-velocity-net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2222"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # PgAdmin (Optional - for database management)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: terminal-velocity-pgadmin
+    restart: unless-stopped
+    profiles:
+      - tools
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@terminal-velocity.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - terminal-velocity-net
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+    driver: local
+  server_logs:
+    driver: local
+  server_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  terminal-velocity-net:
+    driver: bridge
