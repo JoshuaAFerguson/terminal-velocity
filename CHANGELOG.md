@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Database Layer (Phase 1, Issue #1)**:
+  - PostgreSQL connection management with pgx driver
+  - Connection pooling with configurable limits
+  - Transaction support with automatic rollback
+  - Player repository (registration, authentication, CRUD, credits, reputation)
+  - System repository (systems, planets, jump routes, bulk operations)
+  - Migration runner for schema initialization
+  - Integration tests for player repository
+  - Server integration with database authentication
 - Initial project structure and repository setup
 - Comprehensive GitHub templates:
   - Bug report template with game state tracking
@@ -41,10 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Indexes and constraints
 - SSH server:
   - Basic SSH server implementation
-  - Placeholder authentication
-  - Session handling
+  - Database-backed authentication with bcrypt
+  - Session handling with player tracking
   - Host key generation
   - Graceful shutdown support
+  - Online status tracking
 - Docker support:
   - Multi-stage Dockerfile
   - docker-compose.yml with PostgreSQL and PgAdmin
