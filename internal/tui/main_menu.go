@@ -56,6 +56,10 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.navigation = newNavigationModel()
 				return m, m.loadConnectedSystems()
 			}
+			if selected.screen == ScreenTrading {
+				m.trading = newTradingModel()
+				return m, m.loadTradingMarket()
+			}
 
 			return m, nil
 		}

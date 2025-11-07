@@ -374,6 +374,31 @@ func (r *PlayerRepository) ModifyCredits(ctx context.Context, id uuid.UUID, amou
 	return nil
 }
 
+// UpdateCredits sets the player's credits to a specific amount
+func (r *PlayerRepository) UpdateCredits(ctx context.Context, id uuid.UUID, credits int64) error {
+	query := `
+		UPDATE players
+		SET credits = $1
+		WHERE id = $2 AND $1 >= 0
+	`
+
+	result, err := r.db.ExecContext(ctx, query, credits, id)
+	if err != nil {
+		return fmt.Errorf("failed to update credits: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("invalid credits amount or player not found")
+	}
+
+	return nil
+}
+
 // UpdateReputation updates a player's reputation with a faction
 func (r *PlayerRepository) UpdateReputation(ctx context.Context, playerID uuid.UUID, factionID string, change int) error {
 	query := `

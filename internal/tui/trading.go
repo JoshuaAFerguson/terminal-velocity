@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/game/trading"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
@@ -385,11 +387,120 @@ func (m Model) loadTradingMarket() tea.Cmd {
 // executeBuy executes a buy transaction
 func (m Model) executeBuy() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Implement actual buy logic with database updates
-		// For now, placeholder
+		ctx := context.Background()
+
+		// Validate we have all required data
+		if m.trading.selectedCommodity == nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("no commodity selected"),
+			}
+		}
+
+		if m.currentShip == nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("no ship available"),
+			}
+		}
+
+		if m.trading.currentPlanet == nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("not docked at a planet"),
+			}
+		}
+
+		// Find market price
+		var price *models.MarketPrice
+		for _, p := range m.trading.marketPrices {
+			if p.CommodityID == m.trading.selectedCommodity.ID {
+				price = p
+				break
+			}
+		}
+
+		if price == nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("price data not available"),
+			}
+		}
+
+		// Calculate total cost
+		totalCost := price.SellPrice * int64(m.trading.quantity)
+
+		// Validate credits
+		if totalCost > m.player.Credits {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("insufficient credits (need %d)", totalCost),
+			}
+		}
+
+		// Validate cargo space
+		cargoUsed := m.currentShip.GetCargoUsed()
+		cargoAvailable := 100 - cargoUsed // TODO: Get from ship type
+		if m.trading.quantity > cargoAvailable {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("insufficient cargo space (have %d)", cargoAvailable),
+			}
+		}
+
+		// Validate stock availability
+		if m.trading.quantity > price.Stock {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("insufficient stock (available: %d)", price.Stock),
+			}
+		}
+
+		// Execute transaction: deduct credits
+		newCredits := m.player.Credits - totalCost
+		err := m.playerRepo.UpdateCredits(ctx, m.player.ID, newCredits)
+		if err != nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("failed to update credits: %w", err),
+			}
+		}
+
+		// Add cargo to ship
+		err = m.shipRepo.AddCargo(ctx, m.currentShip.ID, m.trading.selectedCommodity.ID, m.trading.quantity)
+		if err != nil {
+			// Rollback: restore credits
+			m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("failed to add cargo: %w", err),
+			}
+		}
+
+		// Update market: decrease stock, adjust prices
+		price.Stock -= m.trading.quantity
+		price.Demand += m.trading.quantity / 2
+		price.BuyPrice, price.SellPrice = m.trading.pricingEngine.CalculateMarketPrice(
+			m.trading.selectedCommodity,
+			m.trading.currentPlanet,
+			price.Stock,
+			price.Demand,
+		)
+		price.LastUpdate = time.Now().Unix()
+
+		err = m.marketRepo.UpdateMarketPrice(ctx, price)
+		if err != nil {
+			// Continue anyway - market update failure shouldn't block the trade
+			// TODO: Log this error
+		}
+
+		// Update local player state
+		m.player.Credits = newCredits
+
 		return tradeCompleteMsg{
-			success: false,
-			err:     fmt.Errorf("buy not yet implemented"),
+			success: true,
+			profit:  -totalCost, // Negative because we spent money
+			err:     nil,
 		}
 	}
 }
@@ -397,11 +508,106 @@ func (m Model) executeBuy() tea.Cmd {
 // executeSell executes a sell transaction
 func (m Model) executeSell() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Implement actual sell logic with database updates
-		// For now, placeholder
+		ctx := context.Background()
+
+		// Validate we have all required data
+		if m.trading.selectedCommodity == nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("no commodity selected"),
+			}
+		}
+
+		if m.currentShip == nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("no ship available"),
+			}
+		}
+
+		if m.trading.currentPlanet == nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("not docked at a planet"),
+			}
+		}
+
+		// Find market price
+		var price *models.MarketPrice
+		for _, p := range m.trading.marketPrices {
+			if p.CommodityID == m.trading.selectedCommodity.ID {
+				price = p
+				break
+			}
+		}
+
+		if price == nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("price data not available"),
+			}
+		}
+
+		// Validate cargo
+		inCargo := m.currentShip.GetCommodityQuantity(m.trading.selectedCommodity.ID)
+		if m.trading.quantity > inCargo {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("insufficient cargo (have %d)", inCargo),
+			}
+		}
+
+		// Calculate total revenue
+		totalRevenue := price.BuyPrice * int64(m.trading.quantity)
+
+		// Execute transaction: remove cargo from ship
+		err := m.shipRepo.RemoveCargo(ctx, m.currentShip.ID, m.trading.selectedCommodity.ID, m.trading.quantity)
+		if err != nil {
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("failed to remove cargo: %w", err),
+			}
+		}
+
+		// Add credits
+		newCredits := m.player.Credits + totalRevenue
+		err = m.playerRepo.UpdateCredits(ctx, m.player.ID, newCredits)
+		if err != nil {
+			// Rollback: restore cargo
+			m.shipRepo.AddCargo(ctx, m.currentShip.ID, m.trading.selectedCommodity.ID, m.trading.quantity)
+			return tradeCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("failed to update credits: %w", err),
+			}
+		}
+
+		// Update market: increase stock, adjust prices
+		price.Stock += m.trading.quantity
+		price.Demand -= m.trading.quantity / 3
+		if price.Demand < 10 {
+			price.Demand = 10
+		}
+		price.BuyPrice, price.SellPrice = m.trading.pricingEngine.CalculateMarketPrice(
+			m.trading.selectedCommodity,
+			m.trading.currentPlanet,
+			price.Stock,
+			price.Demand,
+		)
+		price.LastUpdate = time.Now().Unix()
+
+		err = m.marketRepo.UpdateMarketPrice(ctx, price)
+		if err != nil {
+			// Continue anyway - market update failure shouldn't block the trade
+			// TODO: Log this error
+		}
+
+		// Update local player state
+		m.player.Credits = newCredits
+
 		return tradeCompleteMsg{
-			success: false,
-			err:     fmt.Errorf("sell not yet implemented"),
+			success: true,
+			profit:  totalRevenue, // Positive because we gained money
+			err:     nil,
 		}
 	}
 }
