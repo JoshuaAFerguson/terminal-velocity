@@ -16,6 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Credit and reputation reward application
   - CheckMissionProgress() integration with player location
   - Mission progress check command (C key) in mission board
+- **Bounty Hunting Missions (Phase 5, Issue #22)**:
+  - Bounty target registration system
+  - RegisterBountyKill() for combat kill tracking
+  - Automatic bounty mission progress updates
+  - Bounty completion verification
+  - Bounty reward payment on target elimination
+  - GetBountyTargets() for active bounty display
+  - IsBountyTarget() for target validation
+  - Bounty target cleanup on mission completion
+  - Support for multi-target bounty missions
+  - Progress messages for partial bounty completion
+
+### Changed
+- **Mission Manager (internal/missions/manager.go)**:
+  - Version updated to 1.1.0
+  - Added comprehensive file header documentation
+  - Added detailed function comments with parameters and returns
+  - Added bountyTargets map for kill tracking
+  - Enhanced AcceptMission() to register bounty targets
+  - Enhanced ApplyMissionRewards() with detailed comments
 
 ## [0.4.0] - 2025-01-07
 

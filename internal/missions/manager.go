@@ -1,3 +1,14 @@
+// Package missions provides mission lifecycle management and generation.
+//
+// This package handles all aspects of the mission system including:
+// - Mission generation (delivery, combat, bounty, trading)
+// - Mission lifecycle (available -> active -> completed/failed)
+// - Mission requirements validation
+// - Mission progress tracking
+// - Reward application
+//
+// Version: 1.1.0
+// Last Updated: 2025-01-07
 package missions
 
 import (
@@ -10,23 +21,36 @@ import (
 	"github.com/google/uuid"
 )
 
-// Manager handles mission lifecycle and generation
+// Manager handles mission lifecycle and generation.
+// It maintains separate lists for available, active, and completed missions.
 type Manager struct {
-	availableMissions []*models.Mission
-	activeMissions    []*models.Mission
-	completedMissions []*models.Mission
+	availableMissions []*models.Mission    // Missions available for acceptance
+	activeMissions    []*models.Mission    // Currently active missions
+	completedMissions []*models.Mission    // Completed missions (for history)
+	bountyTargets     map[string]uuid.UUID // Maps target name to mission ID for kill tracking
 }
 
-// NewManager creates a new mission manager
+// NewManager creates a new mission manager with empty mission lists.
 func NewManager() *Manager {
 	return &Manager{
 		availableMissions: []*models.Mission{},
 		activeMissions:    []*models.Mission{},
 		completedMissions: []*models.Mission{},
+		bountyTargets:     make(map[string]uuid.UUID),
 	}
 }
 
-// GenerateMissions creates random missions for a planet/station
+// GenerateMissions creates random missions for a planet/station.
+// It generates 'count' number of missions and adds them to the available missions list.
+//
+// Parameters:
+//   - ctx: Context for cancellation
+//   - planetID: ID of the planet where missions are offered
+//   - factionID: ID of the faction offering the missions
+//   - count: Number of missions to generate
+//
+// Returns:
+//   - Slice of generated missions
 func (m *Manager) GenerateMissions(ctx context.Context, planetID uuid.UUID, factionID string, count int) []*models.Mission {
 	missions := []*models.Mission{}
 
@@ -41,9 +65,17 @@ func (m *Manager) GenerateMissions(ctx context.Context, planetID uuid.UUID, fact
 	return missions
 }
 
-// generateRandomMission creates a single random mission
+// generateRandomMission creates a single random mission of a random type.
+// Mission types are weighted equally (delivery, combat, bounty, trading).
+//
+// Parameters:
+//   - planetID: Origin planet for the mission
+//   - factionID: Faction offering the mission
+//
+// Returns:
+//   - Generated mission or nil if generation failed
 func (m *Manager) generateRandomMission(planetID uuid.UUID, factionID string) *models.Mission {
-	// Randomly select mission type
+	// Randomly select mission type with equal weighting
 	missionTypes := []string{
 		models.MissionTypeDelivery,
 		models.MissionTypeCombat,
@@ -52,6 +84,7 @@ func (m *Manager) generateRandomMission(planetID uuid.UUID, factionID string) *m
 	}
 	missionType := missionTypes[rand.Intn(len(missionTypes))]
 
+	// Generate mission based on selected type
 	switch missionType {
 	case models.MissionTypeDelivery:
 		return generateDeliveryMission(planetID, factionID)
@@ -100,18 +133,23 @@ func (m *Manager) AcceptMission(missionID uuid.UUID, player *models.Player, play
 			return fmt.Errorf("insufficient cargo space (need %d tons)", mission.Cargo.Quantity)
 		}
 
-		// Load mission cargo
+		// Load mission cargo into player's ship
 		playerShip.AddCargo(mission.Cargo.CommodityID, mission.Cargo.Quantity)
 	}
 
-	// Move to active
+	// For bounty missions, register the target for kill tracking
+	if mission.Type == models.MissionTypeBounty && mission.Target != nil {
+		m.bountyTargets[*mission.Target] = mission.ID
+	}
+
+	// Move mission to active status
 	mission.Status = models.MissionStatusActive
 	mission.AcceptedAt = time.Now()
 
-	// Remove from available
+	// Remove from available missions list
 	m.availableMissions = append(m.availableMissions[:missionIndex], m.availableMissions[missionIndex+1:]...)
 
-	// Add to active
+	// Add to active missions list
 	m.activeMissions = append(m.activeMissions, mission)
 
 	return nil
@@ -290,28 +328,112 @@ func (m *Manager) CheckMissionProgress(player *models.Player, playerShip *models
 	return messages
 }
 
-// ApplyMissionRewards applies credits and reputation from completed mission
+// ApplyMissionRewards applies credits and reputation from completed mission.
+// Handles reward distribution and cleanup for all mission types.
+//
+// Parameters:
+//   - player: Player receiving the rewards
+//   - playerShip: Player's ship (for cargo removal)
+//   - mission: Completed mission
+//
+// Returns:
+//   - Formatted message describing rewards received
 func ApplyMissionRewards(player *models.Player, playerShip *models.Ship, mission *models.Mission) string {
-	// Apply credit reward
+	// Apply credit reward to player account
 	player.AddCredits(mission.Reward)
 
-	// Apply reputation changes
+	// Apply reputation changes with all affected factions
 	for factionID, repChange := range mission.ReputationChange {
 		player.ModifyReputation(factionID, repChange)
 	}
 
-	// Remove mission cargo if delivery mission
+	// Remove mission cargo if delivery mission (cargo has been delivered)
 	if mission.Type == models.MissionTypeDelivery && mission.Cargo != nil {
 		playerShip.RemoveCargo(mission.Cargo.CommodityID, mission.Cargo.Quantity)
 	}
 
-	// Format reward message
+	// Format reward message for player feedback
 	msg := fmt.Sprintf("Received %d credits", mission.Reward)
 	if len(mission.ReputationChange) > 0 {
 		msg += " and reputation bonuses"
 	}
 
 	return msg
+}
+
+// RegisterBountyKill records a ship kill for bounty mission tracking.
+// Checks if the killed ship matches any active bounty target.
+//
+// Parameters:
+//   - targetName: Name of the killed ship/target
+//   - player: Player who made the kill
+//   - playerShip: Player's ship
+//
+// Returns:
+//   - Slice of messages about completed bounty missions
+func (m *Manager) RegisterBountyKill(targetName string, player *models.Player, playerShip *models.Ship) []string {
+	messages := []string{}
+
+	// Check if this target is part of an active bounty mission
+	if missionID, exists := m.bountyTargets[targetName]; exists {
+		// Find the mission
+		for _, mission := range m.activeMissions {
+			if mission.ID == missionID && mission.Type == models.MissionTypeBounty {
+				// Increment mission progress (kill count)
+				mission.Progress++
+
+				// Check if bounty mission is complete
+				if mission.Progress >= mission.Quantity {
+					// Complete the mission
+					completedMission, err := m.CompleteMission(mission.ID)
+					if err == nil {
+						messages = append(messages, fmt.Sprintf("Bounty completed: %s", mission.Title))
+
+						// Apply rewards
+						rewardMsg := ApplyMissionRewards(player, playerShip, completedMission)
+						if rewardMsg != "" {
+							messages = append(messages, rewardMsg)
+						}
+
+						// Remove from bounty targets
+						delete(m.bountyTargets, targetName)
+					}
+				} else {
+					// Partial progress message
+					messages = append(messages, fmt.Sprintf("Bounty progress: %d/%d targets eliminated",
+						mission.Progress, mission.Quantity))
+				}
+				break
+			}
+		}
+	}
+
+	return messages
+}
+
+// GetBountyTargets returns a list of all active bounty target names.
+// Useful for UI display of active bounties.
+//
+// Returns:
+//   - Slice of target names currently under bounty
+func (m *Manager) GetBountyTargets() []string {
+	targets := make([]string, 0, len(m.bountyTargets))
+	for targetName := range m.bountyTargets {
+		targets = append(targets, targetName)
+	}
+	return targets
+}
+
+// IsBountyTarget checks if a given target name is part of an active bounty.
+//
+// Parameters:
+//   - targetName: Name to check
+//
+// Returns:
+//   - true if target is part of an active bounty mission
+func (m *Manager) IsBountyTarget(targetName string) bool {
+	_, exists := m.bountyTargets[targetName]
+	return exists
 }
 
 // Mission generation helpers
