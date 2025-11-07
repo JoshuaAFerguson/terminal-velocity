@@ -4,59 +4,59 @@ import "github.com/google/uuid"
 
 // Ship represents a spacecraft owned by a player or NPC
 type Ship struct {
-	ID            uuid.UUID      `json:"id"`
-	OwnerID       uuid.UUID      `json:"owner_id"`
-	TypeID        string         `json:"type_id"` // References ShipType
-	Name          string         `json:"name"`
+	ID      uuid.UUID `json:"id"`
+	OwnerID uuid.UUID `json:"owner_id"`
+	TypeID  string    `json:"type_id"` // References ShipType
+	Name    string    `json:"name"`
 
 	// Status
-	Hull          int            `json:"hull"`
-	Shields       int            `json:"shields"`
-	Fuel          int            `json:"fuel"`
+	Hull    int `json:"hull"`
+	Shields int `json:"shields"`
+	Fuel    int `json:"fuel"`
 
 	// Cargo
-	Cargo         []CargoItem    `json:"cargo"`
+	Cargo []CargoItem `json:"cargo"`
 
 	// Crew
-	Crew          int            `json:"crew"`
+	Crew int `json:"crew"`
 
 	// Installed equipment (IDs of outfits)
-	Weapons       []string       `json:"weapons"`
-	Outfits       []string       `json:"outfits"`
+	Weapons []string `json:"weapons"`
+	Outfits []string `json:"outfits"`
 }
 
 // ShipType defines a class of ship
 type ShipType struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	Description     string  `json:"description"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 
 	// Cost
-	Price           int64   `json:"price"`
+	Price int64 `json:"price"`
 
 	// Combat stats
-	MaxHull         int     `json:"max_hull"`
-	MaxShields      int     `json:"max_shields"`
-	ShieldRegen     int     `json:"shield_regen"` // per turn
+	MaxHull     int `json:"max_hull"`
+	MaxShields  int `json:"max_shields"`
+	ShieldRegen int `json:"shield_regen"` // per turn
 
 	// Capacity
-	MaxFuel         int     `json:"max_fuel"`
-	CargoSpace      int     `json:"cargo_space"`
-	MaxCrew         int     `json:"max_crew"`
+	MaxFuel    int `json:"max_fuel"`
+	CargoSpace int `json:"cargo_space"`
+	MaxCrew    int `json:"max_crew"`
 
 	// Performance
-	Speed           int     `json:"speed"`      // Initiative in combat
-	Maneuverability int     `json:"maneuver"`   // Evasion bonus
+	Speed           int `json:"speed"`    // Initiative in combat
+	Maneuverability int `json:"maneuver"` // Evasion bonus
 
 	// Hardpoints
-	WeaponSlots     int     `json:"weapon_slots"`
-	OutfitSpace     int     `json:"outfit_space"`
+	WeaponSlots int `json:"weapon_slots"`
+	OutfitSpace int `json:"outfit_space"`
 
 	// Requirements
-	MinCombatRating int     `json:"min_combat_rating"`
+	MinCombatRating int `json:"min_combat_rating"`
 
 	// Classification
-	Class           string  `json:"class"` // shuttle, fighter, freighter, corvette, destroyer, cruiser, capital
+	Class string `json:"class"` // shuttle, fighter, freighter, corvette, destroyer, cruiser, capital
 }
 
 // CargoItem represents cargo in a ship's hold
@@ -85,14 +85,14 @@ type Outfit struct {
 	Type        string `json:"type"` // shield_booster, cargo_pod, fuel_tank, etc.
 
 	// Effects
-	ShieldBonus    int    `json:"shield_bonus,omitempty"`
-	HullBonus      int    `json:"hull_bonus,omitempty"`
-	CargoBonus     int    `json:"cargo_bonus,omitempty"`
-	FuelBonus      int    `json:"fuel_bonus,omitempty"`
-	SpeedBonus     int    `json:"speed_bonus,omitempty"`
+	ShieldBonus int `json:"shield_bonus,omitempty"`
+	HullBonus   int `json:"hull_bonus,omitempty"`
+	CargoBonus  int `json:"cargo_bonus,omitempty"`
+	FuelBonus   int `json:"fuel_bonus,omitempty"`
+	SpeedBonus  int `json:"speed_bonus,omitempty"`
 
-	OutfitSpace    int    `json:"outfit_space"`
-	Price          int64  `json:"price"`
+	OutfitSpace int   `json:"outfit_space"`
+	Price       int64 `json:"price"`
 }
 
 // GetCargoUsed returns total cargo space used

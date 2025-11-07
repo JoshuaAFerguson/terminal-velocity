@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	ErrSSHKeyNotFound     = errors.New("SSH key not found")
-	ErrSSHKeyExists       = errors.New("SSH key already exists")
-	ErrInvalidPublicKey   = errors.New("invalid public key format")
+	ErrSSHKeyNotFound   = errors.New("SSH key not found")
+	ErrSSHKeyExists     = errors.New("SSH key already exists")
+	ErrInvalidPublicKey = errors.New("invalid public key format")
 )
 
 // SSHKeyRepository handles SSH key data access

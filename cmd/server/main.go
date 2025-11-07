@@ -22,9 +22,9 @@ var (
 func main() {
 	// Parse command line flags
 	var (
-		configFile = flag.String("config", "configs/config.yaml", "Path to configuration file")
+		configFile  = flag.String("config", "configs/config.yaml", "Path to configuration file")
 		showVersion = flag.Bool("version", false, "Show version information")
-		port       = flag.Int("port", 2222, "SSH server port")
+		port        = flag.Int("port", 2222, "SSH server port")
 	)
 	flag.Parse()
 

@@ -8,59 +8,59 @@ import (
 
 // PlayerFaction represents a player-created organization
 type PlayerFaction struct {
-	ID              uuid.UUID   `json:"id"`
-	Name            string      `json:"name"`
-	Tag             string      `json:"tag"` // 3-4 character identifier
-	FounderID       uuid.UUID   `json:"founder_id"`
-	CreatedAt       time.Time   `json:"created_at"`
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Tag       string    `json:"tag"` // 3-4 character identifier
+	FounderID uuid.UUID `json:"founder_id"`
+	CreatedAt time.Time `json:"created_at"`
 
 	// Leadership
-	LeaderID        uuid.UUID   `json:"leader_id"`
-	Officers        []uuid.UUID `json:"officers"`
+	LeaderID uuid.UUID   `json:"leader_id"`
+	Officers []uuid.UUID `json:"officers"`
 
 	// Members
-	Members         []uuid.UUID `json:"members"`
-	MemberLimit     int         `json:"member_limit"`
+	Members     []uuid.UUID `json:"members"`
+	MemberLimit int         `json:"member_limit"`
 
 	// Resources
-	Treasury        int64       `json:"treasury"`
+	Treasury int64 `json:"treasury"`
 
 	// Territory
-	HomeSystem      *uuid.UUID  `json:"home_system,omitempty"`
+	HomeSystem        *uuid.UUID  `json:"home_system,omitempty"`
 	ControlledSystems []uuid.UUID `json:"controlled_systems"`
 
 	// Progression
-	Level           int         `json:"level"`
-	Experience      int64       `json:"experience"`
+	Level      int   `json:"level"`
+	Experience int64 `json:"experience"`
 
 	// Properties
-	Alignment       string      `json:"alignment"` // trader, mercenary, explorer, pirate, corporate
-	IsRecruiting    bool        `json:"is_recruiting"`
+	Alignment    string `json:"alignment"` // trader, mercenary, explorer, pirate, corporate
+	IsRecruiting bool   `json:"is_recruiting"`
 
 	// Reputation with NPC governments
-	Reputation      map[string]int `json:"reputation"`
+	Reputation map[string]int `json:"reputation"`
 
 	// Settings
-	TaxRate         float64     `json:"tax_rate"` // % of member income to treasury
-	Settings        FactionSettings `json:"settings"`
+	TaxRate  float64         `json:"tax_rate"` // % of member income to treasury
+	Settings FactionSettings `json:"settings"`
 }
 
 // FactionSettings contains faction configuration
 type FactionSettings struct {
-	PublicProfile   bool   `json:"public_profile"`
+	PublicProfile     bool   `json:"public_profile"`
 	AllowApplications bool   `json:"allow_applications"`
-	RequireApproval bool   `json:"require_approval"`
-	MinCombatRating int    `json:"min_combat_rating"`
-	MOTD            string `json:"motd"` // Message of the day
+	RequireApproval   bool   `json:"require_approval"`
+	MinCombatRating   int    `json:"min_combat_rating"`
+	MOTD              string `json:"motd"` // Message of the day
 }
 
 // FactionMember represents a member's association with a faction
 type FactionMember struct {
-	FactionID       uuid.UUID `json:"faction_id"`
-	PlayerID        uuid.UUID `json:"player_id"`
-	Rank            string    `json:"rank"` // recruit, member, officer, leader
-	JoinedAt        time.Time `json:"joined_at"`
-	Contribution    int64     `json:"contribution"` // Total credits contributed
+	FactionID    uuid.UUID `json:"faction_id"`
+	PlayerID     uuid.UUID `json:"player_id"`
+	Rank         string    `json:"rank"` // recruit, member, officer, leader
+	JoinedAt     time.Time `json:"joined_at"`
+	Contribution int64     `json:"contribution"` // Total credits contributed
 }
 
 // FactionRank enum
@@ -73,21 +73,21 @@ const (
 
 // FactionAlignment enum
 const (
-	AlignmentTrader     = "trader"
-	AlignmentMercenary  = "mercenary"
-	AlignmentExplorer   = "explorer"
-	AlignmentPirate     = "pirate"
-	AlignmentCorporate  = "corporate"
+	AlignmentTrader    = "trader"
+	AlignmentMercenary = "mercenary"
+	AlignmentExplorer  = "explorer"
+	AlignmentPirate    = "pirate"
+	AlignmentCorporate = "corporate"
 )
 
 // FactionPerk represents unlockable faction benefits
 type FactionPerk struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	RequiredLevel int  `json:"required_level"`
-	Cost        int64  `json:"cost"`
-	Active      bool   `json:"active"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	RequiredLevel int    `json:"required_level"`
+	Cost          int64  `json:"cost"`
+	Active        bool   `json:"active"`
 }
 
 // NewPlayerFaction creates a new faction
@@ -114,11 +114,11 @@ func NewPlayerFaction(name, tag string, founderID uuid.UUID, alignment string) *
 		Reputation:        make(map[string]int),
 		TaxRate:           0.05, // 5% default
 		Settings: FactionSettings{
-			PublicProfile:      true,
-			AllowApplications:  true,
-			RequireApproval:    true,
-			MinCombatRating:    0,
-			MOTD:               "Welcome to " + name + "!",
+			PublicProfile:     true,
+			AllowApplications: true,
+			RequireApproval:   true,
+			MinCombatRating:   0,
+			MOTD:              "Welcome to " + name + "!",
 		},
 	}
 }

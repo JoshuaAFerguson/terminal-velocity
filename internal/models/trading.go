@@ -8,20 +8,20 @@ type Commodity struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	BasePrice   int64    `json:"base_price"`
-	Category    string   `json:"category"` // food, electronics, weapons, luxuries, etc.
+	Category    string   `json:"category"`   // food, electronics, weapons, luxuries, etc.
 	IllegalIn   []string `json:"illegal_in"` // Government IDs where this is contraband
 	TechLevel   int      `json:"tech_level"` // Minimum tech level to trade
 }
 
 // MarketPrice represents commodity pricing at a specific planet
 type MarketPrice struct {
-	PlanetID     uuid.UUID `json:"planet_id"`
-	CommodityID  string    `json:"commodity_id"`
-	BuyPrice     int64     `json:"buy_price"`  // What planet pays for commodity
-	SellPrice    int64     `json:"sell_price"` // What planet sells commodity for
-	Stock        int       `json:"stock"`      // Available quantity
-	Demand       int       `json:"demand"`     // How much they want to buy
-	LastUpdate   int64     `json:"last_update"` // Unix timestamp
+	PlanetID    uuid.UUID `json:"planet_id"`
+	CommodityID string    `json:"commodity_id"`
+	BuyPrice    int64     `json:"buy_price"`   // What planet pays for commodity
+	SellPrice   int64     `json:"sell_price"`  // What planet sells commodity for
+	Stock       int       `json:"stock"`       // Available quantity
+	Demand      int       `json:"demand"`      // How much they want to buy
+	LastUpdate  int64     `json:"last_update"` // Unix timestamp
 }
 
 // Commodity categories

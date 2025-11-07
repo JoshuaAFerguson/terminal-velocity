@@ -4,14 +4,14 @@ import "github.com/google/uuid"
 
 // StarSystem represents a star system in the galaxy
 type StarSystem struct {
-	ID              uuid.UUID    `json:"id"`
-	Name            string       `json:"name"`
-	Position        Position     `json:"position"`
-	GovernmentID    string       `json:"government_id"` // NPC faction controlling system
-	ControlledBy    *uuid.UUID   `json:"controlled_by,omitempty"` // Player faction ID if controlled
-	TechLevel       int          `json:"tech_level"` // 1-10
-	Description     string       `json:"description"`
-	Planets         []Planet     `json:"planets"`
+	ID               uuid.UUID   `json:"id"`
+	Name             string      `json:"name"`
+	Position         Position    `json:"position"`
+	GovernmentID     string      `json:"government_id"`           // NPC faction controlling system
+	ControlledBy     *uuid.UUID  `json:"controlled_by,omitempty"` // Player faction ID if controlled
+	TechLevel        int         `json:"tech_level"`              // 1-10
+	Description      string      `json:"description"`
+	Planets          []Planet    `json:"planets"`
 	ConnectedSystems []uuid.UUID `json:"connected_systems"` // Systems reachable from here
 }
 
@@ -23,26 +23,26 @@ type Position struct {
 
 // Planet represents a planet or station in a system
 type Planet struct {
-	ID          uuid.UUID         `json:"id"`
-	SystemID    uuid.UUID         `json:"system_id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Services    []string          `json:"services"` // shipyard, outfitter, missions, trading, bar
-	Population  int64             `json:"population"`
-	TechLevel   int               `json:"tech_level"`
+	ID          uuid.UUID `json:"id"`
+	SystemID    uuid.UUID `json:"system_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Services    []string  `json:"services"` // shipyard, outfitter, missions, trading, bar
+	Population  int64     `json:"population"`
+	TechLevel   int       `json:"tech_level"`
 }
 
 // Government represents an NPC faction
 type Government struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Alignment   string   `json:"alignment"` // lawful, neutral, chaotic
-	Color       string   `json:"color"`     // for UI display
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Alignment   string `json:"alignment"` // lawful, neutral, chaotic
+	Color       string `json:"color"`     // for UI display
 
 	// AI behavior
-	HostileTo   []string `json:"hostile_to"`   // Government IDs
-	AlliedWith  []string `json:"allied_with"`  // Government IDs
+	HostileTo  []string `json:"hostile_to"`  // Government IDs
+	AlliedWith []string `json:"allied_with"` // Government IDs
 }
 
 // Distance calculates distance between two positions

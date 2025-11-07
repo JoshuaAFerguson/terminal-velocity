@@ -11,21 +11,21 @@ import (
 
 // Generator handles universe creation
 type Generator struct {
-	config      GeneratorConfig
-	rand        *rand.Rand
-	nameGen     *NameGenerator
+	config  GeneratorConfig
+	rand    *rand.Rand
+	nameGen *NameGenerator
 }
 
 // GeneratorConfig configures universe generation
 type GeneratorConfig struct {
-	NumSystems      int
-	CoreRadius      float64  // Distance from Sol for core systems
-	MidRadius       float64  // Distance from Sol for mid systems
-	OuterRadius     float64  // Distance from Sol for outer systems
-	EdgeRadius      float64  // Distance from Sol for edge systems
-	MinConnections  int      // Min jump routes per system
-	MaxConnections  int      // Max jump routes per system
-	Seed            int64    // Random seed
+	NumSystems     int
+	CoreRadius     float64 // Distance from Sol for core systems
+	MidRadius      float64 // Distance from Sol for mid systems
+	OuterRadius    float64 // Distance from Sol for outer systems
+	EdgeRadius     float64 // Distance from Sol for edge systems
+	MinConnections int     // Min jump routes per system
+	MaxConnections int     // Max jump routes per system
+	Seed           int64   // Random seed
 }
 
 // DefaultConfig returns default generator configuration
@@ -100,10 +100,10 @@ func (g *Generator) generateSystems() []models.StarSystem {
 
 	// System 0 is always Sol (Earth)
 	systems[0] = models.StarSystem{
-		ID:          uuid.New(),
-		Name:        "Sol",
-		Position:    models.Position{X: 0, Y: 0},
-		Description: "Birthplace of humanity. Home to Earth, Mars, and the United Earth Federation capital.",
+		ID:               uuid.New(),
+		Name:             "Sol",
+		Position:         models.Position{X: 0, Y: 0},
+		Description:      "Birthplace of humanity. Home to Earth, Mars, and the United Earth Federation capital.",
 		ConnectedSystems: []uuid.UUID{},
 	}
 

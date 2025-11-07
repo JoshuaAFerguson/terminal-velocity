@@ -211,7 +211,7 @@ func (m Model) viewRegistration() string {
 	s := titleStyle.Render("=== New Account Registration ===") + "\n\n"
 
 	if reg.error != "" {
-		s += errorStyle.Render("⚠ " + reg.error) + "\n\n"
+		s += errorStyle.Render("⚠ "+reg.error) + "\n\n"
 	}
 
 	switch reg.step {

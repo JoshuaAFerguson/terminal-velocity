@@ -14,9 +14,9 @@ import (
 )
 
 var (
-	ErrPlayerNotFound      = errors.New("player not found")
-	ErrUsernameExists      = errors.New("username already exists")
-	ErrInvalidCredentials  = errors.New("invalid username or password")
+	ErrPlayerNotFound     = errors.New("player not found")
+	ErrUsernameExists     = errors.New("username already exists")
+	ErrInvalidCredentials = errors.New("invalid username or password")
 )
 
 // PlayerRepository handles player data access

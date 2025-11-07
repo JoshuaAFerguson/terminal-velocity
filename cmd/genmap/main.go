@@ -12,10 +12,10 @@ import (
 
 func main() {
 	var (
-		numSystems = flag.Int("systems", 100, "Number of star systems to generate")
-		seed       = flag.Int64("seed", 0, "Random seed (0 for random)")
-		showStats  = flag.Bool("stats", false, "Show detailed statistics")
-		showSystems = flag.Bool("systems-list", false, "List all systems")
+		numSystems    = flag.Int("systems", 100, "Number of star systems to generate")
+		seed          = flag.Int64("seed", 0, "Random seed (0 for random)")
+		showStats     = flag.Bool("stats", false, "Show detailed statistics")
+		showSystems   = flag.Bool("systems-list", false, "List all systems")
 		factionFilter = flag.String("faction", "", "Filter systems by faction")
 	)
 	flag.Parse()

@@ -29,20 +29,20 @@ type Model struct {
 	screen Screen
 
 	// Player data
-	player       *models.Player
-	playerID     uuid.UUID
-	username     string
-	currentShip  *models.Ship
+	player      *models.Player
+	playerID    uuid.UUID
+	username    string
+	currentShip *models.Ship
 
 	// Database repositories
-	playerRepo   *database.PlayerRepository
-	systemRepo   *database.SystemRepository
-	sshKeyRepo   *database.SSHKeyRepository
-	shipRepo     *database.ShipRepository
+	playerRepo *database.PlayerRepository
+	systemRepo *database.SystemRepository
+	sshKeyRepo *database.SSHKeyRepository
+	shipRepo   *database.ShipRepository
 
 	// Screen dimensions
-	width        int
-	height       int
+	width  int
+	height int
 
 	// Sub-models for different screens
 	mainMenu     mainMenuModel
@@ -51,7 +51,7 @@ type Model struct {
 	navigation   navigationModel
 
 	// Error message
-	err          error
+	err error
 }
 
 // NewModel creates a new TUI model

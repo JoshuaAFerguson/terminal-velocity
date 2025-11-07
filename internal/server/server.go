@@ -30,20 +30,20 @@ type Server struct {
 
 // Config holds server configuration
 type Config struct {
-	Host           string
-	Port           int
-	DatabaseURL    string
-	HostKeyPath    string
-	MaxPlayers     int
-	TickRate       int // Game loop ticks per second
-	Database       *database.Config
+	Host        string
+	Port        int
+	DatabaseURL string
+	HostKeyPath string
+	MaxPlayers  int
+	TickRate    int // Game loop ticks per second
+	Database    *database.Config
 
 	// Authentication settings
-	AllowPasswordAuth     bool // Allow password authentication
-	AllowPublicKeyAuth    bool // Allow SSH public key authentication
-	AllowRegistration     bool // Allow new user registration
-	RequireEmail          bool // Require email for new accounts
-	RequireEmailVerify    bool // Require email verification (future)
+	AllowPasswordAuth  bool // Allow password authentication
+	AllowPublicKeyAuth bool // Allow SSH public key authentication
+	AllowRegistration  bool // Allow new user registration
+	RequireEmail       bool // Require email for new accounts
+	RequireEmailVerify bool // Require email verification (future)
 }
 
 // NewServer creates a new game server

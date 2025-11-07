@@ -8,44 +8,44 @@ import (
 
 // Player represents a player character in the game
 type Player struct {
-	ID             uuid.UUID          `json:"id"`
-	Username       string             `json:"username"`
-	Email          string             `json:"email,omitempty"`
-	EmailVerified  bool               `json:"email_verified"`
-	PasswordHash   string             `json:"-"` // Never serialize password
-	CreatedAt      time.Time          `json:"created_at"`
-	LastLogin      time.Time          `json:"last_login"`
+	ID            uuid.UUID `json:"id"`
+	Username      string    `json:"username"`
+	Email         string    `json:"email,omitempty"`
+	EmailVerified bool      `json:"email_verified"`
+	PasswordHash  string    `json:"-"` // Never serialize password
+	CreatedAt     time.Time `json:"created_at"`
+	LastLogin     time.Time `json:"last_login"`
 
 	// Game state
-	Credits        int64              `json:"credits"`
-	CurrentSystem  uuid.UUID          `json:"current_system"`
-	CurrentPlanet  *uuid.UUID         `json:"current_planet,omitempty"` // nil if in space
-	ShipID         uuid.UUID          `json:"ship_id"`
+	Credits       int64      `json:"credits"`
+	CurrentSystem uuid.UUID  `json:"current_system"`
+	CurrentPlanet *uuid.UUID `json:"current_planet,omitempty"` // nil if in space
+	ShipID        uuid.UUID  `json:"ship_id"`
 
 	// Progression
-	CombatRating   int                `json:"combat_rating"`
-	TotalKills     int                `json:"total_kills"`
-	PlayTime       int64              `json:"play_time"` // seconds
+	CombatRating int   `json:"combat_rating"`
+	TotalKills   int   `json:"total_kills"`
+	PlayTime     int64 `json:"play_time"` // seconds
 
 	// Reputation with NPC factions (-100 to +100)
-	Reputation     map[string]int     `json:"reputation"`
+	Reputation map[string]int `json:"reputation"`
 
 	// Faction membership
-	FactionID      *uuid.UUID         `json:"faction_id,omitempty"`
-	FactionRank    string             `json:"faction_rank,omitempty"`
+	FactionID   *uuid.UUID `json:"faction_id,omitempty"`
+	FactionRank string     `json:"faction_rank,omitempty"`
 
 	// Status
-	IsOnline       bool               `json:"is_online"`
-	IsCriminal     bool               `json:"is_criminal"`
+	IsOnline   bool `json:"is_online"`
+	IsCriminal bool `json:"is_criminal"`
 }
 
 // SSHKey represents an SSH public key for player authentication
 type SSHKey struct {
 	ID          uuid.UUID  `json:"id"`
 	PlayerID    uuid.UUID  `json:"player_id"`
-	KeyType     string     `json:"key_type"`     // rsa, ed25519, ecdsa
-	PublicKey   string     `json:"public_key"`   // The actual public key
-	Fingerprint string     `json:"fingerprint"`  // SHA256 fingerprint
+	KeyType     string     `json:"key_type"`    // rsa, ed25519, ecdsa
+	PublicKey   string     `json:"public_key"`  // The actual public key
+	Fingerprint string     `json:"fingerprint"` // SHA256 fingerprint
 	Comment     string     `json:"comment,omitempty"`
 	AddedAt     time.Time  `json:"added_at"`
 	LastUsed    *time.Time `json:"last_used,omitempty"`
@@ -56,18 +56,18 @@ type SSHKey struct {
 func NewPlayer(username, passwordHash string) *Player {
 	now := time.Now()
 	return &Player{
-		ID:             uuid.New(),
-		Username:       username,
-		PasswordHash:   passwordHash,
-		CreatedAt:      now,
-		LastLogin:      now,
-		Credits:        10000, // Starting credits
-		CombatRating:   0,
-		TotalKills:     0,
-		PlayTime:       0,
-		Reputation:     make(map[string]int),
-		IsOnline:       false,
-		IsCriminal:     false,
+		ID:           uuid.New(),
+		Username:     username,
+		PasswordHash: passwordHash,
+		CreatedAt:    now,
+		LastLogin:    now,
+		Credits:      10000, // Starting credits
+		CombatRating: 0,
+		TotalKills:   0,
+		PlayTime:     0,
+		Reputation:   make(map[string]int),
+		IsOnline:     false,
+		IsCriminal:   false,
 	}
 }
 
