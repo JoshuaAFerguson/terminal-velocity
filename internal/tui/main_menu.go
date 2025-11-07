@@ -100,6 +100,13 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.leaderboardsModel = newLeaderboardsModel()
 				return m, m.refreshLeaderboards()
 			}
+			if selected.screen == ScreenSettings {
+				m.settingsModel = newSettingsModel()
+				// Load player settings
+				playerSettings, _ := m.settingsManager.LoadSettings(m.playerID)
+				m.settingsModel.settings = playerSettings
+				return m, nil
+			}
 
 			return m, nil
 		}

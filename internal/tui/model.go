@@ -14,6 +14,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/outfitting"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/settings"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/trade"
 	"github.com/charmbracelet/bubbletea"
@@ -94,6 +95,7 @@ type Model struct {
 	pvpModel       pvpModel
 	helpModel      helpModel
 	outfitterEnhanced outfitterEnhancedModel
+	settingsModel  settingsModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -128,6 +130,9 @@ type Model struct {
 
 	// Outfitting system
 	outfittingManager *outfitting.Manager
+
+	// Settings system
+	settingsManager *settings.Manager
 
 	// Error message
 	err error
@@ -185,6 +190,8 @@ func NewModel(
 		encounterManager:    encounters.NewManager(),
 		outfitterEnhanced:   newOutfitterEnhancedModel(),
 		outfittingManager:   outfitting.NewManager(),
+		settingsModel:       newSettingsModel(),
+		settingsManager:     settings.NewManager(".config/terminal-velocity"),
 	}
 }
 
@@ -326,6 +333,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateHelp(msg)
 	case ScreenOutfitterEnhanced:
 		return m.updateOutfitterEnhanced(msg)
+	case ScreenSettings:
+		return m.updateSettings(msg)
 	default:
 		return m, nil
 	}
@@ -389,6 +398,8 @@ func (m Model) View() string {
 		return m.viewHelp()
 	case ScreenOutfitterEnhanced:
 		return m.viewOutfitterEnhanced()
+	case ScreenSettings:
+		return m.viewSettings()
 	default:
 		return "Unknown screen"
 	}
