@@ -34,6 +34,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Players", screen: ScreenPlayers},
 			{label: "Chat", screen: ScreenChat},
 			{label: "Factions", screen: ScreenFactions},
+			{label: "Trade", screen: ScreenTrade},
 			{label: "News", screen: ScreenNews},
 			{label: "Settings", screen: ScreenSettings},
 			{label: "Quit", action: func(m *Model) tea.Cmd { return tea.Quit }},

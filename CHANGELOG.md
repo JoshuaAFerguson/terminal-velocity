@@ -8,6 +8,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Player Trading System with Escrow (Phase 6, Issue #32)**:
+  - Secure player-to-player trading with escrow protection
+  - Trade offer models with comprehensive tracking:
+    - Credit and cargo item exchanges
+    - Trade status lifecycle (Pending → Accepted → Completed)
+    - Expiration system (1-hour default, configurable)
+    - Location requirements (same system/planet for trades)
+    - Optional contract mode (cannot cancel after acceptance)
+    - Message field for negotiations
+  - Trade fairness assessment:
+    - Automatic value calculation for offered/requested items
+    - Fairness rating (Fair, Good Deal, Very Generous, etc.)
+    - Value ratio display for transparency
+    - Price per unit tracking for items
+  - Escrow system:
+    - Automatic locking of assets on acceptance
+    - Holds credits and cargo during trade
+    - Release on completion or cancellation
+    - Prevents fraud and trade scamming
+  - Trade history and reputation:
+    - Track all completed trades per player
+    - Success rate calculation (completion vs cancellation)
+    - Total trade volume tracking
+    - Trust score (0.0-1.0) based on behavior
+    - Positive/negative rating system
+    - Rating display: Excellent (⭐⭐⭐⭐⭐) to Untrusted (❌)
+  - Trade manager with thread-safe operations:
+    - Create trade offers with items and credits
+    - Accept/reject/cancel offers with validation
+    - Complete trades and release escrow
+    - Automatic expiry cleanup
+    - Player history management
+    - Offer filtering (received, sent, all)
+  - Trade UI with multiple views:
+    - Received Offers tab: Pending trades awaiting response
+    - Sent Offers tab: Track your outgoing proposals
+    - History tab: View your trading reputation
+    - Create Offer dialog: Specify recipient, amounts, message
+    - Detail view: Full offer breakdown with fairness assessment
+    - Trader reputation display on all offers
+  - Controls and interactions:
+    - Tab-based navigation (1-3 keys)
+    - Accept/Reject/Cancel actions with confirmations
+    - Create new offer (N key)
+    - Credit adjustment with arrow keys
+    - Time remaining countdown display
+  - Foundation for future features:
+    - Cargo item trading integration
+    - Contract enforcement system
+    - Trade notifications via chat
+    - Faction trade benefits
+    - Trade volume leaderboards
 - **Territory Control System (Phase 6, Issue #31)**:
   - Comprehensive system claiming and ownership for factions
   - Territory models with detailed state tracking:

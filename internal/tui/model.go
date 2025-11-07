@@ -12,6 +12,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/trade"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
@@ -37,6 +38,7 @@ const (
 	ScreenPlayers
 	ScreenChat
 	ScreenFactions
+	ScreenTrade
 	ScreenSettings
 	ScreenRegistration
 )
@@ -82,6 +84,7 @@ type Model struct {
 	playersModel   playersModel
 	chatModel      chatModel
 	factionsModel  factionsModel
+	tradeModel     tradeModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -104,6 +107,9 @@ type Model struct {
 
 	// Territory system
 	territoryManager *territory.Manager
+
+	// Trade system
+	tradeManager *trade.Manager
 
 	// Error message
 	err error
@@ -153,6 +159,8 @@ func NewModel(
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
 		territoryManager:    territory.NewManager(),
+		tradeModel:          newTradeModel(),
+		tradeManager:        trade.NewManager(),
 	}
 }
 
@@ -286,6 +294,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateChat(msg)
 	case ScreenFactions:
 		return m.updateFactions(msg)
+	case ScreenTrade:
+		return m.updateTrade(msg)
 	default:
 		return m, nil
 	}
@@ -341,6 +351,8 @@ func (m Model) View() string {
 		return m.viewChat()
 	case ScreenFactions:
 		return m.viewFactions()
+	case ScreenTrade:
+		return m.viewTrade()
 	default:
 		return "Unknown screen"
 	}
