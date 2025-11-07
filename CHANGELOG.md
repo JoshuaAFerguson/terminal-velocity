@@ -94,9 +94,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Branch protection rules
 - Makefile with common development tasks
 - Go module setup with dependencies
+- **Trading System (Phase 2, Issue #7)**:
+  - Interactive trading UI with market view
+  - Buy/sell transactions with database persistence
+  - Real-time market price updates based on supply/demand
+  - Commodity filtering by tech level
+  - Stock validation and credit checks
+  - Transaction rollback on errors
+- **Cargo Management (Phase 2, Issue #8)**:
+  - Cargo hold visualization
+  - Jettison functionality with quantity control
+  - Real-time space calculations
+  - Ship type integration
+  - Sorted cargo display
+- **Economy Balance (Phase 2, Issue #9)**:
+  - Comprehensive ECONOMY_BALANCE.md documentation
+  - 5 profitable trade routes with ROI analysis
+  - Contraband price increases (20-50%)
+  - Improved tech level modifiers (0.05 → 0.07)
+  - Ship progression economics documented
+- **Ship Types (Phase 3, Issue #10)**:
+  - 11 standard ship types (Shuttle to Battleship)
+  - Complete stat definitions (combat, cargo, speed, etc.)
+  - Combat rating requirements
+  - Class-based progression system
+- **Shipyard System (Phase 3, Issue #11)**:
+  - Ship browsing with affordability checking
+  - Purchase functionality with validation
+  - Trade-in system (70% value)
+  - Ship details viewer
+  - Combat rating enforcement
+  - Database persistence
+- **Outfitter System (Phase 3, Issue #12)**:
+  - 9 weapon types (laser, missile, plasma, railgun)
+  - 15 outfit types (shields, hull, cargo, fuel, engines)
+  - Tab-based navigation interface
+  - Equipment installation with space validation
+  - Equipment removal with 50% refund
+  - Real-time ship stats with bonuses
+  - Transaction safety with rollback
+- **Ship Comparison Tools (Phase 3, Issue #13)**:
+  - Side-by-side ship comparison view
+  - Visual statistics bars for all stats
+  - Cost-benefit analysis with trade-in calculations
+  - Performance ratings (combat, trading, speed, overall)
+  - Star-based rating display (0-10 stars)
+  - Upgrade path recommendations
+  - Value-per-credit analysis
+  - Specific recommendations (combat vs trading focus)
 
 ### Changed
-- N/A (initial release)
+- Module path corrected from github.com/s0v3r1gn to github.com/JoshuaAFerguson
+- Trading tech level modifier improved (0.05 → 0.07) for better balance
+- Contraband prices increased for better risk/reward balance
 
 ### Deprecated
 - N/A (initial release)
