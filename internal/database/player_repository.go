@@ -501,6 +501,31 @@ func (r *PlayerRepository) ListOnlinePlayers(ctx context.Context) ([]*models.Pla
 	return players, nil
 }
 
+// UpdateLocation updates a player's current system and planet
+func (r *PlayerRepository) UpdateLocation(ctx context.Context, playerID uuid.UUID, systemID uuid.UUID, planetID *uuid.UUID) error {
+	query := `
+		UPDATE players
+		SET current_system = $1, current_planet = $2
+		WHERE id = $3
+	`
+
+	result, err := r.db.ExecContext(ctx, query, systemID, planetID, playerID)
+	if err != nil {
+		return fmt.Errorf("failed to update location: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrPlayerNotFound
+	}
+
+	return nil
+}
+
 // isDuplicateKeyError checks if an error is a duplicate key violation
 func isDuplicateKeyError(err error) bool {
 	if err == nil {

@@ -45,6 +45,7 @@ type Model struct {
 	mainMenu     mainMenuModel
 	gameView     gameViewModel
 	registration registrationModel
+	navigation   navigationModel
 
 	// Error message
 	err          error
@@ -132,6 +133,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateGame(msg)
 	case ScreenRegistration:
 		return m.updateRegistration(msg)
+	case ScreenNavigation:
+		return m.updateNavigation(msg)
 	default:
 		return m, nil
 	}
@@ -157,6 +160,8 @@ func (m Model) View() string {
 		return m.viewGame()
 	case ScreenRegistration:
 		return m.viewRegistration()
+	case ScreenNavigation:
+		return m.viewNavigation()
 	default:
 		return "Unknown screen"
 	}

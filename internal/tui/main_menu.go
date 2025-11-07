@@ -50,6 +50,13 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, selected.action(&m)
 			}
 			m.screen = selected.screen
+
+			// Initialize screen-specific data
+			if selected.screen == ScreenNavigation {
+				m.navigation = newNavigationModel()
+				return m, m.loadConnectedSystems()
+			}
+
 			return m, nil
 		}
 	}
