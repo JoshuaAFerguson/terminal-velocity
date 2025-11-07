@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Terminal Velocity - A feature-complete multiplayer space trading and combat game playable through SSH">
+    <meta name="keywords" content="terminal game, ssh game, space trading, multiplayer, open source, go, bubbletea">
+    <meta name="author" content="Joshua Ferguson">
+    <title>Terminal Velocity - SSH Space Trading Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #e0e0e0;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1a2e 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 2px solid #00d4ff;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: #e0e0e0;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #00d4ff;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            background: linear-gradient(180deg, rgba(0,212,255,0.1) 0%, rgba(0,0,0,0) 100%);
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #00d4ff, #00ffb3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: #b0b0b0;
+            margin-bottom: 2rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            margin: 0.2rem;
+            background: rgba(0, 212, 255, 0.2);
+            border: 1px solid #00d4ff;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            color: #00d4ff;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.8rem 2rem;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #00d4ff;
+            color: #0a0e27;
+        }
+
+        .btn-primary:hover {
+            background: #00b8e6;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 212, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #00d4ff;
+            border: 2px solid #00d4ff;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .section {
+            padding: 4rem 0;
+        }
+
+        .section h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: #00d4ff;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: #00d4ff;
+        }
+
+        .feature-card h3 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .feature-card ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .feature-card li {
+            padding: 0.3rem 0;
+            color: #b0b0b0;
+        }
+
+        .feature-card li::before {
+            content: "✓ ";
+            color: #00ffb3;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+
+        .terminal-demo {
+            background: #1a1a2e;
+            border: 2px solid #00d4ff;
+            border-radius: 10px;
+            padding: 2rem;
+            font-family: 'Courier New', monospace;
+            margin: 2rem 0;
+            overflow-x: auto;
+        }
+
+        .terminal-demo pre {
+            color: #00ffb3;
+            margin: 0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            text-align: center;
+        }
+
+        .stat-card {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 2rem;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .stat-label {
+            color: #b0b0b0;
+            margin-top: 0.5rem;
+        }
+
+        footer {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 2rem 0;
+            text-align: center;
+            border-top: 2px solid #00d4ff;
+            margin-top: 4rem;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: #00d4ff;
+            text-decoration: none;
+        }
+
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .nav-links {
+                gap: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="#" class="logo">🚀 Terminal Velocity</a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#quickstart">Quick Start</a></li>
+                <li><a href="#documentation">Docs</a></li>
+                <li><a href="https://github.com/JoshuaAFerguson/terminal-velocity">GitHub</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>Terminal Velocity</h1>
+                <p>A feature-complete multiplayer space trading and combat game playable through SSH</p>
+
+                <div>
+                    <span class="badge">✅ Phases 0-7 Complete</span>
+                    <span class="badge">🎮 29+ Game Systems</span>
+                    <span class="badge">🚀 Version 0.7.0</span>
+                    <span class="badge">⭐ Open Source</span>
+                </div>
+
+                <div class="cta-buttons">
+                    <a href="#quickstart" class="btn btn-primary">Get Started</a>
+                    <a href="https://github.com/JoshuaAFerguson/terminal-velocity" class="btn btn-secondary">View on GitHub</a>
+                    <a href="https://github.com/JoshuaAFerguson/terminal-velocity/wiki" class="btn btn-secondary">Wiki</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="section">
+            <div class="container">
+                <h2>Core Features</h2>
+
+                <div class="features">
+                    <div class="feature-card">
+                        <h3>💰 Dynamic Economy</h3>
+                        <ul>
+                            <li>15 commodities across 8 categories</li>
+                            <li>Real-time supply & demand</li>
+                            <li>Tech level pricing modifiers</li>
+                            <li>Contraband trading (high risk/reward)</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>⚔️ Tactical Combat</h3>
+                        <ul>
+                            <li>Turn-based combat system</li>
+                            <li>9 weapon types</li>
+                            <li>5 AI difficulty levels</li>
+                            <li>Loot & salvage (4 rarity tiers)</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>🚢 Ship Progression</h3>
+                        <ul>
+                            <li>11 ship types (Shuttle → Battleship)</li>
+                            <li>16 equipment items across 6 slots</li>
+                            <li>Custom loadout system</li>
+                            <li>Fleet management</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>📖 Rich Content</h3>
+                        <ul>
+                            <li>7 quest types with branching narratives</li>
+                            <li>4 mission types</li>
+                            <li>10 dynamic event types</li>
+                            <li>Achievement system</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>👥 Multiplayer</h3>
+                        <ul>
+                            <li>4 chat channels</li>
+                            <li>Player factions & territory</li>
+                            <li>Player-to-player trading</li>
+                            <li>PvP combat & leaderboards</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>🛠️ Infrastructure</h3>
+                        <ul>
+                            <li>Auto-save (every 30 seconds)</li>
+                            <li>RBAC admin system</li>
+                            <li>Interactive tutorial</li>
+                            <li>Customizable settings</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" style="background: rgba(0, 212, 255, 0.05);">
+            <div class="container">
+                <h2>Game Statistics</h2>
+
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number">11</div>
+                        <div class="stat-label">Ship Types</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">100+</div>
+                        <div class="stat-label">Star Systems</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">15</div>
+                        <div class="stat-label">Commodities</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">29+</div>
+                        <div class="stat-label">Game Systems</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="quickstart" class="section">
+            <div class="container">
+                <h2>Quick Start</h2>
+
+                <div class="terminal-demo">
+                    <pre># Clone the repository
+git clone https://github.com/JoshuaAFerguson/terminal-velocity.git
+cd terminal-velocity
+
+# Quick start with Docker
+cp .env.example .env
+# Edit .env and set DB_PASSWORD
+docker-compose up -d
+
+# Connect to the game
+ssh -p 2222 username@localhost</pre>
+                </div>
+
+                <div style="text-align: center; margin-top: 2rem;">
+                    <a href="https://github.com/JoshuaAFerguson/terminal-velocity/blob/main/QUICKSTART.md" class="btn btn-primary">Full Installation Guide</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="documentation" class="section" style="background: rgba(0, 212, 255, 0.05);">
+            <div class="container">
+                <h2>Documentation</h2>
+
+                <div class="features">
+                    <div class="feature-card">
+                        <h3>📚 Wiki</h3>
+                        <p>Comprehensive guides for players and developers</p>
+                        <ul>
+                            <li>Getting Started Guide</li>
+                            <li>Gameplay Guide</li>
+                            <li>Trading Strategies</li>
+                            <li>FAQ</li>
+                            <li>Architecture Overview</li>
+                        </ul>
+                        <div style="margin-top: 1rem;">
+                            <a href="https://github.com/JoshuaAFerguson/terminal-velocity/wiki" class="btn btn-secondary">Visit Wiki</a>
+                        </div>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>💬 Community</h3>
+                        <p>Join discussions and connect with players</p>
+                        <ul>
+                            <li>Announcements</li>
+                            <li>Q&A</li>
+                            <li>Show and Tell</li>
+                            <li>Feature Ideas</li>
+                        </ul>
+                        <div style="margin-top: 1rem;">
+                            <a href="https://github.com/JoshuaAFerguson/terminal-velocity/discussions" class="btn btn-secondary">Join Discussions</a>
+                        </div>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>🐛 Issues</h3>
+                        <p>Report bugs and track development</p>
+                        <ul>
+                            <li>Bug Reports</li>
+                            <li>Feature Requests</li>
+                            <li>Development Tracking</li>
+                            <li>Roadmap Progress</li>
+                        </ul>
+                        <div style="margin-top: 1rem;">
+                            <a href="https://github.com/JoshuaAFerguson/terminal-velocity/issues" class="btn btn-secondary">View Issues</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2>Technology Stack</h2>
+
+                <div style="text-align: center;">
+                    <p style="font-size: 1.2rem; margin-bottom: 2rem; color: #b0b0b0;">
+                        Built with modern technologies for performance and reliability
+                    </p>
+
+                    <div class="features">
+                        <div class="feature-card">
+                            <h3>Go 1.23+</h3>
+                            <p>Fast, reliable, and efficient</p>
+                        </div>
+                        <div class="feature-card">
+                            <h3>PostgreSQL</h3>
+                            <p>Robust data persistence</p>
+                        </div>
+                        <div class="feature-card">
+                            <h3>BubbleTea</h3>
+                            <p>Beautiful terminal UI</p>
+                        </div>
+                        <div class="feature-card">
+                            <h3>SSH</h3>
+                            <p>Secure multiplayer</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" style="background: rgba(0, 212, 255, 0.05);">
+            <div class="container" style="text-align: center;">
+                <h2>Ready to Play?</h2>
+                <p style="font-size: 1.2rem; margin-bottom: 2rem; color: #b0b0b0;">
+                    Terminal Velocity is feature-complete and ready for players!
+                </p>
+                <div class="cta-buttons">
+                    <a href="https://github.com/JoshuaAFerguson/terminal-velocity/blob/main/QUICKSTART.md" class="btn btn-primary">Get Started</a>
+                    <a href="https://github.com/JoshuaAFerguson/terminal-velocity" class="btn btn-secondary">Star on GitHub</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/JoshuaAFerguson/terminal-velocity">GitHub</a>
+                <a href="https://github.com/JoshuaAFerguson/terminal-velocity/wiki">Wiki</a>
+                <a href="https://github.com/JoshuaAFerguson/terminal-velocity/discussions">Discussions</a>
+                <a href="https://github.com/JoshuaAFerguson/terminal-velocity/issues">Issues</a>
+                <a href="https://github.com/JoshuaAFerguson/terminal-velocity/blob/main/CONTRIBUTING.md">Contributing</a>
+            </div>
+            <p>&copy; 2025 Terminal Velocity | MIT License | Created by Joshua Ferguson</p>
+            <p style="margin-top: 0.5rem; color: #666;">Version 0.7.0 - Phases 0-7 Complete</p>
+        </div>
+    </footer>
+</body>
+</html>
