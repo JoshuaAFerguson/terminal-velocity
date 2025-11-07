@@ -28,6 +28,29 @@ build-tools: ## Build utility tools
 genmap: build-tools ## Generate and preview a universe
 	./genmap -systems 100 -stats
 
+# Docker targets
+docker-build: ## Build Docker image
+	docker build -t terminal-velocity:latest .
+
+docker-run: ## Run server in Docker
+	docker run -p 2222:2222 terminal-velocity:latest
+
+docker-compose-up: ## Start full stack with docker-compose
+	docker-compose up -d
+
+docker-compose-down: ## Stop docker-compose stack
+	docker-compose down
+
+docker-compose-logs: ## View docker-compose logs
+	docker-compose logs -f
+
+docker-compose-restart: ## Restart docker-compose stack
+	docker-compose restart
+
+docker-clean: ## Remove all Docker artifacts
+	docker-compose down -v
+	docker system prune -f
+
 run: ## Run the server (development)
 	$(GO) run $(GOFLAGS) cmd/server/main.go
 
