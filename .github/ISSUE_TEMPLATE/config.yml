@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/JoshuaAFerguson/terminal-velocity/discussions
+    about: Ask questions, share ideas, or discuss the game with the community
+  - name: 📖 Documentation
+    url: https://github.com/JoshuaAFerguson/terminal-velocity/tree/main/docs
+    about: Read the comprehensive documentation
+  - name: 🔒 Security Issue
+    url: https://github.com/JoshuaAFerguson/terminal-velocity/security/advisories/new
+    about: Report a security vulnerability privately
+  - name: 📋 Project Roadmap
+    url: https://github.com/JoshuaAFerguson/terminal-velocity/projects
+    about: View the development roadmap and current progress
