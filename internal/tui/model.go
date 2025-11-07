@@ -6,6 +6,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
@@ -34,6 +35,7 @@ const (
 	ScreenLeaderboards
 	ScreenPlayers
 	ScreenChat
+	ScreenFactions
 	ScreenSettings
 	ScreenRegistration
 )
@@ -78,6 +80,7 @@ type Model struct {
 	leaderboardsModel leaderboardsModel
 	playersModel   playersModel
 	chatModel      chatModel
+	factionsModel  factionsModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -94,6 +97,9 @@ type Model struct {
 
 	// Chat system
 	chatManager *chat.Manager
+
+	// Faction system
+	factionManager *factions.Manager
 
 	// Error message
 	err error
@@ -140,6 +146,8 @@ func NewModel(
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
 		chatManager:         chat.NewManager(),
+		factionsModel:       newFactionsModel(),
+		factionManager:      factions.NewManager(),
 	}
 }
 
@@ -271,6 +279,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updatePlayers(msg)
 	case ScreenChat:
 		return m.updateChat(msg)
+	case ScreenFactions:
+		return m.updateFactions(msg)
 	default:
 		return m, nil
 	}
@@ -324,6 +334,8 @@ func (m Model) View() string {
 		return m.viewPlayers()
 	case ScreenChat:
 		return m.viewChat()
+	case ScreenFactions:
+		return m.viewFactions()
 	default:
 		return "Unknown screen"
 	}

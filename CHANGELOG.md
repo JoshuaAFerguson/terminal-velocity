@@ -8,6 +8,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Player Factions System (Phase 6, Issue #30)**:
+  - Player-created organizations with full management system
+  - Faction creation with name, tag (3-5 chars), and alignment selection
+  - Five alignment types: trader, mercenary, explorer, pirate, corporate
+  - Member management with role hierarchy:
+    - Leader: Full permissions including settings and promotions
+    - Officer: Can manage members and treasury
+    - Member: Basic faction member
+  - Faction treasury system:
+    - Deposit/withdraw credits
+    - Officer+ access for withdrawals
+    - All members can contribute
+  - Faction progression:
+    - Level system (1-10) with experience points
+    - Member limit increases with levels (starts at 10)
+    - Leveling unlocks new capabilities
+  - Recruitment settings:
+    - Public/private recruitment toggle
+    - Minimum combat rating requirement
+    - Application approval system
+  - Faction manager with thread-safe operations:
+    - Create, join, leave factions
+    - Promote/demote members
+    - Kick members (with rank checks)
+    - Treasury management
+    - Settings configuration
+  - Faction UI:
+    - List view showing all factions with stats
+    - Create faction dialog with input fields
+    - My Faction view with member roster
+    - Treasury and level display
+    - Recruiting status indicators
+  - Foundation for future features:
+    - Territory control system
+    - Faction wars and PvP
+    - Faction reputation with NPC factions
+    - Faction chat integration (ready)
+    - Tax system for passive treasury growth
 - **Communication System with Multi-Channel Chat (Phase 6, Issue #29)**:
   - Comprehensive multiplayer chat system with 6 channel types
   - Chat channels:

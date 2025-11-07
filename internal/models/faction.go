@@ -242,3 +242,8 @@ func (f *PlayerFaction) AddExperience(xp int64) {
 		f.MemberLimit += 5 // Increase member capacity on level up
 	}
 }
+
+// GetFullName returns the faction name with tag
+func (f *PlayerFaction) GetFullName() string {
+	return "[" + f.Tag + "] " + f.Name
+}
