@@ -30,6 +30,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Ship Management", screen: ScreenShipManagement},
 			{label: "Missions", screen: ScreenMissions},
 			{label: "Achievements", screen: ScreenAchievements},
+			{label: "Leaderboards", screen: ScreenLeaderboards},
 			{label: "News", screen: ScreenNews},
 			{label: "Settings", screen: ScreenSettings},
 			{label: "Quit", action: func(m *Model) tea.Cmd { return tea.Quit }},
@@ -80,6 +81,10 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if selected.screen == ScreenShipManagement {
 				m.shipManagement = newShipManagementModel()
 				return m, m.loadOwnedShips()
+			}
+			if selected.screen == ScreenLeaderboards {
+				m.leaderboardsModel = newLeaderboardsModel()
+				return m, m.refreshLeaderboards()
 			}
 
 			return m, nil

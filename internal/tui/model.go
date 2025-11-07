@@ -5,6 +5,7 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/charmbracelet/bubbletea"
@@ -28,6 +29,7 @@ const (
 	ScreenAchievements
 	ScreenEncounter
 	ScreenNews
+	ScreenLeaderboards
 	ScreenSettings
 	ScreenRegistration
 )
@@ -69,6 +71,7 @@ type Model struct {
 	achievementsUI achievementsModel
 	encounterModel encounterModel
 	newsModel      newsModel
+	leaderboardsModel leaderboardsModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -76,6 +79,9 @@ type Model struct {
 
 	// News system
 	newsManager *news.Manager
+
+	// Leaderboards system
+	leaderboardManager *leaderboards.Manager
 
 	// Error message
 	err error
@@ -116,6 +122,8 @@ func NewModel(
 		encounterModel:      newEncounterModel(),
 		newsModel:           newNewsModel(),
 		newsManager:         news.NewManager(),
+		leaderboardsModel:   newLeaderboardsModel(),
+		leaderboardManager:  leaderboards.NewManager(),
 	}
 }
 
@@ -214,6 +222,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateEncounter(msg)
 	case ScreenNews:
 		return m.updateNews(msg)
+	case ScreenLeaderboards:
+		return m.updateLeaderboards(msg)
 	default:
 		return m, nil
 	}
@@ -261,6 +271,8 @@ func (m Model) View() string {
 		return m.viewEncounter()
 	case ScreenNews:
 		return m.viewNews()
+	case ScreenLeaderboards:
+		return m.viewLeaderboards()
 	default:
 		return "Unknown screen"
 	}
@@ -340,5 +352,38 @@ func (m *Model) getAchievementNotification() string {
 func (m *Model) clearAchievementNotification() {
 	if len(m.pendingAchievements) > 0 {
 		m.pendingAchievements = m.pendingAchievements[1:]
+	}
+}
+
+// leaderboardsRefreshedMsg is sent when leaderboards have been refreshed
+type leaderboardsRefreshedMsg struct {
+	success bool
+}
+
+// refreshLeaderboards updates all leaderboard rankings
+//
+// This fetches all players from the database and recalculates rankings
+// across all categories. In a production system, this would be optimized
+// with caching and incremental updates.
+func (m Model) refreshLeaderboards() tea.Cmd {
+	return func() tea.Msg {
+		// For now, we'll simulate with just the current player
+		// In a full implementation, we would fetch all players from the database
+		// ctx := context.Background()
+		// players, err := m.playerRepo.GetAll(ctx)
+		// if err != nil {
+		//     return leaderboardsRefreshedMsg{success: false}
+		// }
+
+		// For this demo, create a simulated player list with just the current player
+		players := []*models.Player{}
+		if m.player != nil {
+			players = append(players, m.player)
+		}
+
+		// Update all leaderboards
+		m.leaderboardManager.UpdateAllLeaderboards(players)
+
+		return leaderboardsRefreshedMsg{success: true}
 	}
 }

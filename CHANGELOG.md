@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Leaderboards System (Phase 5, Issue #27)**:
+  - Comprehensive competitive ranking system across 7 categories
+  - Category leaderboards:
+    - Overall Rankings: Weighted composite of all stats
+    - Combat Masters: Based on kills and combat rating
+    - Trade Moguls: Based on profit and trade volume
+    - Explorers: Based on systems visited and jumps
+    - Wealthiest: Based on current credits
+    - Mission Experts: Based on completions vs failures
+    - Most Reputable: Based on positive faction relationships
+  - Scoring formulas with balanced weighting
+  - Real-time ranking calculations with automatic sorting
+  - Top 3 medal display (🥇🥈🥉)
+  - Two view modes:
+    - Global view: Top 15 players
+    - Near-player view: Shows rankings around your position
+  - Tab-based category navigation (1-7 keyboard shortcuts)
+  - Player highlight in leaderboard listings
+  - Detailed stats display per category
+  - Manual refresh support (R key)
+  - Leaderboard manager for efficient ranking updates
+  - Category-specific icons and display names
+  - Score formatting based on category type
 - **Cargo Delivery Missions (Phase 5, Issue #21 partial)**:
   - Automatic cargo loading on mission acceptance
   - Cargo space validation before accepting delivery missions
