@@ -4,17 +4,22 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/s0v3r1gn/terminal-velocity/internal/models"
 )
 
 type navigationModel struct {
-	cursor          int
-	currentSystem   *models.StarSystem
+	cursor           int
+	currentSystem    *models.StarSystem
 	connectedSystems []*models.StarSystem
-	loading         bool
-	error           string
+	loading          bool
+	error            string
+	jumping          bool
+	jumpTarget       *models.StarSystem
+	jumpProgress     int
+	jumpTotal        int
 }
 
 type systemsLoadedMsg struct {
@@ -27,6 +32,16 @@ type jumpCompleteMsg struct {
 	success bool
 	system  *models.StarSystem
 	err     error
+}
+
+type jumpInitiatedMsg struct {
+	targetSystem *models.StarSystem
+	travelTime   int // seconds
+}
+
+type jumpProgressMsg struct {
+	elapsed int
+	total   int
 }
 
 func newNavigationModel() navigationModel {
@@ -55,10 +70,41 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter", " ":
+			// Don't allow jumping while already jumping
+			if m.navigation.jumping {
+				return m, nil
+			}
+
 			// Initiate jump to selected system
 			if m.navigation.cursor < len(m.navigation.connectedSystems) {
 				targetSystem := m.navigation.connectedSystems[m.navigation.cursor]
-				return m, m.initiateJump(targetSystem)
+
+				// Validate jump before starting sequence
+				if m.currentShip == nil {
+					m.navigation.error = "No ship available"
+					return m, nil
+				}
+
+				jumpCost := calculateJumpCost(m.navigation.currentSystem, targetSystem)
+				if m.currentShip.Fuel < jumpCost {
+					m.navigation.error = fmt.Sprintf("Insufficient fuel (need %d, have %d)", jumpCost, m.currentShip.Fuel)
+					return m, nil
+				}
+
+				// Start jump sequence
+				m.navigation.jumping = true
+				m.navigation.jumpTarget = targetSystem
+				m.navigation.error = ""
+
+				// Calculate travel time (1-5 seconds based on distance)
+				travelTime := calculateTravelTime(m.navigation.currentSystem, targetSystem)
+				m.navigation.jumpProgress = 0
+				m.navigation.jumpTotal = travelTime
+
+				return m, tea.Batch(
+					m.tickJumpProgress(),
+					m.executeJump(targetSystem),
+				)
 			}
 		}
 
@@ -72,7 +118,19 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.navigation.error = ""
 		}
 
+	case jumpProgressMsg:
+		if m.navigation.jumping {
+			m.navigation.jumpProgress = msg.elapsed
+			if msg.elapsed < msg.total {
+				return m, m.tickJumpProgress()
+			}
+		}
+
 	case jumpCompleteMsg:
+		m.navigation.jumping = false
+		m.navigation.jumpProgress = 0
+		m.navigation.jumpTotal = 0
+
 		if msg.success {
 			// Update local state
 			m.player.CurrentSystem = msg.system.ID
@@ -99,15 +157,24 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewNavigation() string {
 	// Header with player stats
-	s := renderHeader(m.username, m.player.Credits, m.navigation.currentSystem.Name)
+	systemName := "Unknown"
+	if m.navigation.currentSystem != nil {
+		systemName = m.navigation.currentSystem.Name
+	}
+	s := renderHeader(m.username, m.player.Credits, systemName)
 	s += "\n"
 
 	// Title
 	s += subtitleStyle.Render("=== Navigation ===") + "\n\n"
 
+	// Jump sequence in progress
+	if m.navigation.jumping {
+		return s + m.renderJumpSequence()
+	}
+
 	// Error display
 	if m.navigation.error != "" {
-		s += errorStyle.Render("⚠ " + m.navigation.error) + "\n\n"
+		s += errorStyle.Render("⚠ "+m.navigation.error) + "\n\n"
 	}
 
 	// Loading state
@@ -203,8 +270,57 @@ func (m Model) loadConnectedSystems() tea.Cmd {
 	}
 }
 
-// initiateJump starts a jump to a target system
-func (m Model) initiateJump(targetSystem *models.StarSystem) tea.Cmd {
+// renderJumpSequence renders the jump animation
+func (m Model) renderJumpSequence() string {
+	if m.navigation.jumpTarget == nil {
+		return "Jumping...\n"
+	}
+
+	progress := float64(m.navigation.jumpProgress) / float64(m.navigation.jumpTotal)
+	barWidth := 40
+	filled := int(progress * float64(barWidth))
+
+	bar := "["
+	for i := 0; i < barWidth; i++ {
+		if i < filled {
+			bar += "="
+		} else if i == filled {
+			bar += ">"
+		} else {
+			bar += " "
+		}
+	}
+	bar += "]"
+
+	s := fmt.Sprintf("Jumping to %s...\n\n", statsStyle.Render(m.navigation.jumpTarget.Name))
+	s += fmt.Sprintf("%s %d%%\n\n", bar, int(progress*100))
+	s += "Engaging hyperdrive...\n"
+
+	if progress > 0.3 {
+		s += "Entering hyperspace corridor...\n"
+	}
+	if progress > 0.6 {
+		s += "Approaching destination system...\n"
+	}
+	if progress > 0.9 {
+		s += "Preparing to exit hyperspace...\n"
+	}
+
+	return s
+}
+
+// tickJumpProgress creates a ticker for jump progress animation
+func (m Model) tickJumpProgress() tea.Cmd {
+	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+		return jumpProgressMsg{
+			elapsed: m.navigation.jumpProgress + 1,
+			total:   m.navigation.jumpTotal,
+		}
+	})
+}
+
+// executeJump starts a jump to a target system (actual game logic)
+func (m Model) executeJump(targetSystem *models.StarSystem) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
@@ -272,4 +388,24 @@ func calculateJumpCost(from, to *models.StarSystem) int {
 		cost = 50 // Cap at 50 fuel
 	}
 	return cost
+}
+
+// calculateTravelTime calculates the travel time for a jump (in ticks of 100ms)
+func calculateTravelTime(from, to *models.StarSystem) int {
+	// Travel time is 1-5 seconds (10-50 ticks)
+	// Based on distance
+	if from == nil || to == nil {
+		return 30 // 3 seconds default
+	}
+
+	distance := from.Position.DistanceTo(to.Position)
+	// Longer distances take more time
+	ticks := 10 + int(distance/200)
+	if ticks < 10 {
+		ticks = 10 // Minimum 1 second
+	}
+	if ticks > 50 {
+		ticks = 50 // Maximum 5 seconds
+	}
+	return ticks
 }
