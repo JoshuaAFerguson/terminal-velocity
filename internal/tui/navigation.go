@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/charmbracelet/bubbletea"
-	"github.com/s0v3r1gn/terminal-velocity/internal/models"
 )
 
 type navigationModel struct {

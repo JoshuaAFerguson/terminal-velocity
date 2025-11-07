@@ -3,10 +3,10 @@ package tui
 import (
 	"context"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
-	"github.com/s0v3r1gn/terminal-velocity/internal/database"
-	"github.com/s0v3r1gn/terminal-velocity/internal/models"
 )
 
 // Screen represents different game screens
@@ -39,6 +39,7 @@ type Model struct {
 	systemRepo *database.SystemRepository
 	sshKeyRepo *database.SSHKeyRepository
 	shipRepo   *database.ShipRepository
+	marketRepo *database.MarketRepository
 
 	// Screen dimensions
 	width  int
@@ -49,6 +50,7 @@ type Model struct {
 	gameView     gameViewModel
 	registration registrationModel
 	navigation   navigationModel
+	trading      tradingModel
 
 	// Error message
 	err error
@@ -62,6 +64,7 @@ func NewModel(
 	systemRepo *database.SystemRepository,
 	sshKeyRepo *database.SSHKeyRepository,
 	shipRepo *database.ShipRepository,
+	marketRepo *database.MarketRepository,
 ) Model {
 	return Model{
 		screen:     ScreenMainMenu,
@@ -71,9 +74,11 @@ func NewModel(
 		systemRepo: systemRepo,
 		sshKeyRepo: sshKeyRepo,
 		shipRepo:   shipRepo,
+		marketRepo: marketRepo,
 		width:      80,
 		height:     24,
 		mainMenu:   newMainMenuModel(),
+		trading:    newTradingModel(),
 	}
 }
 
@@ -86,6 +91,7 @@ func NewRegistrationModel(
 	systemRepo *database.SystemRepository,
 	sshKeyRepo *database.SSHKeyRepository,
 	shipRepo *database.ShipRepository,
+	marketRepo *database.MarketRepository,
 ) Model {
 	return Model{
 		screen:       ScreenRegistration,
@@ -95,6 +101,7 @@ func NewRegistrationModel(
 		systemRepo:   systemRepo,
 		sshKeyRepo:   sshKeyRepo,
 		shipRepo:     shipRepo,
+		marketRepo:   marketRepo,
 		width:        80,
 		height:       24,
 		registration: newRegistrationModel(requireEmail, sshKeyData),
@@ -143,6 +150,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateRegistration(msg)
 	case ScreenNavigation:
 		return m.updateNavigation(msg)
+	case ScreenTrading:
+		return m.updateTrading(msg)
 	default:
 		return m, nil
 	}
@@ -170,6 +179,8 @@ func (m Model) View() string {
 		return m.viewRegistration()
 	case ScreenNavigation:
 		return m.viewNavigation()
+	case ScreenTrading:
+		return m.viewTrading()
 	default:
 		return "Unknown screen"
 	}

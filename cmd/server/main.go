@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/s0v3r1gn/terminal-velocity/internal/server"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/server"
 )
 
 var (

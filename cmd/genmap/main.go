@@ -6,8 +6,8 @@ import (
 	"os"
 	"sort"
 
-	"github.com/s0v3r1gn/terminal-velocity/internal/game/universe"
-	"github.com/s0v3r1gn/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/game/universe"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 func main() {

@@ -3,8 +3,8 @@ package universe
 import (
 	"sort"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
-	"github.com/s0v3r1gn/terminal-velocity/internal/models"
 )
 
 // Edge represents a connection between two systems with a distance

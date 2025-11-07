@@ -7,7 +7,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/s0v3r1gn/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"golang.org/x/term"
 )
 

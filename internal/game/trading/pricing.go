@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/s0v3r1gn/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 // PricingEngine handles dynamic price calculation

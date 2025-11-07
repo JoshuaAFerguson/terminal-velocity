@@ -253,3 +253,4 @@ Only 2 test files exist currently. When adding tests:
 
 Refer to GitHub Issues with `phase-1` label and ROADMAP.md Phase 1 section for remaining tasks.
 - lint files before commiting, files must pass lint checks.
+- The github repository is located at https://github.com/JoshuaAFerguson/terminal-velocity/

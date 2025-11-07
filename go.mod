@@ -1,4 +1,4 @@
-module github.com/s0v3r1gn/terminal-velocity
+module github.com/JoshuaAFerguson/terminal-velocity
 
 go 1.24.0
 

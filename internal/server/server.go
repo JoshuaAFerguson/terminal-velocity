@@ -6,11 +6,11 @@ import (
 	"log"
 	"net"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
-	"github.com/s0v3r1gn/terminal-velocity/internal/database"
-	"github.com/s0v3r1gn/terminal-velocity/internal/models"
-	"github.com/s0v3r1gn/terminal-velocity/internal/tui"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -26,6 +26,7 @@ type Server struct {
 	systemRepo *database.SystemRepository
 	sshKeyRepo *database.SSHKeyRepository
 	shipRepo   *database.ShipRepository
+	marketRepo *database.MarketRepository
 }
 
 // Config holds server configuration
@@ -97,6 +98,7 @@ func (s *Server) initDatabase() error {
 	s.systemRepo = database.NewSystemRepository(s.db)
 	s.sshKeyRepo = database.NewSSHKeyRepository(s.db)
 	s.shipRepo = database.NewShipRepository(s.db)
+	s.marketRepo = database.NewMarketRepository(s.db)
 
 	log.Println("Database connected successfully")
 	return nil
@@ -232,7 +234,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 	}
 
 	// Initialize TUI model
-	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo)
+	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo)
 
 	// Create BubbleTea program with SSH channel as input/output
 	p := tea.NewProgram(
@@ -255,7 +257,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 // startRegistrationSession starts a registration session for a new player
 func (s *Server) startRegistrationSession(username string, channel ssh.Channel) {
 	// Initialize TUI model for registration
-	model := tui.NewRegistrationModel(username, s.config.RequireEmail, nil, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo)
+	model := tui.NewRegistrationModel(username, s.config.RequireEmail, nil, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo)
 
 	// Create BubbleTea program with SSH channel as input/output
 	p := tea.NewProgram(
