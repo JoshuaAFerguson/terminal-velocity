@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+
 	"github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/s0v3r1gn/terminal-velocity/internal/database"
@@ -36,6 +38,7 @@ type Model struct {
 	playerRepo   *database.PlayerRepository
 	systemRepo   *database.SystemRepository
 	sshKeyRepo   *database.SSHKeyRepository
+	shipRepo     *database.ShipRepository
 
 	// Screen dimensions
 	width        int
@@ -58,6 +61,7 @@ func NewModel(
 	playerRepo *database.PlayerRepository,
 	systemRepo *database.SystemRepository,
 	sshKeyRepo *database.SSHKeyRepository,
+	shipRepo *database.ShipRepository,
 ) Model {
 	return Model{
 		screen:     ScreenMainMenu,
@@ -66,6 +70,7 @@ func NewModel(
 		playerRepo: playerRepo,
 		systemRepo: systemRepo,
 		sshKeyRepo: sshKeyRepo,
+		shipRepo:   shipRepo,
 		width:      80,
 		height:     24,
 		mainMenu:   newMainMenuModel(),
@@ -80,6 +85,7 @@ func NewRegistrationModel(
 	playerRepo *database.PlayerRepository,
 	systemRepo *database.SystemRepository,
 	sshKeyRepo *database.SSHKeyRepository,
+	shipRepo *database.ShipRepository,
 ) Model {
 	return Model{
 		screen:       ScreenRegistration,
@@ -88,6 +94,7 @@ func NewRegistrationModel(
 		playerRepo:   playerRepo,
 		systemRepo:   systemRepo,
 		sshKeyRepo:   sshKeyRepo,
+		shipRepo:     shipRepo,
 		width:        80,
 		height:       24,
 		registration: newRegistrationModel(requireEmail, sshKeyData),
@@ -121,6 +128,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case playerLoadedMsg:
 		m.player = msg.player
+		m.currentShip = msg.ship
 		m.err = msg.err
 		return m, nil
 	}
@@ -170,14 +178,30 @@ func (m Model) View() string {
 // playerLoadedMsg is sent when player data is loaded
 type playerLoadedMsg struct {
 	player *models.Player
+	ship   *models.Ship
 	err    error
 }
 
 // loadPlayer loads player data from the database
 func (m Model) loadPlayer() tea.Cmd {
 	return func() tea.Msg {
-		player, err := m.playerRepo.GetByID(nil, m.playerID)
-		return playerLoadedMsg{player: player, err: err}
+		ctx := context.Background()
+		player, err := m.playerRepo.GetByID(ctx, m.playerID)
+		if err != nil {
+			return playerLoadedMsg{err: err}
+		}
+
+		// Load player's ship if they have one
+		var ship *models.Ship
+		if player.ShipID != uuid.Nil {
+			ship, err = m.shipRepo.GetByID(ctx, player.ShipID)
+			if err != nil {
+				// Log error but don't fail - player might not have a ship yet
+				// In future, we should handle this better
+			}
+		}
+
+		return playerLoadedMsg{player: player, ship: ship, err: nil}
 	}
 }
 

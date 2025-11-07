@@ -25,6 +25,7 @@ type Server struct {
 	playerRepo *database.PlayerRepository
 	systemRepo *database.SystemRepository
 	sshKeyRepo *database.SSHKeyRepository
+	shipRepo   *database.ShipRepository
 }
 
 // Config holds server configuration
@@ -95,6 +96,7 @@ func (s *Server) initDatabase() error {
 	s.playerRepo = database.NewPlayerRepository(s.db)
 	s.systemRepo = database.NewSystemRepository(s.db)
 	s.sshKeyRepo = database.NewSSHKeyRepository(s.db)
+	s.shipRepo = database.NewShipRepository(s.db)
 
 	log.Println("Database connected successfully")
 	return nil
@@ -230,7 +232,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 	}
 
 	// Initialize TUI model
-	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo)
+	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo)
 
 	// Create BubbleTea program with SSH channel as input/output
 	p := tea.NewProgram(
@@ -253,7 +255,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 // startRegistrationSession starts a registration session for a new player
 func (s *Server) startRegistrationSession(username string, channel ssh.Channel) {
 	// Initialize TUI model for registration
-	model := tui.NewRegistrationModel(username, s.config.RequireEmail, nil, s.playerRepo, s.systemRepo, s.sshKeyRepo)
+	model := tui.NewRegistrationModel(username, s.config.RequireEmail, nil, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo)
 
 	// Create BubbleTea program with SSH channel as input/output
 	p := tea.NewProgram(

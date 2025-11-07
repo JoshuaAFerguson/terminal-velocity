@@ -74,9 +74,20 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jumpCompleteMsg:
 		if msg.success {
-			// Reload systems for new location
+			// Update local state
 			m.player.CurrentSystem = msg.system.ID
 			m.navigation.currentSystem = msg.system
+
+			// Update ship fuel in local model
+			if m.currentShip != nil {
+				jumpCost := calculateJumpCost(m.navigation.currentSystem, msg.system)
+				m.currentShip.Fuel -= jumpCost
+				if m.currentShip.Fuel < 0 {
+					m.currentShip.Fuel = 0
+				}
+			}
+
+			// Reload systems for new location
 			return m, m.loadConnectedSystems()
 		} else {
 			m.navigation.error = fmt.Sprintf("Jump failed: %v", msg.err)
@@ -124,8 +135,10 @@ func (m Model) viewNavigation() string {
 	if m.currentShip != nil {
 		fuelInfo := fmt.Sprintf("Fuel: %s / %d",
 			statsStyle.Render(fmt.Sprintf("%d", m.currentShip.Fuel)),
-			100) // TODO: Get max fuel from ship type
+			100) // TODO: Get max fuel from ship type when we have ship types loaded
 		s += fuelInfo + "\n\n"
+	} else {
+		s += helpStyle.Render("No ship available\n\n")
 	}
 
 	// Connected systems list
@@ -195,6 +208,14 @@ func (m Model) initiateJump(targetSystem *models.StarSystem) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
+		// Check if we have a ship
+		if m.currentShip == nil {
+			return jumpCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("no ship available"),
+			}
+		}
+
 		// Calculate fuel cost
 		jumpCost := calculateJumpCost(m.navigation.currentSystem, targetSystem)
 
@@ -206,19 +227,24 @@ func (m Model) initiateJump(targetSystem *models.StarSystem) tea.Cmd {
 			}
 		}
 
-		// Consume fuel (TODO: implement ship repository update)
-		// For now, we'll just update the player's current system
+		// Consume fuel
+		newFuel := m.currentShip.Fuel - jumpCost
+		err := m.shipRepo.UpdateFuel(ctx, m.currentShip.ID, newFuel)
+		if err != nil {
+			return jumpCompleteMsg{
+				success: false,
+				err:     fmt.Errorf("failed to update fuel: %w", err),
+			}
+		}
 
 		// Update player location
-		err := m.playerRepo.UpdateLocation(ctx, m.player.ID, targetSystem.ID, nil)
+		err = m.playerRepo.UpdateLocation(ctx, m.player.ID, targetSystem.ID, nil)
 		if err != nil {
 			return jumpCompleteMsg{
 				success: false,
 				err:     err,
 			}
 		}
-
-		// TODO: Update ship fuel in database
 
 		return jumpCompleteMsg{
 			success: true,
