@@ -19,6 +19,7 @@ const (
 	ScreenTrading
 	ScreenCargo
 	ScreenShipyard
+	ScreenOutfitter
 	ScreenMissions
 	ScreenSettings
 	ScreenRegistration
@@ -54,6 +55,7 @@ type Model struct {
 	trading      tradingModel
 	cargo        cargoModel
 	shipyard     shipyardModel
+	outfitter    outfitterModel
 
 	// Error message
 	err error
@@ -84,6 +86,7 @@ func NewModel(
 		trading:    newTradingModel(),
 		cargo:      newCargoModel(),
 		shipyard:   newShipyardModel(),
+		outfitter:  newOutfitterModel(),
 	}
 }
 
@@ -161,6 +164,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCargo(msg)
 	case ScreenShipyard:
 		return m.updateShipyard(msg)
+	case ScreenOutfitter:
+		return m.updateOutfitter(msg)
 	default:
 		return m, nil
 	}
@@ -194,6 +199,8 @@ func (m Model) View() string {
 		return m.viewCargo()
 	case ScreenShipyard:
 		return m.viewShipyard()
+	case ScreenOutfitter:
+		return m.viewOutfitter()
 	default:
 		return "Unknown screen"
 	}
