@@ -217,6 +217,18 @@ func (m Model) executeFireWeapon() (tea.Model, tea.Cmd) {
 	// Check if target destroyed
 	if target.Hull <= 0 {
 		m.addCombatLog(fmt.Sprintf("%s DESTROYED!", target.Name))
+
+		// Record kill for player progression
+		if m.player != nil {
+			m.player.RecordKill()
+
+			// Show rating update if it changed
+			newRating := m.player.CombatRating
+			if newRating%10 == 0 { // Show message every 10 points
+				m.addCombatLog(fmt.Sprintf("Combat Rating: %d (%s)", newRating, m.player.GetCombatRankTitle()))
+			}
+		}
+
 		// Remove from enemy list
 		m.combat.enemyShips = append(m.combat.enemyShips[:m.combat.selectedTarget],
 			m.combat.enemyShips[m.combat.selectedTarget+1:]...)

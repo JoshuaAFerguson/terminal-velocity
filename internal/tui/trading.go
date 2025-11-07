@@ -137,11 +137,28 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.trading.mode = "market"
 			m.trading.quantity = 1
 			m.trading.selectedCommodity = nil
+
+			// Record trade for player progression
+			if m.player != nil {
+				m.player.RecordTrade(msg.profit)
+
+				// Show rank update on milestone achievements
+				tradingRating := m.player.TradingRating
+				if tradingRating > 0 && tradingRating%10 == 0 { // Every 10 points
+					rankTitle := m.player.GetTradingRankTitle()
+					m.trading.error = fmt.Sprintf("Trading Rank: %s (Rating: %d)", rankTitle, tradingRating)
+				}
+			}
+
 			// Show profit/loss message
 			if msg.profit > 0 {
-				m.trading.error = fmt.Sprintf("Sale complete! Profit: %d cr", msg.profit)
+				if m.trading.error == "" { // Only if not showing rank update
+					m.trading.error = fmt.Sprintf("Sale complete! Profit: %d cr", msg.profit)
+				}
 			} else if msg.profit < 0 {
-				m.trading.error = fmt.Sprintf("Purchase complete! Cost: %d cr", -msg.profit)
+				if m.trading.error == "" {
+					m.trading.error = fmt.Sprintf("Purchase complete! Cost: %d cr", -msg.profit)
+				}
 			}
 			// Reload market prices
 			return m, m.loadTradingMarket()

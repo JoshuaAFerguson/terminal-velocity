@@ -43,21 +43,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Highest profit tracking for trading achievements
   - GetCombatRankTitle(), GetTradingRankTitle(), GetExplorationRankTitle()
   - GetOverallRank() for combined progression display
+  - **Integration with gameplay systems**:
+    - Combat system now tracks kills automatically
+    - Trading system records all transactions with profit tracking
+    - Mission system tracks completions and failures
+    - Rank updates displayed on milestone achievements
+    - Combat rating shown in combat log every 10 points
+    - Trading rank shown in trading UI every 10 points
 
 ### Changed
 - **Mission Manager (internal/missions/manager.go)**:
-  - Version updated to 1.1.0
+  - Version updated to 1.2.0
   - Added comprehensive file header documentation
   - Added detailed function comments with parameters and returns
   - Added bountyTargets map for kill tracking
   - Enhanced AcceptMission() to register bounty targets
-  - Enhanced ApplyMissionRewards() with detailed comments
+  - Enhanced ApplyMissionRewards() to record mission completions
+  - Updated FailMission() signature to accept player parameter
+  - Added mission failure tracking with player progression
+  - Updated all FailMission() calls to pass player parameter
 - **Player Model (internal/models/player.go)**:
   - Version updated to 1.1.0
   - Added comprehensive package header documentation
   - Added progression tracking fields (trading, exploration, missions)
   - Enhanced NewPlayer() to initialize all progression fields
   - Added detailed function comments with parameters and returns
+- **Combat UI (internal/tui/combat.go)**:
+  - Integrated kill tracking with RecordKill() on enemy destruction
+  - Added combat rating display in combat log on milestones
+  - Shows rank title updates in combat messages
+- **Trading UI (internal/tui/trading.go)**:
+  - Integrated trade tracking with RecordTrade() on transactions
+  - Added trading rank display on milestone achievements
+  - Shows rank title and rating in trade completion messages
+- **Mission UI (internal/tui/missions.go)**:
+  - Updated mission abandonment to track failures
+  - Added player parameter to FailMission() calls
 
 ## [0.4.0] - 2025-01-07
 

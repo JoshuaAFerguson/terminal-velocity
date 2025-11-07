@@ -117,7 +117,7 @@ func (m Model) updateActiveMissions(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Abandon mission
 		if len(activeMissions) > 0 && m.missions.cursor < len(activeMissions) {
 			mission := activeMissions[m.missions.cursor]
-			err := m.missions.manager.FailMission(mission.ID, "abandoned by player")
+			err := m.missions.manager.FailMission(mission.ID, "abandoned by player", m.player)
 			if err == nil {
 				m.missions.message = fmt.Sprintf("Abandoned mission: %s", mission.Title)
 				m.missions.cursor = 0

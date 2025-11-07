@@ -6,8 +6,9 @@
 // - Mission requirements validation
 // - Mission progress tracking
 // - Reward application
+// - Player progression tracking (completions/failures)
 //
-// Version: 1.1.0
+// Version: 1.2.0
 // Last Updated: 2025-01-07
 package missions
 
@@ -198,8 +199,16 @@ func (m *Manager) CompleteMission(missionID uuid.UUID) (*models.Mission, error) 
 	return mission, nil
 }
 
-// FailMission marks a mission as failed
-func (m *Manager) FailMission(missionID uuid.UUID, reason string) error {
+// FailMission marks a mission as failed and records it in player progression.
+//
+// Parameters:
+//   - missionID: UUID of the mission to fail
+//   - reason: Reason for failure (e.g., "deadline expired", "abandoned")
+//   - player: Optional player for progression tracking (can be nil)
+//
+// Returns:
+//   - Error if mission not found
+func (m *Manager) FailMission(missionID uuid.UUID, reason string, player *models.Player) error {
 	// Find mission in active list
 	missionIndex := -1
 	var mission *models.Mission
@@ -219,6 +228,11 @@ func (m *Manager) FailMission(missionID uuid.UUID, reason string) error {
 	// Mark as failed
 	mission.Fail()
 
+	// Record mission failure for player progression
+	if player != nil {
+		player.RecordMissionFailure()
+	}
+
 	// Remove from active
 	m.activeMissions = append(m.activeMissions[:missionIndex], m.activeMissions[missionIndex+1:]...)
 
@@ -237,7 +251,7 @@ func (m *Manager) UpdateMissions(player *models.Player) []string {
 		mission := m.activeMissions[i]
 
 		if mission.IsExpired() && mission.Status != models.MissionStatusCompleted {
-			err := m.FailMission(mission.ID, "deadline expired")
+			err := m.FailMission(mission.ID, "deadline expired", player)
 			if err == nil {
 				messages = append(messages, fmt.Sprintf("Mission '%s' failed: deadline expired", mission.Title))
 			}
@@ -350,6 +364,11 @@ func ApplyMissionRewards(player *models.Player, playerShip *models.Ship, mission
 	// Remove mission cargo if delivery mission (cargo has been delivered)
 	if mission.Type == models.MissionTypeDelivery && mission.Cargo != nil {
 		playerShip.RemoveCargo(mission.Cargo.CommodityID, mission.Cargo.Quantity)
+	}
+
+	// Record mission completion for player progression
+	if player != nil {
+		player.RecordMissionCompletion()
 	}
 
 	// Format reward message for player feedback
