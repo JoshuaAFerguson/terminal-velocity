@@ -67,7 +67,7 @@ func (m *Manager) generateRandomMission(planetID uuid.UUID, factionID string) *m
 }
 
 // AcceptMission moves a mission from available to active
-func (m *Manager) AcceptMission(missionID uuid.UUID, player *models.Player) error {
+func (m *Manager) AcceptMission(missionID uuid.UUID, player *models.Player, playerShip *models.Ship, playerShipType *models.ShipType) error {
 	// Find mission in available list
 	missionIndex := -1
 	var mission *models.Mission
@@ -92,6 +92,16 @@ func (m *Manager) AcceptMission(missionID uuid.UUID, player *models.Player) erro
 	// Check active mission limit (5 active missions max)
 	if len(m.activeMissions) >= 5 {
 		return fmt.Errorf("too many active missions (max 5)")
+	}
+
+	// For delivery missions, check cargo space and load cargo
+	if mission.Type == models.MissionTypeDelivery && mission.Cargo != nil {
+		if !playerShip.CanAddCargo(mission.Cargo.Quantity, playerShipType) {
+			return fmt.Errorf("insufficient cargo space (need %d tons)", mission.Cargo.Quantity)
+		}
+
+		// Load mission cargo
+		playerShip.AddCargo(mission.Cargo.CommodityID, mission.Cargo.Quantity)
 	}
 
 	// Move to active
@@ -236,29 +246,72 @@ func (m *Manager) GetMissionByID(missionID uuid.UUID) *models.Mission {
 }
 
 // CheckMissionProgress checks if mission objectives have been met
-func (m *Manager) CheckMissionProgress(player *models.Player) []string {
+func (m *Manager) CheckMissionProgress(player *models.Player, playerShip *models.Ship) []string {
 	messages := []string{}
 
 	for _, mission := range m.activeMissions {
 		// Check based on mission type
 		switch mission.Type {
 		case models.MissionTypeDelivery:
-			// Would check if player is at destination with cargo
-			// For now, this is placeholder
+			// Check if player is at destination with cargo
+			if mission.Destination != nil && player.CurrentPlanet != nil {
+				if *mission.Destination == *player.CurrentPlanet {
+					// Check if player has the cargo
+					if mission.Cargo != nil {
+						cargoQty := playerShip.GetCommodityQuantity(mission.Cargo.CommodityID)
+						if cargoQty >= mission.Cargo.Quantity {
+							// Mission can be completed
+							mission.Progress = mission.Quantity
+						}
+					}
+				}
+			}
 		case models.MissionTypeCombat:
-			// Would check combat stats
+			// Would check combat stats (not implemented yet)
+		case models.MissionTypeBounty:
+			// Would check if target killed (not implemented yet)
 		}
 
 		// Auto-complete if progress meets quantity
 		if mission.IsCompleted() && mission.Status != models.MissionStatusCompleted {
-			_, err := m.CompleteMission(mission.ID)
+			completedMission, err := m.CompleteMission(mission.ID)
 			if err == nil {
 				messages = append(messages, fmt.Sprintf("Mission '%s' completed!", mission.Title))
+
+				// Apply rewards
+				rewardMsg := ApplyMissionRewards(player, playerShip, completedMission)
+				if rewardMsg != "" {
+					messages = append(messages, rewardMsg)
+				}
 			}
 		}
 	}
 
 	return messages
+}
+
+// ApplyMissionRewards applies credits and reputation from completed mission
+func ApplyMissionRewards(player *models.Player, playerShip *models.Ship, mission *models.Mission) string {
+	// Apply credit reward
+	player.AddCredits(mission.Reward)
+
+	// Apply reputation changes
+	for factionID, repChange := range mission.ReputationChange {
+		player.ModifyReputation(factionID, repChange)
+	}
+
+	// Remove mission cargo if delivery mission
+	if mission.Type == models.MissionTypeDelivery && mission.Cargo != nil {
+		playerShip.RemoveCargo(mission.Cargo.CommodityID, mission.Cargo.Quantity)
+	}
+
+	// Format reward message
+	msg := fmt.Sprintf("Received %d credits", mission.Reward)
+	if len(mission.ReputationChange) > 0 {
+		msg += " and reputation bonuses"
+	}
+
+	return msg
 }
 
 // Mission generation helpers

@@ -8,6 +8,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Cargo Delivery Missions (Phase 5, Issue #21 partial)**:
+  - Automatic cargo loading on mission acceptance
+  - Cargo space validation before accepting delivery missions
+  - Delivery validation at destination planets
+  - Mission completion with automatic cargo removal
+  - Credit and reputation reward application
+  - CheckMissionProgress() integration with player location
+  - Mission progress check command (C key) in mission board
+
+## [0.4.0] - 2025-01-07
+
+### Added
+- **Mission Framework (Phase 5, Issue #20)**:
+  - Mission data structures with comprehensive fields
+  - 6 mission types: delivery, combat, escort, bounty, exploration, trading
+  - Mission status state machine (available, active, completed, failed)
+  - Mission Manager for lifecycle management
+  - GenerateMissions() with random mission generation
+  - Mission generation for delivery, combat, bounty, and trading missions
+  - AcceptMission() with requirements validation and cargo loading
+  - DeclineMission() to remove unwanted missions
+  - CompleteMission() to mark missions as finished
+  - FailMission() for abandoned or expired missions
+  - Active mission limit (5 concurrent missions max)
+  - Mission requirements system (combat rating, faction reputation)
+  - Deadline tracking with automatic expiration
+  - Mission progress tracking with UpdateProgress()
+  - IsExpired() and IsCompleted() status checks
+  - Mission rewards system (credit rewards, reputation changes)
+  - Mission Board UI with tab-based navigation
+  - Mission details display with type icons, objectives, rewards
+  - Requirements validation display (✓/✗ indicators)
+  - Accept/decline mechanics with validation
+  - Mission abandonment for active missions
+  - UpdateMissions() for automatic expiration checks
+  - CheckMissionProgress() for auto-completion
+  - 10 mission display limit with scrolling
+  - Word-wrap for long descriptions
+
+## [0.1.0] - 2025-01-03
+
+### Added
 - **Enhanced Authentication System (Phase 1, Issue #2 partial)**:
   - SSH public key authentication support
   - Multi-method authentication (password + SSH keys simultaneously)
@@ -113,6 +155,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Contraband price increases (20-50%)
   - Improved tech level modifiers (0.05 → 0.07)
   - Ship progression economics documented
+## [0.2.0] - 2025-01-04
+
+### Added
 - **Ship Types (Phase 3, Issue #10)**:
   - 11 standard ship types (Shuttle to Battleship)
   - Complete stat definitions (combat, cargo, speed, etc.)
@@ -151,6 +196,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Hull/shield/fuel status display
   - Maintenance status indicators
   - Comprehensive ship details view
+## [0.3.0] - 2025-01-05
+
+### Added
 - **Weapon Systems (Phase 4, Issue #15)**:
   - Extended weapon model with combat mechanics
   - Weapon type differentiation (laser, missile, plasma, railgun)
@@ -308,9 +356,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Release History
 
-### [0.1.0] - Unreleased
-- Initial development phase
-- Phase 1: Foundation & Navigation (in progress)
+### [0.4.0] - 2025-01-07
+- Mission system framework
+- Phase 5: Missions & Progression (in progress - 25%)
+
+### [0.3.0] - 2025-01-05
+- Combat system complete
+- Phase 4: Combat System (complete)
+
+### [0.2.0] - 2025-01-04
+- Ship progression complete
+- Phase 3: Ship Progression (complete)
+
+### [0.1.0] - 2025-01-03
+- Foundation and economy
+- Phase 1: Foundation & Navigation (complete)
+- Phase 2: Core Economy (complete)
 
 ---
 
@@ -341,5 +402,8 @@ See [ROADMAP.md](ROADMAP.md) for detailed phase breakdowns.
 - [Project Boards](https://github.com/JoshuaAFerguson/terminal-velocity/projects)
 - [Discussions](https://github.com/JoshuaAFerguson/terminal-velocity/discussions)
 
-[Unreleased]: https://github.com/JoshuaAFerguson/terminal-velocity/compare/HEAD
+[Unreleased]: https://github.com/JoshuaAFerguson/terminal-velocity/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/JoshuaAFerguson/terminal-velocity/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/JoshuaAFerguson/terminal-velocity/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/JoshuaAFerguson/terminal-velocity/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/JoshuaAFerguson/terminal-velocity/releases/tag/v0.1.0

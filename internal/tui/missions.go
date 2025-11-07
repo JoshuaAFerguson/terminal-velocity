@@ -126,6 +126,18 @@ func (m Model) updateActiveMissions(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+	case "c":
+		// Check mission progress
+		progressMsgs := m.missions.manager.CheckMissionProgress(m.player, m.currentShip)
+		if len(progressMsgs) > 0 {
+			m.missions.message = "Mission progress checked:"
+			for _, msg := range progressMsgs {
+				m.missions.message += "\n" + msg
+			}
+		} else {
+			m.missions.message = "No missions completed"
+		}
+
 	case "esc", "q":
 		// Return to missions board
 		m.missions.mode = "board"
@@ -140,9 +152,22 @@ func (m Model) updateMissionDetails(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		// Accept mission
 		if m.missions.selectedMission != nil && m.missions.selectedMission.Status == models.MissionStatusAvailable {
-			err := m.missions.manager.AcceptMission(m.missions.selectedMission.ID, m.player)
+			// Get ship type
+			var shipType *models.ShipType
+			if m.currentShip != nil {
+				shipType = models.GetShipTypeByID(m.currentShip.TypeID)
+			}
+
+			err := m.missions.manager.AcceptMission(m.missions.selectedMission.ID, m.player, m.currentShip, shipType)
 			if err == nil {
 				m.missions.message = fmt.Sprintf("Accepted mission: %s", m.missions.selectedMission.Title)
+
+				// Check for immediate mission progress
+				progressMsgs := m.missions.manager.CheckMissionProgress(m.player, m.currentShip)
+				for _, msg := range progressMsgs {
+					m.missions.message += "\n" + msg
+				}
+
 				m.missions.mode = "board"
 				m.missions.cursor = 0
 			} else {
@@ -263,7 +288,7 @@ func (m Model) viewMissionsBoard() string {
 	}
 
 	s.WriteString("╠════════════════════════════════════════════════════════════════════════╣\n")
-	s.WriteString("║ [↑/↓] Navigate  [TAB] Switch Tab  [Enter] View  [G] Generate  [Q] Quit║\n")
+	s.WriteString("║ [↑/↓] Nav [TAB] Switch [Enter] View [G] Gen [C] Check [Q] Quit        ║\n")
 	s.WriteString("╚════════════════════════════════════════════════════════════════════════╝\n")
 
 	return s.String()
