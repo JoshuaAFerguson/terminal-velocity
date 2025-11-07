@@ -8,6 +8,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dynamic Events & Server Events System (Phase 7, Content)**:
+  - Comprehensive server-wide event system with time-based scheduling
+  - 10 event types:
+    - Trading competitions
+    - Combat challenges
+    - Racing events
+    - Resource scavenging
+    - System invasions
+    - Peaceful festivals
+    - PvP tournaments
+    - Exploration expeditions
+    - Boss encounters
+    - Community goal events
+  - Event lifecycle management:
+    - Scheduled, Active, Ending, Ended, Cancelled states
+    - Automatic event transitions based on timers
+    - Duration-based events (1 hour to 24 hours)
+    - Start/end time tracking
+  - Participation system:
+    - Player join/leave mechanics
+    - Minimum level requirements
+    - Maximum participant limits
+    - Required player thresholds to start
+    - Individual progress tracking
+    - Community goal contributions
+  - Event objectives:
+    - Individual objectives (per-player targets)
+    - Community objectives (server-wide goals)
+    - Progress tracking with current/required counts
+    - Multiple objectives per event
+  - Comprehensive reward system:
+    - Credits and experience rewards
+    - Item rewards
+    - Reputation gains
+    - Special titles
+    - Achievement badges
+    - Exclusive items/ships
+    - Progress milestone rewards (25%, 50%, 75%)
+    - Leaderboard-based rewards (top N players)
+  - Event modifiers:
+    - Credits multiplier (1.5x-2.0x)
+    - Experience multiplier (1.5x-2.0x)
+    - Drop rate multiplier (2.0x)
+    - Temporary bonuses during events
+  - Event leaderboard system:
+    - Real-time score tracking
+    - Player rankings
+    - Top N display
+    - Automatic rank updates
+    - Completion status tracking
+  - Event notifications:
+    - Event starting alerts
+    - Event active notifications
+    - Event ending warnings (5 minute countdown)
+    - Event complete announcements
+    - Reward ready notifications
+    - Rank change updates
+  - Pre-defined events:
+    - Trade Route Challenge (2 hours, 1.5x credits)
+    - Galactic Combat Tournament (3 hours, 32 player cap)
+    - Deep Space Expedition (24 hours, community goal)
+    - Void Leviathan boss encounter (1 hour, 2.0x drops)
+    - Harvest Festival (12 hours, 2.0x credits/1.5x XP)
+  - Background event scheduler:
+    - Automatic event state transitions
+    - Timer management
+    - Participant notifications
+    - Event cleanup
+  - Thread-safe concurrent operations
+  - Event statistics tracking (active, scheduled, ended, participations)
 - **Quest & Storyline System (Phase 7, Content)**:
   - Comprehensive quest system with branching storylines
   - Quest types and categories:
