@@ -12,11 +12,15 @@ import (
 	"math"
 	"math/rand"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Generator handles universe creation
+
+var log = logger.WithComponent("Universe")
+
 type Generator struct {
 	config  GeneratorConfig
 	rand    *rand.Rand

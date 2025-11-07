@@ -14,6 +14,7 @@ import (
 )
 
 // Settings represents player-specific configuration
+
 type Settings struct {
 	ID        uuid.UUID `json:"id"`
 	PlayerID  uuid.UUID `json:"player_id"`
@@ -51,25 +52,25 @@ type DisplaySettings struct {
 
 // AudioSettings controls sound effects (future implementation)
 type AudioSettings struct {
-	Enabled       bool `json:"enabled"`        // Master audio toggle
-	SoundEffects  bool `json:"sound_effects"`  // UI sounds, combat sounds
-	Music         bool `json:"music"`          // Background music
-	Notifications bool `json:"notifications"`  // Audio notifications
-	Volume        int  `json:"volume"`         // 0-100
+	Enabled       bool `json:"enabled"`       // Master audio toggle
+	SoundEffects  bool `json:"sound_effects"` // UI sounds, combat sounds
+	Music         bool `json:"music"`         // Background music
+	Notifications bool `json:"notifications"` // Audio notifications
+	Volume        int  `json:"volume"`        // 0-100
 }
 
 // GameplaySettings controls game behavior
 type GameplaySettings struct {
-	AutoSave              bool `json:"auto_save"`               // Auto-save progress
-	AutoSaveInterval      int  `json:"auto_save_interval"`      // Minutes between auto-saves
-	ConfirmDangerousActions bool `json:"confirm_dangerous"`     // Confirm risky actions
-	ShowDamageNumbers     bool `json:"show_damage_numbers"`     // Display damage in combat
-	AutoPilot             bool `json:"auto_pilot"`              // Auto-navigation hints
-	PauseOnEncounter      bool `json:"pause_on_encounter"`      // Pause when encounter occurs
-	FastTravel            bool `json:"fast_travel"`             // Skip jump animations
-	TutorialMode          bool `json:"tutorial_mode"`           // Enable tutorial hints
-	DifficultyLevel       string `json:"difficulty_level"`      // easy, normal, hard, expert
-	PermadeathMode        bool `json:"permadeath_mode"`         // Permadeath enabled
+	AutoSave                bool   `json:"auto_save"`           // Auto-save progress
+	AutoSaveInterval        int    `json:"auto_save_interval"`  // Minutes between auto-saves
+	ConfirmDangerousActions bool   `json:"confirm_dangerous"`   // Confirm risky actions
+	ShowDamageNumbers       bool   `json:"show_damage_numbers"` // Display damage in combat
+	AutoPilot               bool   `json:"auto_pilot"`          // Auto-navigation hints
+	PauseOnEncounter        bool   `json:"pause_on_encounter"`  // Pause when encounter occurs
+	FastTravel              bool   `json:"fast_travel"`         // Skip jump animations
+	TutorialMode            bool   `json:"tutorial_mode"`       // Enable tutorial hints
+	DifficultyLevel         string `json:"difficulty_level"`    // easy, normal, hard, expert
+	PermadeathMode          bool   `json:"permadeath_mode"`     // Permadeath enabled
 }
 
 // ControlSettings manages keybindings
@@ -88,50 +89,50 @@ type ControlSettings struct {
 	Settings string `json:"settings"` // Default: "s"
 
 	// Shortcuts
-	QuickSave     string `json:"quick_save"`     // Default: "F5"
-	QuickLoad     string `json:"quick_load"`     // Default: "F9"
-	ToggleMap     string `json:"toggle_map"`     // Default: "m"
+	QuickSave       string `json:"quick_save"`       // Default: "F5"
+	QuickLoad       string `json:"quick_load"`       // Default: "F9"
+	ToggleMap       string `json:"toggle_map"`       // Default: "m"
 	ToggleInventory string `json:"toggle_inventory"` // Default: "i"
-	ToggleShip    string `json:"toggle_ship"`    // Default: "v"
-	ToggleChat    string `json:"toggle_chat"`    // Default: "c"
+	ToggleShip      string `json:"toggle_ship"`      // Default: "v"
+	ToggleChat      string `json:"toggle_chat"`      // Default: "c"
 
 	// Combat
-	Attack      string `json:"attack"`       // Default: "a"
-	Defend      string `json:"defend"`       // Default: "d"
-	Flee        string `json:"flee"`         // Default: "f"
-	UseItem     string `json:"use_item"`     // Default: "u"
-	NextTarget  string `json:"next_target"`  // Default: "tab"
-	PrevTarget  string `json:"prev_target"`  // Default: "shift+tab"
+	Attack     string `json:"attack"`      // Default: "a"
+	Defend     string `json:"defend"`      // Default: "d"
+	Flee       string `json:"flee"`        // Default: "f"
+	UseItem    string `json:"use_item"`    // Default: "u"
+	NextTarget string `json:"next_target"` // Default: "tab"
+	PrevTarget string `json:"prev_target"` // Default: "shift+tab"
 
 	// Custom keybinding mode
-	VimMode     bool `json:"vim_mode"`     // Enable vim-style navigation
-	EmacsMode   bool `json:"emacs_mode"`   // Enable emacs-style navigation
+	VimMode   bool `json:"vim_mode"`   // Enable vim-style navigation
+	EmacsMode bool `json:"emacs_mode"` // Enable emacs-style navigation
 }
 
 // PrivacySettings controls visibility to other players
 type PrivacySettings struct {
-	ShowOnline        bool `json:"show_online"`         // Appear online to others
-	ShowLocation      bool `json:"show_location"`       // Show current location
-	ShowShip          bool `json:"show_ship"`           // Show ship info
-	AllowTradeRequests bool `json:"allow_trade_requests"` // Accept trade requests
-	AllowPvPChallenges bool `json:"allow_pvp_challenges"` // Accept PvP challenges
-	AllowPartyInvites bool `json:"allow_party_invites"`  // Accept party invitations
-	BlockList         []uuid.UUID `json:"block_list"`   // Blocked players
-	FriendsList       []uuid.UUID `json:"friends_list"` // Friends list
+	ShowOnline         bool        `json:"show_online"`          // Appear online to others
+	ShowLocation       bool        `json:"show_location"`        // Show current location
+	ShowShip           bool        `json:"show_ship"`            // Show ship info
+	AllowTradeRequests bool        `json:"allow_trade_requests"` // Accept trade requests
+	AllowPvPChallenges bool        `json:"allow_pvp_challenges"` // Accept PvP challenges
+	AllowPartyInvites  bool        `json:"allow_party_invites"`  // Accept party invitations
+	BlockList          []uuid.UUID `json:"block_list"`           // Blocked players
+	FriendsList        []uuid.UUID `json:"friends_list"`         // Friends list
 }
 
 // NotificationSettings controls alerts and messages
 type NotificationSettings struct {
-	ShowAchievements   bool `json:"show_achievements"`    // Achievement unlock notifications
-	ShowLevelUp        bool `json:"show_level_up"`        // Level up notifications
-	ShowTradeComplete  bool `json:"show_trade_complete"`  // Trade completion alerts
-	ShowCombatLog      bool `json:"show_combat_log"`      // Combat event log
-	ShowPlayerJoined   bool `json:"show_player_joined"`   // Player join/leave notifications
-	ShowNewsUpdates    bool `json:"show_news_updates"`    // News article notifications
-	ShowEncounters     bool `json:"show_encounters"`      // Encounter notifications
-	ShowSystemMessages bool `json:"show_system_messages"` // System announcements
-	ChatNotifications  bool `json:"chat_notifications"`   // Chat message alerts
-	NotificationDuration int `json:"notification_duration"` // Seconds to display (0 = until dismissed)
+	ShowAchievements     bool `json:"show_achievements"`     // Achievement unlock notifications
+	ShowLevelUp          bool `json:"show_level_up"`         // Level up notifications
+	ShowTradeComplete    bool `json:"show_trade_complete"`   // Trade completion alerts
+	ShowCombatLog        bool `json:"show_combat_log"`       // Combat event log
+	ShowPlayerJoined     bool `json:"show_player_joined"`    // Player join/leave notifications
+	ShowNewsUpdates      bool `json:"show_news_updates"`     // News article notifications
+	ShowEncounters       bool `json:"show_encounters"`       // Encounter notifications
+	ShowSystemMessages   bool `json:"show_system_messages"`  // System announcements
+	ChatNotifications    bool `json:"chat_notifications"`    // Chat message alerts
+	NotificationDuration int  `json:"notification_duration"` // Seconds to display (0 = until dismissed)
 }
 
 // NewSettings creates default settings for a player
@@ -157,16 +158,16 @@ func NewSettings(playerID uuid.UUID) *Settings {
 			Volume:        70,
 		},
 		Gameplay: GameplaySettings{
-			AutoSave:              true,
-			AutoSaveInterval:      5,
+			AutoSave:                true,
+			AutoSaveInterval:        5,
 			ConfirmDangerousActions: true,
-			ShowDamageNumbers:     true,
-			AutoPilot:             false,
-			PauseOnEncounter:      true,
-			FastTravel:            false,
-			TutorialMode:          true,
-			DifficultyLevel:       "normal",
-			PermadeathMode:        false,
+			ShowDamageNumbers:       true,
+			AutoPilot:               false,
+			PauseOnEncounter:        true,
+			FastTravel:              false,
+			TutorialMode:            true,
+			DifficultyLevel:         "normal",
+			PermadeathMode:          false,
 		},
 		Controls: ControlSettings{
 			// Navigation

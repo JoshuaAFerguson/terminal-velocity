@@ -12,10 +12,11 @@ import (
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Admin views
+
 const (
 	adminViewMain      = "main"
 	adminViewPlayers   = "players"

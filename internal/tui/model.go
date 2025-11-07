@@ -28,11 +28,12 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/trade"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tutorial"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
 
 // Screen represents different game screens
+
 type Screen int
 
 const (
@@ -87,35 +88,35 @@ type Model struct {
 	height int
 
 	// Sub-models for different screens
-	mainMenu       mainMenuModel
-	gameView       gameViewModel
-	registration   registrationModel
-	navigation     navigationModel
-	trading        tradingModel
-	cargo          cargoModel
-	shipyard       shipyardModel
-	outfitter      outfitterModel
-	shipManagement shipManagementModel
-	combat         combatModel
-	missions       missionsModel
-	achievementsUI achievementsModel
-	encounterModel encounterModel
-	newsModel      newsModel
+	mainMenu          mainMenuModel
+	gameView          gameViewModel
+	registration      registrationModel
+	navigation        navigationModel
+	trading           tradingModel
+	cargo             cargoModel
+	shipyard          shipyardModel
+	outfitter         outfitterModel
+	shipManagement    shipManagementModel
+	combat            combatModel
+	missions          missionsModel
+	achievementsUI    achievementsModel
+	encounterModel    encounterModel
+	newsModel         newsModel
 	leaderboardsModel leaderboardsModel
-	playersModel   playersModel
-	chatModel      chatModel
-	factionsModel  factionsModel
-	tradeModel     tradeModel
-	pvpModel       pvpModel
-	helpModel      helpModel
+	playersModel      playersModel
+	chatModel         chatModel
+	factionsModel     factionsModel
+	tradeModel        tradeModel
+	pvpModel          pvpModel
+	helpModel         helpModel
 	outfitterEnhanced outfitterEnhancedModel
-	settingsModel  settingsModel
-	adminModel     adminModel
-	tutorialModel  tutorialModel
-	questsModel    questsModel
+	settingsModel     settingsModel
+	adminModel        adminModel
+	tutorialModel     tutorialModel
+	questsModel       questsModel
 
 	// Achievement tracking
-	achievementManager *achievements.Manager
+	achievementManager  *achievements.Manager
 	pendingAchievements []*models.Achievement // Newly unlocked, pending display
 
 	// News system

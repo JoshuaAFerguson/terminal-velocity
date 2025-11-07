@@ -15,8 +15,11 @@ import (
 	"syscall"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"golang.org/x/term"
 )
+
+var log = logger.WithComponent("Accounts")
 
 func main() {
 	// Subcommands

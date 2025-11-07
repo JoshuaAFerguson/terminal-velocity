@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type registrationModel struct {

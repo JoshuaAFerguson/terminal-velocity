@@ -16,11 +16,12 @@ import (
 )
 
 // Manager handles ship outfitting and equipment
+
 type Manager struct {
 	mu        sync.RWMutex
-	equipment map[string]*models.Equipment // Equipment catalog
+	equipment map[string]*models.Equipment      // Equipment catalog
 	loadouts  map[uuid.UUID]*models.ShipLoadout // Player loadouts
-	inventory map[uuid.UUID]map[string]int // Player equipment inventory (playerID -> equipmentID -> quantity)
+	inventory map[uuid.UUID]map[string]int      // Player equipment inventory (playerID -> equipmentID -> quantity)
 }
 
 // NewManager creates a new outfitting manager
@@ -414,8 +415,8 @@ func (m *Manager) GetStats() map[string]int {
 	defer m.mu.RUnlock()
 
 	stats := map[string]int{
-		"equipment_types": len(m.equipment),
-		"total_loadouts":  len(m.loadouts),
+		"equipment_types":        len(m.equipment),
+		"total_loadouts":         len(m.loadouts),
 		"players_with_inventory": len(m.inventory),
 	}
 

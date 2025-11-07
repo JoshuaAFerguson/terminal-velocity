@@ -23,27 +23,28 @@ import (
 )
 
 // NewsCategory represents the type of news article
+
 type NewsCategory string
 
 const (
-	NewsCategoryCombat      NewsCategory = "combat"       // Combat-related news
-	NewsCategoryEconomic    NewsCategory = "economic"     // Trade and market news
-	NewsCategoryPolitical   NewsCategory = "political"    // Faction relations
-	NewsCategoryExploration NewsCategory = "exploration"  // Discovery news
-	NewsCategoryMilitary    NewsCategory = "military"     // Military actions
-	NewsCategoryCriminal    NewsCategory = "criminal"     // Crime and piracy
-	NewsCategoryGeneral     NewsCategory = "general"      // General announcements
-	NewsCategoryAchievement NewsCategory = "achievement"  // Player achievements
+	NewsCategoryCombat      NewsCategory = "combat"      // Combat-related news
+	NewsCategoryEconomic    NewsCategory = "economic"    // Trade and market news
+	NewsCategoryPolitical   NewsCategory = "political"   // Faction relations
+	NewsCategoryExploration NewsCategory = "exploration" // Discovery news
+	NewsCategoryMilitary    NewsCategory = "military"    // Military actions
+	NewsCategoryCriminal    NewsCategory = "criminal"    // Crime and piracy
+	NewsCategoryGeneral     NewsCategory = "general"     // General announcements
+	NewsCategoryAchievement NewsCategory = "achievement" // Player achievements
 )
 
 // NewsPriority represents the importance of a news item
 type NewsPriority int
 
 const (
-	NewsPriorityLow      NewsPriority = 1  // Minor events
-	NewsPriorityMedium   NewsPriority = 2  // Noteworthy events
-	NewsPriorityHigh     NewsPriority = 3  // Important events
-	NewsPriorityCritical NewsPriority = 4  // Major universe events
+	NewsPriorityLow      NewsPriority = 1 // Minor events
+	NewsPriorityMedium   NewsPriority = 2 // Noteworthy events
+	NewsPriorityHigh     NewsPriority = 3 // Important events
+	NewsPriorityCritical NewsPriority = 4 // Major universe events
 )
 
 // NewsArticle represents a single news item
@@ -53,20 +54,20 @@ type NewsArticle struct {
 	Priority    NewsPriority `json:"priority"`
 	Headline    string       `json:"headline"`
 	Body        string       `json:"body"`
-	SystemID    *uuid.UUID   `json:"system_id,omitempty"`    // Location of event
-	FactionID   string       `json:"faction_id,omitempty"`   // Related faction
+	SystemID    *uuid.UUID   `json:"system_id,omitempty"`  // Location of event
+	FactionID   string       `json:"faction_id,omitempty"` // Related faction
 	CreatedAt   time.Time    `json:"created_at"`
-	ExpiresAt   time.Time    `json:"expires_at"`             // When news becomes old
-	PlayerBased bool         `json:"player_based"`           // Generated from player actions
+	ExpiresAt   time.Time    `json:"expires_at"`   // When news becomes old
+	PlayerBased bool         `json:"player_based"` // Generated from player actions
 }
 
 // NewsEvent represents a universe event that can generate news
 type NewsEvent struct {
-	Type        string                 `json:"type"`
-	SystemID    uuid.UUID              `json:"system_id,omitempty"`
-	FactionID   string                 `json:"faction_id,omitempty"`
-	Data        map[string]interface{} `json:"data"`
-	Timestamp   time.Time              `json:"timestamp"`
+	Type      string                 `json:"type"`
+	SystemID  uuid.UUID              `json:"system_id,omitempty"`
+	FactionID string                 `json:"faction_id,omitempty"`
+	Data      map[string]interface{} `json:"data"`
+	Timestamp time.Time              `json:"timestamp"`
 }
 
 // NewNewsArticle creates a new news article
@@ -248,8 +249,8 @@ func GenerateTradeNews(playerName string, profit int64, commodity, systemName st
 func GenerateAchievementNews(playerName string, achievementTitle string, achievementRarity AchievementRarity) *NewsArticle {
 	// Only generate news for rare+ achievements
 	if achievementRarity != AchievementRarityRare &&
-	   achievementRarity != AchievementRarityEpic &&
-	   achievementRarity != AchievementRarityLegendary {
+		achievementRarity != AchievementRarityEpic &&
+		achievementRarity != AchievementRarityLegendary {
 		return nil
 	}
 

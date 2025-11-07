@@ -15,16 +15,20 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles player settings
+
+var log = logger.WithComponent("Settings")
+
 type Manager struct {
-	mu           sync.RWMutex
-	settings     map[uuid.UUID]*models.Settings // PlayerID -> Settings
-	configDir    string                         // Directory for config files
-	autosave     bool                           // Auto-save on change
+	mu        sync.RWMutex
+	settings  map[uuid.UUID]*models.Settings // PlayerID -> Settings
+	configDir string                         // Directory for config files
+	autosave  bool                           // Auto-save on change
 }
 
 // NewManager creates a new settings manager

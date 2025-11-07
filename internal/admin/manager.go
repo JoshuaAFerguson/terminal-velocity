@@ -15,11 +15,15 @@ import (
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles server administration
+
+var log = logger.WithComponent("Admin")
+
 type Manager struct {
 	mu sync.RWMutex
 

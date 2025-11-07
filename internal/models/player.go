@@ -27,6 +27,7 @@ import (
 )
 
 // Player represents a player character in the game
+
 type Player struct {
 	ID            uuid.UUID `json:"id"`
 	Username      string    `json:"username"`
@@ -48,10 +49,10 @@ type Player struct {
 	PlayTime     int64 `json:"play_time"` // seconds
 
 	// Progression - Trading
-	TradingRating  int   `json:"trading_rating"`
-	TotalTrades    int   `json:"total_trades"`
-	TradeProfit    int64 `json:"trade_profit"` // Total profit from trading
-	HighestProfit  int64 `json:"highest_profit"` // Largest single trade profit
+	TradingRating int   `json:"trading_rating"`
+	TotalTrades   int   `json:"total_trades"`
+	TradeProfit   int64 `json:"trade_profit"`   // Total profit from trading
+	HighestProfit int64 `json:"highest_profit"` // Largest single trade profit
 
 	// Progression - Exploration
 	ExplorationRating int `json:"exploration_rating"`

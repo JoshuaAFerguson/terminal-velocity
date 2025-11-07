@@ -12,26 +12,27 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Views for enhanced outfitter
+
 const (
-	outfitterViewBrowser  = "browser"
-	outfitterViewSlots    = "slots"
-	outfitterViewLoadouts = "loadouts"
+	outfitterViewBrowser   = "browser"
+	outfitterViewSlots     = "slots"
+	outfitterViewLoadouts  = "loadouts"
 	outfitterViewInventory = "inventory"
 )
 
 type outfitterEnhancedModel struct {
-	viewMode         string
-	cursor           int
-	category         models.EquipmentCategory
+	viewMode          string
+	cursor            int
+	category          models.EquipmentCategory
 	selectedEquipment *models.Equipment
-	selectedSlot     *models.EquipmentSlot
-	currentLoadout   *models.ShipLoadout
-	loadouts         []*models.ShipLoadout
-	inventory        map[string]int
+	selectedSlot      *models.EquipmentSlot
+	currentLoadout    *models.ShipLoadout
+	loadouts          []*models.ShipLoadout
+	inventory         map[string]int
 }
 
 func newOutfitterEnhancedModel() outfitterEnhancedModel {

@@ -10,17 +10,21 @@ package chat
 import (
 	"sync"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles chat message routing and history for all players
+
+var log = logger.WithComponent("Chat")
+
 type Manager struct {
-	mu       sync.RWMutex
+	mu        sync.RWMutex
 	histories map[uuid.UUID]*models.ChatHistory // Per-player chat histories
 
 	// Message retention
-	globalHistory []*models.ChatMessage // Recent global messages
+	globalHistory    []*models.ChatMessage // Recent global messages
 	maxGlobalHistory int
 }
 

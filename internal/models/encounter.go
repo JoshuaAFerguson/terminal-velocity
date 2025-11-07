@@ -24,27 +24,28 @@ import (
 )
 
 // EncounterType represents the type of random encounter
+
 type EncounterType string
 
 const (
-	EncounterTypePirate      EncounterType = "pirate"       // Hostile pirates attack
-	EncounterTypeTrader      EncounterType = "trader"       // Friendly trader offers goods
-	EncounterTypeDistress    EncounterType = "distress"     // Ship in distress needs help
-	EncounterTypePolice      EncounterType = "police"       // Police patrol (checks bounties)
-	EncounterTypeFaction     EncounterType = "faction"      // Faction patrol
-	EncounterTypeDerelict    EncounterType = "derelict"     // Abandoned ship to salvage
-	EncounterTypeMerchant    EncounterType = "merchant"     // Merchant convoy
-	EncounterTypeAsteroid    EncounterType = "asteroid"     // Asteroid field with minerals
+	EncounterTypePirate   EncounterType = "pirate"   // Hostile pirates attack
+	EncounterTypeTrader   EncounterType = "trader"   // Friendly trader offers goods
+	EncounterTypeDistress EncounterType = "distress" // Ship in distress needs help
+	EncounterTypePolice   EncounterType = "police"   // Police patrol (checks bounties)
+	EncounterTypeFaction  EncounterType = "faction"  // Faction patrol
+	EncounterTypeDerelict EncounterType = "derelict" // Abandoned ship to salvage
+	EncounterTypeMerchant EncounterType = "merchant" // Merchant convoy
+	EncounterTypeAsteroid EncounterType = "asteroid" // Asteroid field with minerals
 )
 
 // EncounterStatus represents the current state of an encounter
 type EncounterStatus string
 
 const (
-	EncounterStatusActive    EncounterStatus = "active"     // Encounter in progress
-	EncounterStatusResolved  EncounterStatus = "resolved"   // Encounter completed
-	EncounterStatusFled      EncounterStatus = "fled"       // Player fled
-	EncounterStatusIgnored   EncounterStatus = "ignored"    // Player ignored
+	EncounterStatusActive   EncounterStatus = "active"   // Encounter in progress
+	EncounterStatusResolved EncounterStatus = "resolved" // Encounter completed
+	EncounterStatusFled     EncounterStatus = "fled"     // Player fled
+	EncounterStatusIgnored  EncounterStatus = "ignored"  // Player ignored
 )
 
 // Encounter represents a random space encounter
@@ -56,23 +57,23 @@ type Encounter struct {
 	Description string          `json:"description"`
 
 	// Ships involved in encounter
-	Ships      []*Ship        `json:"ships,omitempty"`
-	ShipTypes  []string       `json:"ship_types,omitempty"` // Ship type IDs
-	ShipCount  int            `json:"ship_count"`
+	Ships     []*Ship  `json:"ships,omitempty"`
+	ShipTypes []string `json:"ship_types,omitempty"` // Ship type IDs
+	ShipCount int      `json:"ship_count"`
 
 	// Faction involvement
-	FactionID  string         `json:"faction_id,omitempty"`
-	Hostile    bool           `json:"hostile"`
+	FactionID string `json:"faction_id,omitempty"`
+	Hostile   bool   `json:"hostile"`
 
 	// Rewards/Consequences
-	CreditReward    int64  `json:"credit_reward,omitempty"`
-	ReputationGain  int    `json:"reputation_gain,omitempty"`
-	CargoReward     string `json:"cargo_reward,omitempty"` // Commodity ID
-	CargoQuantity   int    `json:"cargo_quantity,omitempty"`
+	CreditReward   int64  `json:"credit_reward,omitempty"`
+	ReputationGain int    `json:"reputation_gain,omitempty"`
+	CargoReward    string `json:"cargo_reward,omitempty"` // Commodity ID
+	CargoQuantity  int    `json:"cargo_quantity,omitempty"`
 
 	// System context
-	SystemID       uuid.UUID `json:"system_id"`
-	DangerLevel    int       `json:"danger_level"` // 1-10
+	SystemID    uuid.UUID `json:"system_id"`
+	DangerLevel int       `json:"danger_level"` // 1-10
 
 	// Metadata
 	CreatedAt time.Time `json:"created_at"`
@@ -80,9 +81,9 @@ type Encounter struct {
 
 // EncounterOption represents a choice the player can make
 type EncounterOption struct {
-	ID          string   `json:"id"`
-	Label       string   `json:"label"`
-	Description string   `json:"description"`
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
 
 	// Requirements
 	RequireCombatRating int   `json:"require_combat_rating,omitempty"`
@@ -90,11 +91,11 @@ type EncounterOption struct {
 	RequireReputation   int   `json:"require_reputation,omitempty"` // With encounter faction
 
 	// Outcomes
-	StartsConflict bool   `json:"starts_conflict,omitempty"`
-	CostCredits    int64  `json:"cost_credits,omitempty"`
-	GrantsReward   bool   `json:"grants_reward,omitempty"`
-	EndsEncounter  bool   `json:"ends_encounter,omitempty"`
-	FleeAttempt    bool   `json:"flee_attempt,omitempty"`
+	StartsConflict bool  `json:"starts_conflict,omitempty"`
+	CostCredits    int64 `json:"cost_credits,omitempty"`
+	GrantsReward   bool  `json:"grants_reward,omitempty"`
+	EndsEncounter  bool  `json:"ends_encounter,omitempty"`
+	FleeAttempt    bool  `json:"flee_attempt,omitempty"`
 }
 
 // NewEncounter creates a new random encounter

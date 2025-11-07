@@ -13,13 +13,13 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type playersModel struct {
-	cursor       int
-	filterMode   string // "all", "same_system", "nearby", "combat"
-	sortMode     string // "name", "rating", "online_time", "activity"
+	cursor         int
+	filterMode     string // "all", "same_system", "nearby", "combat"
+	sortMode       string // "name", "rating", "online_time", "activity"
 	selectedPlayer *models.PlayerPresence
 }
 
@@ -115,9 +115,9 @@ func (m Model) viewPlayers() string {
 
 	// Filter tabs
 	tabs := []struct {
-		key    string
-		label  string
-		mode   string
+		key   string
+		label string
+		mode  string
 	}{
 		{"1", "All Players", "all"},
 		{"2", "Same System", "same_system"},

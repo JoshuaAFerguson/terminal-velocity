@@ -15,6 +15,7 @@ import (
 )
 
 // Edge represents a connection between two systems with a distance
+
 type Edge struct {
 	From     uuid.UUID
 	To       uuid.UUID

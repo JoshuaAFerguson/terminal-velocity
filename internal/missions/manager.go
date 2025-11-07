@@ -25,12 +25,16 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles mission lifecycle and generation.
 // It maintains separate lists for available, active, and completed missions.
+
+var log = logger.WithComponent("Missions")
+
 type Manager struct {
 	availableMissions []*models.Mission    // Missions available for acceptance
 	activeMissions    []*models.Mission    // Currently active missions

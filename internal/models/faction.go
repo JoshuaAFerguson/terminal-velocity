@@ -14,6 +14,7 @@ import (
 )
 
 // PlayerFaction represents a player-created organization
+
 type PlayerFaction struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`

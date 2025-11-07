@@ -15,6 +15,7 @@ import (
 )
 
 // ChatChannel represents different types of chat channels
+
 type ChatChannel string
 
 const (
@@ -28,21 +29,21 @@ const (
 
 // ChatMessage represents a single chat message
 type ChatMessage struct {
-	ID        uuid.UUID   `json:"id"`         // Unique message identifier
-	Channel   ChatChannel `json:"channel"`    // Which channel this message is in
-	SenderID  uuid.UUID   `json:"sender_id"`  // Player who sent the message
-	Sender    string      `json:"sender"`     // Sender's username
+	ID        uuid.UUID   `json:"id"`                  // Unique message identifier
+	Channel   ChatChannel `json:"channel"`             // Which channel this message is in
+	SenderID  uuid.UUID   `json:"sender_id"`           // Player who sent the message
+	Sender    string      `json:"sender"`              // Sender's username
 	Recipient string      `json:"recipient,omitempty"` // For direct messages
-	Content   string      `json:"content"`    // Message text
-	Timestamp time.Time   `json:"timestamp"`  // When the message was sent
+	Content   string      `json:"content"`             // Message text
+	Timestamp time.Time   `json:"timestamp"`           // When the message was sent
 
 	// Context information
 	SystemID  uuid.UUID `json:"system_id,omitempty"`  // For system chat
 	FactionID string    `json:"faction_id,omitempty"` // For faction chat
 
 	// Message metadata
-	IsSystem  bool   `json:"is_system"`  // Is this a system message (not from player)?
-	Color     string `json:"color,omitempty"` // Optional color for formatting
+	IsSystem bool   `json:"is_system"`       // Is this a system message (not from player)?
+	Color    string `json:"color,omitempty"` // Optional color for formatting
 }
 
 // NewChatMessage creates a new chat message
@@ -188,13 +189,13 @@ func GetChannelIcon(channel ChatChannel) string {
 
 // ChatHistory represents a player's chat history
 type ChatHistory struct {
-	PlayerID     uuid.UUID      `json:"player_id"`
-	GlobalChat   []*ChatMessage `json:"global_chat"`
-	SystemChat   []*ChatMessage `json:"system_chat"`
-	FactionChat  []*ChatMessage `json:"faction_chat"`
-	DirectChats  map[string][]*ChatMessage `json:"direct_chats"` // Key: other player's username
-	TradeChat    []*ChatMessage `json:"trade_chat"`
-	CombatLog    []*ChatMessage `json:"combat_log"`
+	PlayerID    uuid.UUID                 `json:"player_id"`
+	GlobalChat  []*ChatMessage            `json:"global_chat"`
+	SystemChat  []*ChatMessage            `json:"system_chat"`
+	FactionChat []*ChatMessage            `json:"faction_chat"`
+	DirectChats map[string][]*ChatMessage `json:"direct_chats"` // Key: other player's username
+	TradeChat   []*ChatMessage            `json:"trade_chat"`
+	CombatLog   []*ChatMessage            `json:"combat_log"`
 
 	// Limits
 	MaxMessagesPerChannel int `json:"max_messages_per_channel"`

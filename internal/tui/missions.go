@@ -20,6 +20,7 @@ import (
 )
 
 // missionsModel handles the missions board UI
+
 type missionsModel struct {
 	mode            string // "board", "active", "details"
 	cursor          int

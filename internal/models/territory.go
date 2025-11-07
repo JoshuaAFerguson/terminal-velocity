@@ -15,6 +15,7 @@ import (
 )
 
 // TerritoryControlLevel represents the strength of control over a system
+
 type TerritoryControlLevel string
 
 const (
@@ -27,48 +28,48 @@ const (
 
 // TerritoryBenefit represents bonuses from controlling territory
 type TerritoryBenefit struct {
-	TradeBonus      float64 `json:"trade_bonus"`       // % bonus to trade profits
-	ProductionBonus float64 `json:"production_bonus"`  // % bonus to production
-	DefenseBonus    int     `json:"defense_bonus"`     // Defense rating boost
-	IncomeBonus     int64   `json:"income_bonus"`      // Passive credit income per day
+	TradeBonus      float64 `json:"trade_bonus"`      // % bonus to trade profits
+	ProductionBonus float64 `json:"production_bonus"` // % bonus to production
+	DefenseBonus    int     `json:"defense_bonus"`    // Defense rating boost
+	IncomeBonus     int64   `json:"income_bonus"`     // Passive credit income per day
 }
 
 // Territory represents a faction's claim on a star system
 type Territory struct {
-	ID        uuid.UUID `json:"id"`         // Unique territory record
-	SystemID  uuid.UUID `json:"system_id"`  // Which system is claimed
-	SystemName string   `json:"system_name"` // System name for display
-	FactionID uuid.UUID `json:"faction_id"` // Owning faction
-	FactionTag string   `json:"faction_tag"` // Faction tag for display
+	ID         uuid.UUID `json:"id"`          // Unique territory record
+	SystemID   uuid.UUID `json:"system_id"`   // Which system is claimed
+	SystemName string    `json:"system_name"` // System name for display
+	FactionID  uuid.UUID `json:"faction_id"`  // Owning faction
+	FactionTag string    `json:"faction_tag"` // Faction tag for display
 
 	// Control metrics
 	ControlLevel  TerritoryControlLevel `json:"control_level"`  // Current control strength
 	ControlPoints int                   `json:"control_points"` // Points toward next level
-	
+
 	// Timing
-	ClaimedAt  time.Time  `json:"claimed_at"`  // When the system was claimed
-	LastUpkeep time.Time  `json:"last_upkeep"` // Last upkeep payment
-	NextUpkeep time.Time  `json:"next_upkeep"` // When next payment is due
+	ClaimedAt  time.Time `json:"claimed_at"`  // When the system was claimed
+	LastUpkeep time.Time `json:"last_upkeep"` // Last upkeep payment
+	NextUpkeep time.Time `json:"next_upkeep"` // When next payment is due
 
 	// Costs and income
 	UpkeepCost int64 `json:"upkeep_cost"` // Weekly upkeep cost
 	Income     int64 `json:"income"`      // Weekly passive income
 
 	// Infrastructure
-	DefenseLevel   int  `json:"defense_level"`    // 0-5, affects defense strength
-	DevelopmentLevel int `json:"development_level"` // 0-5, affects benefits
-	HasStation     bool `json:"has_station"`      // Has faction station
+	DefenseLevel     int  `json:"defense_level"`     // 0-5, affects defense strength
+	DevelopmentLevel int  `json:"development_level"` // 0-5, affects benefits
+	HasStation       bool `json:"has_station"`       // Has faction station
 
 	// Activity tracking
-	MemberActivity   int       `json:"member_activity"`    // Member visits this week
-	TradeVolume      int64     `json:"trade_volume"`       // Credits traded this week
-	LastConflict     *time.Time `json:"last_conflict,omitempty"` // Last contested/attacked
+	MemberActivity int        `json:"member_activity"`         // Member visits this week
+	TradeVolume    int64      `json:"trade_volume"`            // Credits traded this week
+	LastConflict   *time.Time `json:"last_conflict,omitempty"` // Last contested/attacked
 }
 
 // NewTerritory creates a new territory claim
 func NewTerritory(systemID uuid.UUID, systemName string, factionID uuid.UUID, factionTag string) *Territory {
 	now := time.Now()
-	
+
 	return &Territory{
 		ID:               uuid.New(),
 		SystemID:         systemID,
@@ -80,8 +81,8 @@ func NewTerritory(systemID uuid.UUID, systemName string, factionID uuid.UUID, fa
 		ClaimedAt:        now,
 		LastUpkeep:       now,
 		NextUpkeep:       now.Add(7 * 24 * time.Hour), // Weekly upkeep
-		UpkeepCost:       1000, // Base cost
-		Income:           500,  // Base income
+		UpkeepCost:       1000,                        // Base cost
+		Income:           500,                         // Base income
 		DefenseLevel:     0,
 		DevelopmentLevel: 0,
 		HasStation:       false,
@@ -99,7 +100,7 @@ func (t TerritoryControlLevel) GetDisplayName() string {
 		ControlLevelStrong:    "Strong",
 		ControlLevelDominant:  "Dominant",
 	}
-	
+
 	if name, exists := names[t]; exists {
 		return name
 	}
@@ -115,7 +116,7 @@ func (t TerritoryControlLevel) GetColorIndicator() string {
 		ControlLevelStrong:    "🟢", // Green
 		ControlLevelDominant:  "🔵", // Blue
 	}
-	
+
 	if color, exists := colors[t]; exists {
 		return color
 	}
@@ -125,20 +126,20 @@ func (t TerritoryControlLevel) GetColorIndicator() string {
 // CalculateUpkeep calculates the weekly upkeep cost
 func (t *Territory) CalculateUpkeep() int64 {
 	baseCost := int64(1000)
-	
+
 	// Cost scales with development
 	developmentMultiplier := float64(1 + t.DevelopmentLevel)
-	
+
 	// Defense increases cost
 	defenseCost := int64(t.DefenseLevel * 500)
-	
+
 	// Station adds significant cost
 	stationCost := int64(0)
 	if t.HasStation {
 		stationCost = 5000
 	}
-	
-	total := int64(float64(baseCost) * developmentMultiplier) + defenseCost + stationCost
+
+	total := int64(float64(baseCost)*developmentMultiplier) + defenseCost + stationCost
 	t.UpkeepCost = total
 	return total
 }
@@ -146,23 +147,23 @@ func (t *Territory) CalculateUpkeep() int64 {
 // CalculateIncome calculates the weekly passive income
 func (t *Territory) CalculateIncome() int64 {
 	baseIncome := int64(500)
-	
+
 	// Income scales with development
 	developmentBonus := int64(t.DevelopmentLevel * 1000)
-	
+
 	// Trade volume bonus (1% of weekly trade)
 	tradeBonus := t.TradeVolume / 100
-	
+
 	// Station provides income
 	stationBonus := int64(0)
 	if t.HasStation {
 		stationBonus = 3000
 	}
-	
+
 	// Control level multiplier
 	controlMultiplier := t.getControlMultiplier()
-	
-	total := int64(float64(baseIncome+developmentBonus+stationBonus) * controlMultiplier) + tradeBonus
+
+	total := int64(float64(baseIncome+developmentBonus+stationBonus)*controlMultiplier) + tradeBonus
 	t.Income = total
 	return total
 }
@@ -176,7 +177,7 @@ func (t *Territory) getControlMultiplier() float64 {
 		ControlLevelStrong:    1.25,
 		ControlLevelDominant:  1.5,
 	}
-	
+
 	if mult, exists := multipliers[t.ControlLevel]; exists {
 		return mult
 	}
@@ -186,22 +187,22 @@ func (t *Territory) getControlMultiplier() float64 {
 // GetBenefits calculates the current benefits provided by this territory
 func (t *Territory) GetBenefits() TerritoryBenefit {
 	benefits := TerritoryBenefit{}
-	
+
 	// Base benefits from development level
 	benefits.TradeBonus = float64(t.DevelopmentLevel) * 0.05      // 5% per level
-	benefits.ProductionBonus = float64(t.DevelopmentLevel) * 0.03  // 3% per level
-	
+	benefits.ProductionBonus = float64(t.DevelopmentLevel) * 0.03 // 3% per level
+
 	// Defense benefits
 	benefits.DefenseBonus = t.DefenseLevel * 10
-	
+
 	// Passive income
 	benefits.IncomeBonus = t.Income
-	
+
 	// Control level enhances benefits
 	controlBonus := t.getControlMultiplier()
 	benefits.TradeBonus *= controlBonus
 	benefits.ProductionBonus *= controlBonus
-	
+
 	return benefits
 }
 
@@ -215,14 +216,14 @@ func (t *Territory) GetUpkeepStatus() string {
 	if t.IsUpkeepDue() {
 		return "⚠️  OVERDUE"
 	}
-	
+
 	timeUntil := time.Until(t.NextUpkeep)
-	
+
 	if timeUntil < 24*time.Hour {
 		hours := int(timeUntil.Hours())
 		return fmt.Sprintf("Due in %d hours", hours)
 	}
-	
+
 	days := int(timeUntil.Hours() / 24)
 	return fmt.Sprintf("Due in %d days", days)
 }
@@ -231,7 +232,7 @@ func (t *Territory) GetUpkeepStatus() string {
 func (t *Territory) PayUpkeep() {
 	t.LastUpkeep = time.Now()
 	t.NextUpkeep = time.Now().Add(7 * 24 * time.Hour)
-	
+
 	// Add control points for maintaining territory
 	t.AddControlPoints(10)
 }
@@ -239,7 +240,7 @@ func (t *Territory) PayUpkeep() {
 // AddControlPoints adds control points and handles level progression
 func (t *Territory) AddControlPoints(points int) {
 	t.ControlPoints += points
-	
+
 	// Check for level up
 	requiredPoints := t.getRequiredControlPoints()
 	if t.ControlPoints >= requiredPoints {
@@ -250,12 +251,12 @@ func (t *Territory) AddControlPoints(points int) {
 // getRequiredControlPoints returns points needed for next level
 func (t *Territory) getRequiredControlPoints() int {
 	requirements := map[TerritoryControlLevel]int{
-		ControlLevelWeak:      100,
-		ControlLevelStable:    250,
-		ControlLevelStrong:    500,
-		ControlLevelDominant:  1000,
+		ControlLevelWeak:     100,
+		ControlLevelStable:   250,
+		ControlLevelStrong:   500,
+		ControlLevelDominant: 1000,
 	}
-	
+
 	if req, exists := requirements[t.ControlLevel]; exists {
 		return req
 	}
@@ -270,7 +271,7 @@ func (t *Territory) levelUpControl() {
 		ControlLevelStable:    ControlLevelStrong,
 		ControlLevelStrong:    ControlLevelDominant,
 	}
-	
+
 	if nextLevel, exists := progression[t.ControlLevel]; exists {
 		t.ControlLevel = nextLevel
 		t.ControlPoints = 0 // Reset for next level
@@ -294,7 +295,7 @@ func (t *Territory) UpgradeDevelopment() bool {
 	}
 	t.DevelopmentLevel++
 	t.CalculateUpkeep() // Recalculate costs
-	t.CalculateIncome()  // Recalculate income
+	t.CalculateIncome() // Recalculate income
 	return true
 }
 
@@ -312,22 +313,22 @@ func (t *Territory) BuildStation() bool {
 // GetControlAge returns how long the territory has been held
 func (t *Territory) GetControlAge() string {
 	duration := time.Since(t.ClaimedAt)
-	
+
 	if duration < 24*time.Hour {
 		hours := int(duration.Hours())
 		return fmt.Sprintf("%d hours", hours)
 	}
-	
+
 	days := int(duration.Hours() / 24)
 	if days < 30 {
 		return fmt.Sprintf("%d days", days)
 	}
-	
+
 	months := days / 30
 	if months < 12 {
 		return fmt.Sprintf("%d months", months)
 	}
-	
+
 	years := months / 12
 	return fmt.Sprintf("%d years", years)
 }

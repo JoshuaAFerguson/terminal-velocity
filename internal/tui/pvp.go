@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 )
 
 // PvP view modes
+
 const (
 	pvpViewChallenges = "challenges" // Active challenges
 	pvpViewBounties   = "bounties"   // Bounty board
@@ -23,23 +24,23 @@ const (
 )
 
 type pvpModel struct {
-	viewMode         string
-	cursor           int
+	viewMode          string
+	cursor            int
 	selectedChallenge *models.PvPChallenge
 
 	// Create mode fields
-	createTarget      string
-	createType        string
-	createWager       int64
-	createMessage     string
-	createInputField  int // 0=target, 1=type, 2=wager, 3=message
-	challengeTypes    []models.PvPChallengeType
+	createTarget     string
+	createType       string
+	createWager      int64
+	createMessage    string
+	createInputField int // 0=target, 1=type, 2=wager, 3=message
+	challengeTypes   []models.PvPChallengeType
 }
 
 func newPvPModel() pvpModel {
 	return pvpModel{
-		viewMode:      pvpViewChallenges,
-		cursor:        0,
+		viewMode:         pvpViewChallenges,
+		cursor:           0,
 		createInputField: 0,
 		challengeTypes: []models.PvPChallengeType{
 			models.ChallengeDuel,

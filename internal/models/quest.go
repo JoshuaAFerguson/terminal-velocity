@@ -14,6 +14,7 @@ import (
 )
 
 // QuestStatus represents the current status of a quest
+
 type QuestStatus string
 
 const (
@@ -28,31 +29,31 @@ const (
 type QuestType string
 
 const (
-	QuestTypeMain      QuestType = "main"       // Main storyline quests
-	QuestTypeSide      QuestType = "side"       // Side quests
-	QuestTypeFaction   QuestType = "faction"    // Faction-specific quests
-	QuestTypeDaily     QuestType = "daily"      // Daily repeatable quests
-	QuestTypeChain     QuestType = "chain"      // Part of a quest chain
-	QuestTypeHidden    QuestType = "hidden"     // Hidden/secret quests
-	QuestTypeEvent     QuestType = "event"      // Special event quests
+	QuestTypeMain    QuestType = "main"    // Main storyline quests
+	QuestTypeSide    QuestType = "side"    // Side quests
+	QuestTypeFaction QuestType = "faction" // Faction-specific quests
+	QuestTypeDaily   QuestType = "daily"   // Daily repeatable quests
+	QuestTypeChain   QuestType = "chain"   // Part of a quest chain
+	QuestTypeHidden  QuestType = "hidden"  // Hidden/secret quests
+	QuestTypeEvent   QuestType = "event"   // Special event quests
 )
 
 // ObjectiveType represents different types of quest objectives
 type ObjectiveType string
 
 const (
-	ObjectiveDeliver      ObjectiveType = "deliver"       // Deliver items
-	ObjectiveDestroy      ObjectiveType = "destroy"       // Destroy targets
-	ObjectiveTravel       ObjectiveType = "travel"        // Travel to location
-	ObjectiveCollect      ObjectiveType = "collect"       // Collect items
-	ObjectiveEscort       ObjectiveType = "escort"        // Escort NPC
-	ObjectiveDefend       ObjectiveType = "defend"        // Defend location
-	ObjectiveInvestigate  ObjectiveType = "investigate"   // Investigate location
-	ObjectiveTalk         ObjectiveType = "talk"          // Talk to NPC
-	ObjectiveScan         ObjectiveType = "scan"          // Scan objects
-	ObjectiveMine         ObjectiveType = "mine"          // Mine resources
-	ObjectiveTrade        ObjectiveType = "trade"         // Complete trades
-	ObjectiveKill         ObjectiveType = "kill"          // Kill specific targets
+	ObjectiveDeliver     ObjectiveType = "deliver"     // Deliver items
+	ObjectiveDestroy     ObjectiveType = "destroy"     // Destroy targets
+	ObjectiveTravel      ObjectiveType = "travel"      // Travel to location
+	ObjectiveCollect     ObjectiveType = "collect"     // Collect items
+	ObjectiveEscort      ObjectiveType = "escort"      // Escort NPC
+	ObjectiveDefend      ObjectiveType = "defend"      // Defend location
+	ObjectiveInvestigate ObjectiveType = "investigate" // Investigate location
+	ObjectiveTalk        ObjectiveType = "talk"        // Talk to NPC
+	ObjectiveScan        ObjectiveType = "scan"        // Scan objects
+	ObjectiveMine        ObjectiveType = "mine"        // Mine resources
+	ObjectiveTrade       ObjectiveType = "trade"       // Complete trades
+	ObjectiveKill        ObjectiveType = "kill"        // Kill specific targets
 )
 
 // QuestObjective represents a single objective within a quest
@@ -60,93 +61,93 @@ type QuestObjective struct {
 	ID          string        `json:"id"`
 	Type        ObjectiveType `json:"type"`
 	Description string        `json:"description"`
-	Target      string        `json:"target"`      // Target ID (item, NPC, location, etc.)
-	Required    int           `json:"required"`    // Required amount
-	Current     int           `json:"current"`     // Current progress
-	Optional    bool          `json:"optional"`    // Is this objective optional?
-	Hidden      bool          `json:"hidden"`      // Hidden until revealed
+	Target      string        `json:"target"`   // Target ID (item, NPC, location, etc.)
+	Required    int           `json:"required"` // Required amount
+	Current     int           `json:"current"`  // Current progress
+	Optional    bool          `json:"optional"` // Is this objective optional?
+	Hidden      bool          `json:"hidden"`   // Hidden until revealed
 	Completed   bool          `json:"completed"`
 }
 
 // QuestReward represents rewards given upon quest completion
 type QuestReward struct {
-	Credits     int64             `json:"credits"`
-	Items       map[string]int    `json:"items"`        // itemID -> quantity
-	Reputation  map[string]int    `json:"reputation"`   // factionID -> amount
-	Experience  int               `json:"experience"`
-	ShipUnlock  string            `json:"ship_unlock"`  // Unlock a ship type
-	SystemUnlock string           `json:"system_unlock"` // Unlock a star system
-	Special     string            `json:"special"`      // Special reward description
+	Credits      int64          `json:"credits"`
+	Items        map[string]int `json:"items"`      // itemID -> quantity
+	Reputation   map[string]int `json:"reputation"` // factionID -> amount
+	Experience   int            `json:"experience"`
+	ShipUnlock   string         `json:"ship_unlock"`   // Unlock a ship type
+	SystemUnlock string         `json:"system_unlock"` // Unlock a star system
+	Special      string         `json:"special"`       // Special reward description
 }
 
 // QuestChoice represents a choice the player can make
 type QuestChoice struct {
-	ID          string   `json:"id"`
-	Text        string   `json:"text"`
-	Description string   `json:"description"`
-	Requirements map[string]interface{} `json:"requirements"` // Requirements to select
-	Consequences string   `json:"consequences"` // Description of consequences
-	LeadsToQuest string   `json:"leads_to_quest"` // Quest ID this choice leads to
+	ID           string                 `json:"id"`
+	Text         string                 `json:"text"`
+	Description  string                 `json:"description"`
+	Requirements map[string]interface{} `json:"requirements"`   // Requirements to select
+	Consequences string                 `json:"consequences"`   // Description of consequences
+	LeadsToQuest string                 `json:"leads_to_quest"` // Quest ID this choice leads to
 }
 
 // QuestDialogue represents dialogue in a quest
 type QuestDialogue struct {
-	Speaker  string         `json:"speaker"`
-	Text     string         `json:"text"`
-	Choices  []QuestChoice  `json:"choices"`
+	Speaker string        `json:"speaker"`
+	Text    string        `json:"text"`
+	Choices []QuestChoice `json:"choices"`
 }
 
 // Quest represents a quest or storyline mission
 type Quest struct {
-	ID              string            `json:"id"`
-	Title           string            `json:"title"`
-	Description     string            `json:"description"`
-	Type            QuestType         `json:"type"`
-	Level           int               `json:"level"`          // Recommended level
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Type        QuestType `json:"type"`
+	Level       int       `json:"level"` // Recommended level
 
 	// Quest flow
-	Prerequisites   []string          `json:"prerequisites"`  // Quest IDs required
-	Objectives      []*QuestObjective `json:"objectives"`
-	Rewards         QuestReward       `json:"rewards"`
+	Prerequisites []string          `json:"prerequisites"` // Quest IDs required
+	Objectives    []*QuestObjective `json:"objectives"`
+	Rewards       QuestReward       `json:"rewards"`
 
 	// Dialogue and story
-	StartDialogue   []QuestDialogue   `json:"start_dialogue"`
-	CompleteDialogue []QuestDialogue  `json:"complete_dialogue"`
+	StartDialogue    []QuestDialogue `json:"start_dialogue"`
+	CompleteDialogue []QuestDialogue `json:"complete_dialogue"`
 
 	// Metadata
-	Giver           string            `json:"giver"`          // NPC who gives quest
-	Location        uuid.UUID         `json:"location"`       // System where quest starts
-	TimeLimit       *time.Duration    `json:"time_limit"`     // Optional time limit
-	Repeatable      bool              `json:"repeatable"`
+	Giver      string         `json:"giver"`      // NPC who gives quest
+	Location   uuid.UUID      `json:"location"`   // System where quest starts
+	TimeLimit  *time.Duration `json:"time_limit"` // Optional time limit
+	Repeatable bool           `json:"repeatable"`
 
 	// Branching
-	NextQuests      []string          `json:"next_quests"`    // Quests unlocked on completion
-	FailureQuests   []string          `json:"failure_quests"` // Quests unlocked on failure
-	AlternateEnding string            `json:"alternate_ending"` // Alt ending quest ID
+	NextQuests      []string `json:"next_quests"`      // Quests unlocked on completion
+	FailureQuests   []string `json:"failure_quests"`   // Quests unlocked on failure
+	AlternateEnding string   `json:"alternate_ending"` // Alt ending quest ID
 }
 
 // PlayerQuest represents a player's progress on a quest
 type PlayerQuest struct {
-	ID              uuid.UUID       `json:"id"`
-	PlayerID        uuid.UUID       `json:"player_id"`
-	QuestID         string          `json:"quest_id"`
-	Status          QuestStatus     `json:"status"`
+	ID       uuid.UUID   `json:"id"`
+	PlayerID uuid.UUID   `json:"player_id"`
+	QuestID  string      `json:"quest_id"`
+	Status   QuestStatus `json:"status"`
 
 	// Progress tracking
-	Objectives      map[string]int  `json:"objectives"`     // objectiveID -> current count
-	CompletedObjectives []string    `json:"completed_objectives"`
+	Objectives          map[string]int `json:"objectives"` // objectiveID -> current count
+	CompletedObjectives []string       `json:"completed_objectives"`
 
 	// Choices made
-	ChoicesMade     []string        `json:"choices_made"`   // Choice IDs selected
+	ChoicesMade []string `json:"choices_made"` // Choice IDs selected
 
 	// Timing
-	StartedAt       time.Time       `json:"started_at"`
-	CompletedAt     *time.Time      `json:"completed_at"`
-	ExpiresAt       *time.Time      `json:"expires_at"`
+	StartedAt   time.Time  `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at"`
+	ExpiresAt   *time.Time `json:"expires_at"`
 
 	// Metadata
-	CurrentStage    int             `json:"current_stage"`
-	FailureReason   string          `json:"failure_reason"`
+	CurrentStage  int    `json:"current_stage"`
+	FailureReason string `json:"failure_reason"`
 }
 
 // Storyline represents a series of connected quests
@@ -154,27 +155,27 @@ type Storyline struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
-	Quests      []string `json:"quests"`      // Quest IDs in order
-	MainStory   bool     `json:"main_story"`  // Is this the main storyline?
+	Quests      []string `json:"quests"`     // Quest IDs in order
+	MainStory   bool     `json:"main_story"` // Is this the main storyline?
 	OrderIndex  int      `json:"order_index"`
 }
 
 // NewQuest creates a new quest
 func NewQuest(id, title, description string, questType QuestType) *Quest {
 	return &Quest{
-		ID:              id,
-		Title:           title,
-		Description:     description,
-		Type:            questType,
-		Level:           1,
-		Prerequisites:   make([]string, 0),
-		Objectives:      make([]*QuestObjective, 0),
-		Rewards:         QuestReward{Items: make(map[string]int), Reputation: make(map[string]int)},
-		StartDialogue:   make([]QuestDialogue, 0),
+		ID:               id,
+		Title:            title,
+		Description:      description,
+		Type:             questType,
+		Level:            1,
+		Prerequisites:    make([]string, 0),
+		Objectives:       make([]*QuestObjective, 0),
+		Rewards:          QuestReward{Items: make(map[string]int), Reputation: make(map[string]int)},
+		StartDialogue:    make([]QuestDialogue, 0),
 		CompleteDialogue: make([]QuestDialogue, 0),
-		Repeatable:      false,
-		NextQuests:      make([]string, 0),
-		FailureQuests:   make([]string, 0),
+		Repeatable:       false,
+		NextQuests:       make([]string, 0),
+		FailureQuests:    make([]string, 0),
 	}
 }
 

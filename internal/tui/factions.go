@@ -1,5 +1,5 @@
 // File: internal/tui/factions.go
-// Project: Terminal Velocity  
+// Project: Terminal Velocity
 // Description: Faction management UI
 // Version: 1.0.0
 
@@ -10,23 +10,23 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
 
 type factionsModel struct {
-	viewMode      string // "list", "my_faction", "create"
-	cursor        int
-	createName    string
-	createTag     string
-	createAlign   string
-	inputField    int // 0=name, 1=tag, 2=alignment
+	viewMode    string // "list", "my_faction", "create"
+	cursor      int
+	createName  string
+	createTag   string
+	createAlign string
+	inputField  int // 0=name, 1=tag, 2=alignment
 }
 
 func newFactionsModel() factionsModel {
 	return factionsModel{
-		viewMode:   "list",
-		cursor:     0,
+		viewMode:    "list",
+		cursor:      0,
 		createAlign: models.AlignmentTrader,
 	}
 }

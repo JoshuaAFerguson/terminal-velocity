@@ -11,19 +11,22 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
+var log = logger.WithComponent("Factions")
+
 var (
-	ErrFactionNotFound      = errors.New("faction not found")
-	ErrNotMember            = errors.New("player is not a member")
-	ErrInsufficientRank     = errors.New("insufficient rank for this action")
-	ErrFactionFull          = errors.New("faction has reached member limit")
-	ErrAlreadyMember        = errors.New("player is already a member")
-	ErrInsufficientFunds    = errors.New("insufficient faction treasury funds")
-	ErrNameTaken            = errors.New("faction name already taken")
-	ErrTagTaken             = errors.New("faction tag already taken")
+	ErrFactionNotFound   = errors.New("faction not found")
+	ErrNotMember         = errors.New("player is not a member")
+	ErrInsufficientRank  = errors.New("insufficient rank for this action")
+	ErrFactionFull       = errors.New("faction has reached member limit")
+	ErrAlreadyMember     = errors.New("player is already a member")
+	ErrInsufficientFunds = errors.New("insufficient faction treasury funds")
+	ErrNameTaken         = errors.New("faction name already taken")
+	ErrTagTaken          = errors.New("faction tag already taken")
 )
 
 // Manager handles faction operations and state
@@ -342,9 +345,9 @@ func (m *Manager) GetStats() FactionStats {
 	defer m.mu.RUnlock()
 
 	stats := FactionStats{
-		TotalFactions:       len(m.factions),
-		TotalMembers:        len(m.members),
-		RecruitingFactions:  0,
+		TotalFactions:      len(m.factions),
+		TotalMembers:       len(m.members),
+		RecruitingFactions: 0,
 	}
 
 	for _, faction := range m.factions {

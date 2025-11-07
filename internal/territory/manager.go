@@ -8,9 +8,12 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
+
+var log = logger.WithComponent("Territory")
 
 var (
 	ErrAlreadyClaimed    = errors.New("system already claimed")

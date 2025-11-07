@@ -8,30 +8,33 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
+var log = logger.WithComponent("Pvp")
+
 var (
-	ErrChallengeNotFound    = errors.New("challenge not found")
-	ErrNotAuthorized        = errors.New("not authorized for this action")
-	ErrChallengeExpired     = errors.New("challenge has expired")
-	ErrInvalidStatus        = errors.New("invalid challenge status for this operation")
-	ErrPlayerNotFound       = errors.New("player not found")
-	ErrBountyNotFound       = errors.New("bounty not found")
-	ErrInsufficientFunds    = errors.New("insufficient funds for wager")
-	ErrNotInSameSystem      = errors.New("players must be in same system")
-	ErrCannotAttackSelf     = errors.New("cannot attack yourself")
+	ErrChallengeNotFound = errors.New("challenge not found")
+	ErrNotAuthorized     = errors.New("not authorized for this action")
+	ErrChallengeExpired  = errors.New("challenge has expired")
+	ErrInvalidStatus     = errors.New("invalid challenge status for this operation")
+	ErrPlayerNotFound    = errors.New("player not found")
+	ErrBountyNotFound    = errors.New("bounty not found")
+	ErrInsufficientFunds = errors.New("insufficient funds for wager")
+	ErrNotInSameSystem   = errors.New("players must be in same system")
+	ErrCannotAttackSelf  = errors.New("cannot attack yourself")
 )
 
 // Manager handles all PvP combat operations
 type Manager struct {
 	mu         sync.RWMutex
-	challenges map[uuid.UUID]*models.PvPChallenge       // Challenge ID -> Challenge
-	byPlayer   map[uuid.UUID][]*models.PvPChallenge     // Player ID -> Challenges
-	bounties   map[uuid.UUID]*models.Bounty             // Target ID -> Bounty
-	stats      map[uuid.UUID]*models.PvPStats           // Player ID -> Stats
-	results    []*models.PvPCombatResult                // Combat history
+	challenges map[uuid.UUID]*models.PvPChallenge   // Challenge ID -> Challenge
+	byPlayer   map[uuid.UUID][]*models.PvPChallenge // Player ID -> Challenges
+	bounties   map[uuid.UUID]*models.Bounty         // Target ID -> Bounty
+	stats      map[uuid.UUID]*models.PvPStats       // Player ID -> Stats
+	results    []*models.PvPCombatResult            // Combat history
 }
 
 // NewManager creates a new PvP manager
@@ -475,11 +478,11 @@ func (m *Manager) GetSystemStats() map[string]int {
 	defer m.mu.RUnlock()
 
 	stats := map[string]int{
-		"total_challenges":  len(m.challenges),
-		"active_challenges": 0,
+		"total_challenges":   len(m.challenges),
+		"active_challenges":  0,
 		"pending_challenges": 0,
-		"active_bounties":   0,
-		"total_combats":     len(m.results),
+		"active_bounties":    0,
+		"total_combats":      len(m.results),
 	}
 
 	for _, challenge := range m.challenges {

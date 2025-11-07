@@ -12,14 +12,14 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
 
 type chatModel struct {
 	currentChannel   models.ChatChannel
 	inputBuffer      string
-	dmRecipient      string   // For direct messages
+	dmRecipient      string // For direct messages
 	scrollOffset     int
 	inputMode        bool     // true when typing a message
 	selectedDMChat   int      // Index of selected DM conversation

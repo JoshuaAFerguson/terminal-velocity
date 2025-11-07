@@ -13,21 +13,22 @@ import (
 )
 
 // Manager handles random encounter generation and tracking
+
 type Manager struct {
-	mu              sync.RWMutex
-	templates       []EncounterTemplate
+	mu               sync.RWMutex
+	templates        []EncounterTemplate
 	activeEncounters map[uuid.UUID]*Encounter
-	history         map[uuid.UUID]*EncounterHistory
-	rand            *rand.Rand
+	history          map[uuid.UUID]*EncounterHistory
+	rand             *rand.Rand
 }
 
 // NewManager creates a new encounter manager
 func NewManager() *Manager {
 	return &Manager{
-		templates:       GetAllTemplates(),
+		templates:        GetAllTemplates(),
 		activeEncounters: make(map[uuid.UUID]*Encounter),
-		history:         make(map[uuid.UUID]*EncounterHistory),
-		rand:            rand.New(rand.NewSource(time.Now().UnixNano())),
+		history:          make(map[uuid.UUID]*EncounterHistory),
+		rand:             rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 

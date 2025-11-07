@@ -8,28 +8,31 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
+var log = logger.WithComponent("Trade")
+
 var (
-	ErrTradeNotFound      = errors.New("trade offer not found")
-	ErrNotAuthorized      = errors.New("not authorized for this trade")
-	ErrTradeExpired       = errors.New("trade offer has expired")
-	ErrInvalidStatus      = errors.New("trade has invalid status for this operation")
-	ErrInsufficientFunds  = errors.New("insufficient funds for trade")
-	ErrInsufficientCargo  = errors.New("insufficient cargo for trade")
-	ErrLocationMismatch   = errors.New("players must be in same location")
-	ErrCannotCancel       = errors.New("cannot cancel this trade")
+	ErrTradeNotFound     = errors.New("trade offer not found")
+	ErrNotAuthorized     = errors.New("not authorized for this trade")
+	ErrTradeExpired      = errors.New("trade offer has expired")
+	ErrInvalidStatus     = errors.New("trade has invalid status for this operation")
+	ErrInsufficientFunds = errors.New("insufficient funds for trade")
+	ErrInsufficientCargo = errors.New("insufficient cargo for trade")
+	ErrLocationMismatch  = errors.New("players must be in same location")
+	ErrCannotCancel      = errors.New("cannot cancel this trade")
 )
 
 // Manager handles all trade operations
 type Manager struct {
 	mu       sync.RWMutex
-	offers   map[uuid.UUID]*models.TradeOffer          // Trade ID -> Offer
-	byPlayer map[uuid.UUID][]*models.TradeOffer        // Player ID -> Offers (sent or received)
-	escrow   map[uuid.UUID]*models.TradeEscrow         // Trade ID -> Escrow
-	history  map[uuid.UUID]*models.TradeHistory        // Player ID -> History
+	offers   map[uuid.UUID]*models.TradeOffer   // Trade ID -> Offer
+	byPlayer map[uuid.UUID][]*models.TradeOffer // Player ID -> Offers (sent or received)
+	escrow   map[uuid.UUID]*models.TradeEscrow  // Trade ID -> Escrow
+	history  map[uuid.UUID]*models.TradeHistory // Player ID -> History
 }
 
 // NewManager creates a new trade manager
@@ -332,8 +335,8 @@ func (m *Manager) CleanupExpiredOffers() int {
 
 		// Remove very old completed/rejected/expired offers (older than 24 hours)
 		if offer.Status != models.TradeStatusPending &&
-		   offer.Status != models.TradeStatusAccepted &&
-		   offer.UpdatedAt.Add(24 * 60 * 60 * 1000000000).Before(offer.UpdatedAt) {
+			offer.Status != models.TradeStatusAccepted &&
+			offer.UpdatedAt.Add(24*60*60*1000000000).Before(offer.UpdatedAt) {
 			delete(m.offers, id)
 
 			// Remove from player lists
@@ -384,11 +387,11 @@ func (m *Manager) GetStats() map[string]int {
 	defer m.mu.RUnlock()
 
 	stats := map[string]int{
-		"total_offers":     len(m.offers),
-		"pending":          0,
-		"accepted":         0,
-		"completed":        0,
-		"active_escrows":   len(m.escrow),
+		"total_offers":   len(m.offers),
+		"pending":        0,
+		"accepted":       0,
+		"completed":      0,
+		"active_escrows": len(m.escrow),
 	}
 
 	for _, offer := range m.offers {

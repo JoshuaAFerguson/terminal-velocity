@@ -23,10 +23,14 @@ import (
 	"sort"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 // Manager handles the news feed
+
+var log = logger.WithComponent("News")
+
 type Manager struct {
 	articles           []*models.NewsArticle
 	lastRandomNewsTime time.Time

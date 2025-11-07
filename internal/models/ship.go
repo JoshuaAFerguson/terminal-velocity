@@ -10,6 +10,7 @@ package models
 import "github.com/google/uuid"
 
 // Ship represents a spacecraft owned by a player or NPC
+
 type Ship struct {
 	ID      uuid.UUID `json:"id"`
 	OwnerID uuid.UUID `json:"owner_id"`

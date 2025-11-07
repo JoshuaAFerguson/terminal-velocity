@@ -14,6 +14,7 @@ import (
 )
 
 // ReputationChange represents a change in faction reputation
+
 type ReputationChange struct {
 	FactionID string
 	Amount    int

@@ -15,6 +15,7 @@ import (
 )
 
 // PvPChallengeStatus represents the state of a combat challenge
+
 type PvPChallengeStatus string
 
 const (
@@ -39,22 +40,22 @@ const (
 
 // PvPChallenge represents a combat proposal between players
 type PvPChallenge struct {
-	ID          uuid.UUID          `json:"id"`
-	ChallengerID uuid.UUID         `json:"challenger_id"`
-	ChallengerName string          `json:"challenger_name"`
-	DefenderID  uuid.UUID          `json:"defender_id"`
-	DefenderName string             `json:"defender_name"`
+	ID             uuid.UUID `json:"id"`
+	ChallengerID   uuid.UUID `json:"challenger_id"`
+	ChallengerName string    `json:"challenger_name"`
+	DefenderID     uuid.UUID `json:"defender_id"`
+	DefenderName   string    `json:"defender_name"`
 
-	Type        PvPChallengeType   `json:"type"`
-	Status      PvPChallengeStatus `json:"status"`
+	Type   PvPChallengeType   `json:"type"`
+	Status PvPChallengeStatus `json:"status"`
 
 	// Location
-	SystemID uuid.UUID `json:"system_id"`
+	SystemID uuid.UUID  `json:"system_id"`
 	PlanetID *uuid.UUID `json:"planet_id,omitempty"`
 
 	// Timing
-	CreatedAt  time.Time `json:"created_at"`
-	ExpiresAt  time.Time `json:"expires_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  time.Time  `json:"expires_at"`
 	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
 	StartedAt  *time.Time `json:"started_at,omitempty"`
 	EndedAt    *time.Time `json:"ended_at,omitempty"`
@@ -99,33 +100,33 @@ type PvPCombatResult struct {
 	BountyAdded   int64 `json:"bounty_added"`   // If aggressor
 	BountyClaimed int64 `json:"bounty_claimed"` // If bounty hunter
 
-	Duration time.Duration `json:"duration"`
-	Timestamp time.Time    `json:"timestamp"`
+	Duration  time.Duration `json:"duration"`
+	Timestamp time.Time     `json:"timestamp"`
 }
 
 // Bounty represents a wanted status on a player
 type Bounty struct {
-	ID       uuid.UUID `json:"id"`
-	TargetID uuid.UUID `json:"target_id"`
-	TargetName string  `json:"target_name"`
+	ID         uuid.UUID `json:"id"`
+	TargetID   uuid.UUID `json:"target_id"`
+	TargetName string    `json:"target_name"`
 
 	// Bounty details
-	Amount      int64     `json:"amount"`       // Credits for capture/kill
-	Reason      string    `json:"reason"`       // Why they're wanted
-	IssuedBy    string    `json:"issued_by"`    // "System" or faction name
-	IssuedAt    time.Time `json:"issued_at"`
-	ExpiresAt   time.Time `json:"expires_at"`
+	Amount    int64     `json:"amount"`    // Credits for capture/kill
+	Reason    string    `json:"reason"`    // Why they're wanted
+	IssuedBy  string    `json:"issued_by"` // "System" or faction name
+	IssuedAt  time.Time `json:"issued_at"`
+	ExpiresAt time.Time `json:"expires_at"`
 
 	// Status
-	Active      bool       `json:"active"`
-	ClaimedBy   *uuid.UUID `json:"claimed_by,omitempty"`
-	ClaimedAt   *time.Time `json:"claimed_at,omitempty"`
+	Active    bool       `json:"active"`
+	ClaimedBy *uuid.UUID `json:"claimed_by,omitempty"`
+	ClaimedAt *time.Time `json:"claimed_at,omitempty"`
 
 	// Crime tracking
-	Kills       int   `json:"kills"`        // Number of unjustified kills
-	Thefts      int   `json:"thefts"`       // Cargo piracy
-	Attacks     int   `json:"attacks"`      // Unprovoked attacks
-	CrimeValue  int64 `json:"crime_value"`  // Total value of crimes
+	Kills      int   `json:"kills"`       // Number of unjustified kills
+	Thefts     int   `json:"thefts"`      // Cargo piracy
+	Attacks    int   `json:"attacks"`     // Unprovoked attacks
+	CrimeValue int64 `json:"crime_value"` // Total value of crimes
 }
 
 // PvPStats tracks a player's combat history
@@ -151,15 +152,15 @@ type PvPStats struct {
 	TotalCreditsLost int64 `json:"total_credits_lost"`
 
 	// Reputation
-	CombatRating    int     `json:"combat_rating"`    // 0-1000
-	HonorRating     float64 `json:"honor_rating"`     // 0.0-1.0
-	NotorietyLevel  int     `json:"notoriety_level"`  // 0-5 (wanted level)
+	CombatRating   int     `json:"combat_rating"`   // 0-1000
+	HonorRating    float64 `json:"honor_rating"`    // 0.0-1.0
+	NotorietyLevel int     `json:"notoriety_level"` // 0-5 (wanted level)
 
 	// Statistics
-	TotalDamageDealt    int64 `json:"total_damage_dealt"`
-	TotalDamageTaken    int64 `json:"total_damage_taken"`
-	LongestWinStreak    int   `json:"longest_win_streak"`
-	CurrentWinStreak    int   `json:"current_win_streak"`
+	TotalDamageDealt int64 `json:"total_damage_dealt"`
+	TotalDamageTaken int64 `json:"total_damage_taken"`
+	LongestWinStreak int   `json:"longest_win_streak"`
+	CurrentWinStreak int   `json:"current_win_streak"`
 
 	LastCombatAt time.Time `json:"last_combat_at"`
 }
@@ -361,24 +362,24 @@ func (b *Bounty) GetWantedLevel() string {
 // NewPvPStats creates new PvP stats for a player
 func NewPvPStats(playerID uuid.UUID) *PvPStats {
 	return &PvPStats{
-		PlayerID:           playerID,
-		Wins:               0,
-		Losses:             0,
-		Draws:              0,
-		DuelsWon:           0,
-		BountiesHunted:     0,
-		PirateKills:        0,
-		AggressionCount:    0,
-		PlayersKilled:      0,
-		TotalCreditsWon:    0,
-		TotalCreditsLost:   0,
-		CombatRating:       100, // Start at 100
-		HonorRating:        1.0, // Start with perfect honor
-		NotorietyLevel:     0,
-		TotalDamageDealt:   0,
-		TotalDamageTaken:   0,
-		LongestWinStreak:   0,
-		CurrentWinStreak:   0,
+		PlayerID:         playerID,
+		Wins:             0,
+		Losses:           0,
+		Draws:            0,
+		DuelsWon:         0,
+		BountiesHunted:   0,
+		PirateKills:      0,
+		AggressionCount:  0,
+		PlayersKilled:    0,
+		TotalCreditsWon:  0,
+		TotalCreditsLost: 0,
+		CombatRating:     100, // Start at 100
+		HonorRating:      1.0, // Start with perfect honor
+		NotorietyLevel:   0,
+		TotalDamageDealt: 0,
+		TotalDamageTaken: 0,
+		LongestWinStreak: 0,
+		CurrentWinStreak: 0,
 	}
 }
 

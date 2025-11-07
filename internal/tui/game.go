@@ -7,9 +7,7 @@
 
 package tui
 
-import (
-	"github.com/charmbracelet/bubbletea"
-)
+import tea "github.com/charmbracelet/bubbletea"
 
 type gameViewModel struct {
 	// Game state will go here

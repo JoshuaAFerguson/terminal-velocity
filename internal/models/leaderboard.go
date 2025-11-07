@@ -14,16 +14,17 @@ import (
 )
 
 // LeaderboardCategory represents different types of leaderboards
+
 type LeaderboardCategory string
 
 const (
-	LeaderboardCombat      LeaderboardCategory = "combat"       // Combat prowess rankings
-	LeaderboardTrading     LeaderboardCategory = "trading"      // Trading success rankings
-	LeaderboardExploration LeaderboardCategory = "exploration"  // Exploration rankings
-	LeaderboardWealth      LeaderboardCategory = "wealth"       // Total credits rankings
-	LeaderboardReputation  LeaderboardCategory = "reputation"   // Overall reputation rankings
-	LeaderboardMissions    LeaderboardCategory = "missions"     // Mission completion rankings
-	LeaderboardOverall     LeaderboardCategory = "overall"      // Overall ranking (composite)
+	LeaderboardCombat      LeaderboardCategory = "combat"      // Combat prowess rankings
+	LeaderboardTrading     LeaderboardCategory = "trading"     // Trading success rankings
+	LeaderboardExploration LeaderboardCategory = "exploration" // Exploration rankings
+	LeaderboardWealth      LeaderboardCategory = "wealth"      // Total credits rankings
+	LeaderboardReputation  LeaderboardCategory = "reputation"  // Overall reputation rankings
+	LeaderboardMissions    LeaderboardCategory = "missions"    // Mission completion rankings
+	LeaderboardOverall     LeaderboardCategory = "overall"     // Overall ranking (composite)
 )
 
 // LeaderboardEntry represents a single entry in a leaderboard
@@ -45,10 +46,10 @@ type LeaderboardEntry struct {
 
 // LeaderboardSnapshot represents a full leaderboard at a point in time
 type LeaderboardSnapshot struct {
-	Category  LeaderboardCategory `json:"category"`   // Which leaderboard this is
-	Entries   []*LeaderboardEntry `json:"entries"`    // Ranked list of entries
-	UpdatedAt time.Time           `json:"updated_at"` // When this snapshot was taken
-	TotalPlayers int              `json:"total_players"` // Total number of ranked players
+	Category     LeaderboardCategory `json:"category"`      // Which leaderboard this is
+	Entries      []*LeaderboardEntry `json:"entries"`       // Ranked list of entries
+	UpdatedAt    time.Time           `json:"updated_at"`    // When this snapshot was taken
+	TotalPlayers int                 `json:"total_players"` // Total number of ranked players
 }
 
 // NewLeaderboardEntry creates a new leaderboard entry for a player

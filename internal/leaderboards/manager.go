@@ -11,6 +11,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
@@ -19,15 +20,18 @@ import (
 //
 // The manager maintains snapshots of leaderboards across all categories
 // and can generate rankings from player data.
+
+var log = logger.WithComponent("Leaderboards")
+
 type Manager struct {
-	snapshots map[models.LeaderboardCategory]*models.LeaderboardSnapshot
+	snapshots  map[models.LeaderboardCategory]*models.LeaderboardSnapshot
 	lastUpdate time.Time
 }
 
 // NewManager creates a new leaderboard manager
 func NewManager() *Manager {
 	return &Manager{
-		snapshots: make(map[models.LeaderboardCategory]*models.LeaderboardSnapshot),
+		snapshots:  make(map[models.LeaderboardCategory]*models.LeaderboardSnapshot),
 		lastUpdate: time.Now(),
 	}
 }

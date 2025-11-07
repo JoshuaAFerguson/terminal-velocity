@@ -17,10 +17,14 @@ package models
 import (
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/google/uuid"
 )
 
 // AchievementCategory represents the type of achievement
+
+var log = logger.WithComponent("Models")
+
 type AchievementCategory string
 
 const (
@@ -56,17 +60,17 @@ type Achievement struct {
 	Hidden      bool                `json:"hidden"`      // Hidden until unlocked
 
 	// Criteria for unlocking (one of these will be checked)
-	RequireKills           int   `json:"require_kills,omitempty"`            // Total kills needed
-	RequireTrades          int   `json:"require_trades,omitempty"`           // Total trades needed
-	RequireCredits         int64 `json:"require_credits,omitempty"`          // Credits needed
-	RequireProfit          int64 `json:"require_profit,omitempty"`           // Total profit needed
-	RequireSystemsVisited  int   `json:"require_systems_visited,omitempty"`  // Systems to visit
-	RequireJumps           int   `json:"require_jumps,omitempty"`            // Jumps needed
-	RequireMissions        int   `json:"require_missions,omitempty"`         // Missions to complete
-	RequireCombatRating    int   `json:"require_combat_rating,omitempty"`    // Combat rating needed
-	RequireTradingRating   int   `json:"require_trading_rating,omitempty"`   // Trading rating needed
-	RequireShipsPurchased  int   `json:"require_ships_purchased,omitempty"`  // Ships purchased
-	RequireSpecificShipID  string `json:"require_specific_ship_id,omitempty"` // Specific ship type
+	RequireKills          int    `json:"require_kills,omitempty"`            // Total kills needed
+	RequireTrades         int    `json:"require_trades,omitempty"`           // Total trades needed
+	RequireCredits        int64  `json:"require_credits,omitempty"`          // Credits needed
+	RequireProfit         int64  `json:"require_profit,omitempty"`           // Total profit needed
+	RequireSystemsVisited int    `json:"require_systems_visited,omitempty"`  // Systems to visit
+	RequireJumps          int    `json:"require_jumps,omitempty"`            // Jumps needed
+	RequireMissions       int    `json:"require_missions,omitempty"`         // Missions to complete
+	RequireCombatRating   int    `json:"require_combat_rating,omitempty"`    // Combat rating needed
+	RequireTradingRating  int    `json:"require_trading_rating,omitempty"`   // Trading rating needed
+	RequireShipsPurchased int    `json:"require_ships_purchased,omitempty"`  // Ships purchased
+	RequireSpecificShipID string `json:"require_specific_ship_id,omitempty"` // Specific ship type
 }
 
 // PlayerAchievement represents a player's unlock of an achievement
@@ -123,75 +127,75 @@ func GetAllAchievements() []*Achievement {
 			RequireKills: 100,
 		},
 		{
-			ID:           "elite_combat",
-			Title:        "Elite Combat Rating",
-			Description:  "Achieve Elite combat rating (100)",
-			Category:     AchievementCategoryCombat,
-			Rarity:       AchievementRarityEpic,
-			Icon:         "👑",
-			Points:       100,
+			ID:                  "elite_combat",
+			Title:               "Elite Combat Rating",
+			Description:         "Achieve Elite combat rating (100)",
+			Category:            AchievementCategoryCombat,
+			Rarity:              AchievementRarityEpic,
+			Icon:                "👑",
+			Points:              100,
 			RequireCombatRating: 100,
 		},
 
 		// ==================== Trading Achievements ====================
 		{
-			ID:           "first_trade",
-			Title:        "First Trade",
-			Description:  "Complete your first trade transaction",
-			Category:     AchievementCategoryTrading,
-			Rarity:       AchievementRarityCommon,
-			Icon:         "💰",
-			Points:       10,
+			ID:            "first_trade",
+			Title:         "First Trade",
+			Description:   "Complete your first trade transaction",
+			Category:      AchievementCategoryTrading,
+			Rarity:        AchievementRarityCommon,
+			Icon:          "💰",
+			Points:        10,
 			RequireTrades: 1,
 		},
 		{
-			ID:           "merchant",
-			Title:        "Merchant",
-			Description:  "Complete 50 trade transactions",
-			Category:     AchievementCategoryTrading,
-			Rarity:       AchievementRarityUncommon,
-			Icon:         "🏪",
-			Points:       25,
+			ID:            "merchant",
+			Title:         "Merchant",
+			Description:   "Complete 50 trade transactions",
+			Category:      AchievementCategoryTrading,
+			Rarity:        AchievementRarityUncommon,
+			Icon:          "🏪",
+			Points:        25,
 			RequireTrades: 50,
 		},
 		{
-			ID:           "trade_magnate",
-			Title:        "Trade Magnate",
-			Description:  "Complete 200 trade transactions",
-			Category:     AchievementCategoryTrading,
-			Rarity:       AchievementRarityRare,
-			Icon:         "📈",
-			Points:       50,
+			ID:            "trade_magnate",
+			Title:         "Trade Magnate",
+			Description:   "Complete 200 trade transactions",
+			Category:      AchievementCategoryTrading,
+			Rarity:        AchievementRarityRare,
+			Icon:          "📈",
+			Points:        50,
 			RequireTrades: 200,
 		},
 		{
-			ID:           "millionaire",
-			Title:        "Millionaire",
-			Description:  "Accumulate 1,000,000 credits",
-			Category:     AchievementCategoryWealth,
-			Rarity:       AchievementRarityRare,
-			Icon:         "💎",
-			Points:       50,
+			ID:             "millionaire",
+			Title:          "Millionaire",
+			Description:    "Accumulate 1,000,000 credits",
+			Category:       AchievementCategoryWealth,
+			Rarity:         AchievementRarityRare,
+			Icon:           "💎",
+			Points:         50,
 			RequireCredits: 1000000,
 		},
 		{
-			ID:           "profit_master",
-			Title:        "Profit Master",
-			Description:  "Earn 5,000,000 credits in total trading profit",
-			Category:     AchievementCategoryTrading,
-			Rarity:       AchievementRarityEpic,
-			Icon:         "🤑",
-			Points:       100,
+			ID:            "profit_master",
+			Title:         "Profit Master",
+			Description:   "Earn 5,000,000 credits in total trading profit",
+			Category:      AchievementCategoryTrading,
+			Rarity:        AchievementRarityEpic,
+			Icon:          "🤑",
+			Points:        100,
 			RequireProfit: 5000000,
 		},
 		{
-			ID:           "tycoon",
-			Title:        "Tycoon",
-			Description:  "Achieve Tycoon trading rating (100)",
-			Category:     AchievementCategoryTrading,
-			Rarity:       AchievementRarityEpic,
-			Icon:         "🏆",
-			Points:       100,
+			ID:                   "tycoon",
+			Title:                "Tycoon",
+			Description:          "Achieve Tycoon trading rating (100)",
+			Category:             AchievementCategoryTrading,
+			Rarity:               AchievementRarityEpic,
+			Icon:                 "🏆",
+			Points:               100,
 			RequireTradingRating: 100,
 		},
 
@@ -207,23 +211,23 @@ func GetAllAchievements() []*Achievement {
 			RequireJumps: 1,
 		},
 		{
-			ID:           "explorer",
-			Title:        "Explorer",
-			Description:  "Visit 25 different star systems",
-			Category:     AchievementCategoryExploration,
-			Rarity:       AchievementRarityUncommon,
-			Icon:         "🗺️",
-			Points:       25,
+			ID:                    "explorer",
+			Title:                 "Explorer",
+			Description:           "Visit 25 different star systems",
+			Category:              AchievementCategoryExploration,
+			Rarity:                AchievementRarityUncommon,
+			Icon:                  "🗺️",
+			Points:                25,
 			RequireSystemsVisited: 25,
 		},
 		{
-			ID:           "pathfinder",
-			Title:        "Pathfinder",
-			Description:  "Achieve Pathfinder exploration rating (100)",
-			Category:     AchievementCategoryExploration,
-			Rarity:       AchievementRarityEpic,
-			Icon:         "🧭",
-			Points:       100,
+			ID:                    "pathfinder",
+			Title:                 "Pathfinder",
+			Description:           "Achieve Pathfinder exploration rating (100)",
+			Category:              AchievementCategoryExploration,
+			Rarity:                AchievementRarityEpic,
+			Icon:                  "🧭",
+			Points:                100,
 			RequireSystemsVisited: 50,
 		},
 		{
@@ -239,67 +243,67 @@ func GetAllAchievements() []*Achievement {
 
 		// ==================== Mission Achievements ====================
 		{
-			ID:           "first_mission",
-			Title:        "First Mission",
-			Description:  "Complete your first mission",
-			Category:     AchievementCategoryMissions,
-			Rarity:       AchievementRarityCommon,
-			Icon:         "📋",
-			Points:       10,
+			ID:              "first_mission",
+			Title:           "First Mission",
+			Description:     "Complete your first mission",
+			Category:        AchievementCategoryMissions,
+			Rarity:          AchievementRarityCommon,
+			Icon:            "📋",
+			Points:          10,
 			RequireMissions: 1,
 		},
 		{
-			ID:           "mission_runner",
-			Title:        "Mission Runner",
-			Description:  "Complete 25 missions",
-			Category:     AchievementCategoryMissions,
-			Rarity:       AchievementRarityUncommon,
-			Icon:         "📦",
-			Points:       25,
+			ID:              "mission_runner",
+			Title:           "Mission Runner",
+			Description:     "Complete 25 missions",
+			Category:        AchievementCategoryMissions,
+			Rarity:          AchievementRarityUncommon,
+			Icon:            "📦",
+			Points:          25,
 			RequireMissions: 25,
 		},
 		{
-			ID:           "contractor",
-			Title:        "Contractor",
-			Description:  "Complete 100 missions",
-			Category:     AchievementCategoryMissions,
-			Rarity:       AchievementRarityRare,
-			Icon:         "📜",
-			Points:       50,
+			ID:              "contractor",
+			Title:           "Contractor",
+			Description:     "Complete 100 missions",
+			Category:        AchievementCategoryMissions,
+			Rarity:          AchievementRarityRare,
+			Icon:            "📜",
+			Points:          50,
 			RequireMissions: 100,
 		},
 		{
-			ID:           "legendary_agent",
-			Title:        "Legendary Agent",
-			Description:  "Complete 500 missions",
-			Category:     AchievementCategoryMissions,
-			Rarity:       AchievementRarityLegendary,
-			Icon:         "🌟",
-			Points:       200,
+			ID:              "legendary_agent",
+			Title:           "Legendary Agent",
+			Description:     "Complete 500 missions",
+			Category:        AchievementCategoryMissions,
+			Rarity:          AchievementRarityLegendary,
+			Icon:            "🌟",
+			Points:          200,
 			RequireMissions: 500,
 		},
 
 		// ==================== Ship Achievements ====================
 		{
-			ID:           "ship_collector",
-			Title:        "Ship Collector",
-			Description:  "Purchase 5 different ships",
-			Category:     AchievementCategoryShips,
-			Rarity:       AchievementRarityUncommon,
-			Icon:         "🚢",
-			Points:       25,
+			ID:                    "ship_collector",
+			Title:                 "Ship Collector",
+			Description:           "Purchase 5 different ships",
+			Category:              AchievementCategoryShips,
+			Rarity:                AchievementRarityUncommon,
+			Icon:                  "🚢",
+			Points:                25,
 			RequireShipsPurchased: 5,
 		},
 		{
-			ID:           "battleship_captain",
-			Title:        "Battleship Captain",
-			Description:  "Purchase a Battleship",
-			Category:     AchievementCategoryShips,
-			Rarity:       AchievementRarityEpic,
-			Icon:         "⚓",
-			Points:       100,
+			ID:                    "battleship_captain",
+			Title:                 "Battleship Captain",
+			Description:           "Purchase a Battleship",
+			Category:              AchievementCategoryShips,
+			Rarity:                AchievementRarityEpic,
+			Icon:                  "⚓",
+			Points:                100,
 			RequireSpecificShipID: "battleship",
-			Hidden:       true,
+			Hidden:                true,
 		},
 
 		// ==================== Special Achievements ====================

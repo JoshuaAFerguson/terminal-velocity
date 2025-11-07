@@ -11,10 +11,11 @@ import (
 	"fmt"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Quest view modes
+
 const (
 	questViewActive    = "active"
 	questViewAvailable = "available"
@@ -23,13 +24,13 @@ const (
 )
 
 type questsModel struct {
-	viewMode       string
-	cursor         int
-	activeQuests   []*models.PlayerQuest
+	viewMode        string
+	cursor          int
+	activeQuests    []*models.PlayerQuest
 	availableQuests []*models.Quest
 	completedQuests []*models.PlayerQuest
-	selectedQuest  *models.Quest
-	selectedPlayer *models.PlayerQuest
+	selectedQuest   *models.Quest
+	selectedPlayer  *models.PlayerQuest
 }
 
 func newQuestsModel() questsModel {

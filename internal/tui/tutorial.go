@@ -12,10 +12,11 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Tutorial view modes
+
 const (
 	tutorialViewOverlay = "overlay" // Shows as overlay on current screen
 	tutorialViewFull    = "full"    // Full screen tutorial view

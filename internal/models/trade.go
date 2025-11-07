@@ -15,6 +15,7 @@ import (
 )
 
 // TradeStatus represents the current state of a trade offer
+
 type TradeStatus string
 
 const (
@@ -35,11 +36,11 @@ type TradeItem struct {
 
 // TradeOffer represents a trade proposal between two players
 type TradeOffer struct {
-	ID        uuid.UUID   `json:"id"`
-	InitiatorID uuid.UUID `json:"initiator_id"`
-	InitiatorName string  `json:"initiator_name"`
-	RecipientID uuid.UUID `json:"recipient_id"`
-	RecipientName string  `json:"recipient_name"`
+	ID            uuid.UUID `json:"id"`
+	InitiatorID   uuid.UUID `json:"initiator_id"`
+	InitiatorName string    `json:"initiator_name"`
+	RecipientID   uuid.UUID `json:"recipient_id"`
+	RecipientName string    `json:"recipient_name"`
 
 	// What the initiator is offering
 	OfferedCredits int64       `json:"offered_credits"`
@@ -63,37 +64,37 @@ type TradeOffer struct {
 	Message string `json:"message,omitempty"`
 
 	// Contract mode
-	IsContract bool   `json:"is_contract"` // If true, can't be cancelled after accept
+	IsContract    bool   `json:"is_contract"` // If true, can't be cancelled after accept
 	ContractTerms string `json:"contract_terms,omitempty"`
 }
 
 // TradeEscrow represents items/credits held during a trade
 type TradeEscrow struct {
-	TradeID   uuid.UUID `json:"trade_id"`
+	TradeID uuid.UUID `json:"trade_id"`
 
 	// Locked funds from initiator
-	InitiatorCredits int64              `json:"initiator_credits"`
-	InitiatorItems   map[string]int     `json:"initiator_items"` // commodity -> quantity
+	InitiatorCredits int64          `json:"initiator_credits"`
+	InitiatorItems   map[string]int `json:"initiator_items"` // commodity -> quantity
 
 	// Locked funds from recipient
-	RecipientCredits int64              `json:"recipient_credits"`
-	RecipientItems   map[string]int     `json:"recipient_items"`
+	RecipientCredits int64          `json:"recipient_credits"`
+	RecipientItems   map[string]int `json:"recipient_items"`
 
 	LockedAt time.Time `json:"locked_at"`
 }
 
 // TradeHistory tracks completed trades for reputation
 type TradeHistory struct {
-	PlayerID      uuid.UUID `json:"player_id"`
-	TotalTrades   int       `json:"total_trades"`
-	SuccessfulTrades int    `json:"successful_trades"`
-	CancelledTrades  int    `json:"cancelled_trades"`
-	TotalVolume   int64     `json:"total_volume"` // Total credits traded
-	LastTradeAt   time.Time `json:"last_trade_at"`
+	PlayerID         uuid.UUID `json:"player_id"`
+	TotalTrades      int       `json:"total_trades"`
+	SuccessfulTrades int       `json:"successful_trades"`
+	CancelledTrades  int       `json:"cancelled_trades"`
+	TotalVolume      int64     `json:"total_volume"` // Total credits traded
+	LastTradeAt      time.Time `json:"last_trade_at"`
 
 	// Reputation
-	PositiveRatings int `json:"positive_ratings"`
-	NegativeRatings int `json:"negative_ratings"`
+	PositiveRatings int     `json:"positive_ratings"`
+	NegativeRatings int     `json:"negative_ratings"`
 	TrustScore      float64 `json:"trust_score"` // 0.0 - 1.0
 }
 
@@ -109,20 +110,20 @@ func NewTradeOffer(
 	now := time.Now()
 
 	return &TradeOffer{
-		ID:            uuid.New(),
-		InitiatorID:   initiatorID,
-		InitiatorName: initiatorName,
-		RecipientID:   recipientID,
-		RecipientName: recipientName,
-		Status:        TradeStatusPending,
-		CreatedAt:     now,
-		ExpiresAt:     now.Add(1 * time.Hour), // 1 hour default expiry
-		UpdatedAt:     now,
-		SystemID:      systemID,
-		PlanetID:      planetID,
-		OfferedItems:  []TradeItem{},
+		ID:             uuid.New(),
+		InitiatorID:    initiatorID,
+		InitiatorName:  initiatorName,
+		RecipientID:    recipientID,
+		RecipientName:  recipientName,
+		Status:         TradeStatusPending,
+		CreatedAt:      now,
+		ExpiresAt:      now.Add(1 * time.Hour), // 1 hour default expiry
+		UpdatedAt:      now,
+		SystemID:       systemID,
+		PlanetID:       planetID,
+		OfferedItems:   []TradeItem{},
 		RequestedItems: []TradeItem{},
-		IsContract:    false,
+		IsContract:     false,
 	}
 }
 
@@ -317,10 +318,10 @@ func (t *TradeOffer) GetTimeRemaining() string {
 // NewTradeEscrow creates a new escrow for a trade
 func NewTradeEscrow(tradeID uuid.UUID) *TradeEscrow {
 	return &TradeEscrow{
-		TradeID:          tradeID,
-		InitiatorItems:   make(map[string]int),
-		RecipientItems:   make(map[string]int),
-		LockedAt:         time.Now(),
+		TradeID:        tradeID,
+		InitiatorItems: make(map[string]int),
+		RecipientItems: make(map[string]int),
+		LockedAt:       time.Now(),
 	}
 }
 

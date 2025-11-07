@@ -16,6 +16,7 @@ import (
 )
 
 // RunMigrations executes SQL migration files
+
 func (db *DB) RunMigrations(ctx context.Context, migrationsPath string) error {
 	// Read the schema file
 	schemaFile := filepath.Join(migrationsPath, "schema.sql")

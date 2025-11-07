@@ -10,16 +10,20 @@ package tutorial
 import (
 	"sync"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles tutorial progression and state
+
+var log = logger.WithComponent("Tutorial")
+
 type Manager struct {
 	mu        sync.RWMutex
-	tutorials map[string]*models.Tutorial              // tutorialID -> Tutorial
-	progress  map[uuid.UUID]*models.TutorialProgress   // playerID -> Progress
-	triggers  map[models.TutorialTrigger][]string      // trigger -> tutorialIDs
+	tutorials map[string]*models.Tutorial            // tutorialID -> Tutorial
+	progress  map[uuid.UUID]*models.TutorialProgress // playerID -> Progress
+	triggers  map[models.TutorialTrigger][]string    // trigger -> tutorialIDs
 }
 
 // NewManager creates a new tutorial manager
@@ -578,13 +582,13 @@ func (m *Manager) GetStats(playerID uuid.UUID) map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"initialized":          true,
-		"enabled":              progress.TutorialEnabled,
-		"total_steps":          progress.TotalSteps,
-		"completed_steps":      progress.CompletedCount,
-		"skipped_steps":        len(progress.SkippedSteps),
-		"completion_percent":   progress.GetCompletionPercentage(),
-		"categories_started":   len(progress.CategoryProgress),
-		"current_tutorial":     m.GetCurrentTutorial(playerID),
+		"initialized":        true,
+		"enabled":            progress.TutorialEnabled,
+		"total_steps":        progress.TotalSteps,
+		"completed_steps":    progress.CompletedCount,
+		"skipped_steps":      len(progress.SkippedSteps),
+		"completion_percent": progress.GetCompletionPercentage(),
+		"categories_started": len(progress.CategoryProgress),
+		"current_tutorial":   m.GetCurrentTutorial(playerID),
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
@@ -19,13 +20,16 @@ import (
 //
 // This is the central system for multiplayer presence. It maintains a thread-safe
 // map of all online players and provides methods to query presence information.
+
+var log = logger.WithComponent("Presence")
+
 type Manager struct {
-	mu       sync.RWMutex
-	players  map[uuid.UUID]*models.PlayerPresence // Active player presences
+	mu      sync.RWMutex
+	players map[uuid.UUID]*models.PlayerPresence // Active player presences
 
 	// Configuration
-	afkThreshold    time.Duration // How long before a player is marked AFK
-	offlineTimeout  time.Duration // How long before an inactive player is removed
+	afkThreshold   time.Duration // How long before a player is marked AFK
+	offlineTimeout time.Duration // How long before an inactive player is removed
 }
 
 // NewManager creates a new presence manager

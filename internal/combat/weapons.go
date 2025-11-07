@@ -16,6 +16,7 @@ import (
 )
 
 // WeaponState tracks the runtime state of a weapon
+
 type WeaponState struct {
 	WeaponID          string
 	CurrentAmmo       int     // current ammo (for missiles)

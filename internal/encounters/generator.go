@@ -20,11 +20,15 @@ package encounters
 import (
 	"math/rand"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Generator handles encounter generation
+
+var log = logger.WithComponent("Encounters")
+
 type Generator struct {
 	baseEncounterChance float64 // Base 10% chance per jump
 }
@@ -161,15 +165,15 @@ func (g *Generator) GenerateEncounterShips(encounter *models.Encounter) []*model
 
 		// Create ship
 		ship := &models.Ship{
-			ID:       uuid.New(),
-			TypeID:   shipTypeID,
-			Name:     g.generateShipName(encounter.Type, i+1),
-			Hull:     shipType.MaxHull,
-			Shields:  shipType.MaxShields,
-			Fuel:     shipType.MaxFuel,
-			Cargo:    []models.CargoItem{},
-			Weapons:  []string{},
-			Outfits:  []string{},
+			ID:      uuid.New(),
+			TypeID:  shipTypeID,
+			Name:    g.generateShipName(encounter.Type, i+1),
+			Hull:    shipType.MaxHull,
+			Shields: shipType.MaxShields,
+			Fuel:    shipType.MaxFuel,
+			Cargo:   []models.CargoItem{},
+			Weapons: []string{},
+			Outfits: []string{},
 		}
 
 		// Equip with basic weapons based on ship class
@@ -193,11 +197,11 @@ func (g *Generator) generateShipName(encounterType models.EncounterType, index i
 	prefixes := map[models.EncounterType][]string{
 		models.EncounterTypePirate:   {"Crimson", "Blood", "Shadow", "Raven", "Viper"},
 		models.EncounterTypeTrader:   {"Free", "Independent", "Merchant"},
-		models.EncounterTypeDistress:  {"Distressed", "Damaged", "Stranded"},
-		models.EncounterTypePolice:    {"UEF Patrol", "UEF Guardian", "UEF Enforcer"},
-		models.EncounterTypeFaction:   {"Patrol", "Scout", "Sentinel"},
-		models.EncounterTypeDerelict:  {"Abandoned", "Derelict", "Ghost"},
-		models.EncounterTypeMerchant:  {"Caravan", "Trader", "Convoy"},
+		models.EncounterTypeDistress: {"Distressed", "Damaged", "Stranded"},
+		models.EncounterTypePolice:   {"UEF Patrol", "UEF Guardian", "UEF Enforcer"},
+		models.EncounterTypeFaction:  {"Patrol", "Scout", "Sentinel"},
+		models.EncounterTypeDerelict: {"Abandoned", "Derelict", "Ghost"},
+		models.EncounterTypeMerchant: {"Caravan", "Trader", "Convoy"},
 	}
 
 	suffixes := []string{"Alpha", "Beta", "Gamma", "Delta", "One", "Two", "Three"}

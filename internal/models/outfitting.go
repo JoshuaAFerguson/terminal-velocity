@@ -14,24 +14,25 @@ import (
 )
 
 // EquipmentSlotType represents different types of equipment slots
+
 type EquipmentSlotType string
 
 const (
-	SlotWeapon    EquipmentSlotType = "weapon"     // Gun/missile hardpoints
-	SlotShield    EquipmentSlotType = "shield"     // Shield generator
-	SlotEngine    EquipmentSlotType = "engine"     // Propulsion system
-	SlotReactor   EquipmentSlotType = "reactor"    // Power generation
-	SlotUtility   EquipmentSlotType = "utility"    // Cargo pods, fuel tanks, etc.
-	SlotSpecial   EquipmentSlotType = "special"    // Cloaking, special weapons
+	SlotWeapon  EquipmentSlotType = "weapon"  // Gun/missile hardpoints
+	SlotShield  EquipmentSlotType = "shield"  // Shield generator
+	SlotEngine  EquipmentSlotType = "engine"  // Propulsion system
+	SlotReactor EquipmentSlotType = "reactor" // Power generation
+	SlotUtility EquipmentSlotType = "utility" // Cargo pods, fuel tanks, etc.
+	SlotSpecial EquipmentSlotType = "special" // Cloaking, special weapons
 )
 
 // EquipmentSlot represents a single equipment slot on a ship
 type EquipmentSlot struct {
 	ID            uuid.UUID         `json:"id"`
 	SlotType      EquipmentSlotType `json:"slot_type"`
-	SlotSize      int               `json:"slot_size"`      // 1=small, 2=medium, 3=large, 4=capital
+	SlotSize      int               `json:"slot_size"` // 1=small, 2=medium, 3=large, 4=capital
 	InstalledItem *Equipment        `json:"installed_item,omitempty"`
-	Locked        bool              `json:"locked"`         // Cannot be modified
+	Locked        bool              `json:"locked"` // Cannot be modified
 }
 
 // Equipment represents any installable ship equipment
@@ -44,7 +45,7 @@ type Equipment struct {
 	SlotSize    int               `json:"slot_size"`
 
 	// Requirements
-	MinTechLevel    int   `json:"min_tech_level"`
+	MinTechLevel    int    `json:"min_tech_level"`
 	RequiredLicense string `json:"required_license,omitempty"`
 
 	// Cost
@@ -55,20 +56,20 @@ type Equipment struct {
 	Stats EquipmentStats `json:"stats"`
 
 	// Availability
-	Rarity      string `json:"rarity"` // common, uncommon, rare, military, experimental
-	Faction     string `json:"faction,omitempty"` // Faction-specific equipment
+	Rarity  string `json:"rarity"`            // common, uncommon, rare, military, experimental
+	Faction string `json:"faction,omitempty"` // Faction-specific equipment
 }
 
 // EquipmentCategory defines broad equipment types
 type EquipmentCategory string
 
 const (
-	CategoryWeapon    EquipmentCategory = "weapon"
-	CategoryDefense   EquipmentCategory = "defense"
-	CategoryPower     EquipmentCategory = "power"
+	CategoryWeapon     EquipmentCategory = "weapon"
+	CategoryDefense    EquipmentCategory = "defense"
+	CategoryPower      EquipmentCategory = "power"
 	CategoryPropulsion EquipmentCategory = "propulsion"
-	CategoryUtility   EquipmentCategory = "utility"
-	CategorySpecial   EquipmentCategory = "special"
+	CategoryUtility    EquipmentCategory = "utility"
+	CategorySpecial    EquipmentCategory = "special"
 )
 
 // EquipmentStats holds all possible equipment statistics
@@ -83,48 +84,48 @@ type EquipmentStats struct {
 	ShieldPenetration float64 `json:"shield_penetration,omitempty"`
 
 	// Defense stats
-	ShieldHP      int     `json:"shield_hp,omitempty"`
-	ShieldRegen   int     `json:"shield_regen,omitempty"`
-	HullBonus     int     `json:"hull_bonus,omitempty"`
-	ArmorRating   int     `json:"armor_rating,omitempty"`
+	ShieldHP    int `json:"shield_hp,omitempty"`
+	ShieldRegen int `json:"shield_regen,omitempty"`
+	HullBonus   int `json:"hull_bonus,omitempty"`
+	ArmorRating int `json:"armor_rating,omitempty"`
 
 	// Power stats
 	EnergyOutput  int `json:"energy_output,omitempty"`
 	EnergyStorage int `json:"energy_storage,omitempty"`
 
 	// Propulsion stats
-	SpeedBonus    int `json:"speed_bonus,omitempty"`
-	TurnRate      int `json:"turn_rate,omitempty"`
+	SpeedBonus       int `json:"speed_bonus,omitempty"`
+	TurnRate         int `json:"turn_rate,omitempty"`
 	AfterburnerBoost int `json:"afterburner_boost,omitempty"`
 
 	// Utility stats
-	CargoBonus    int `json:"cargo_bonus,omitempty"`
-	FuelBonus     int `json:"fuel_bonus,omitempty"`
-	ScannerRange  int `json:"scanner_range,omitempty"`
-	JumpRange     int `json:"jump_range,omitempty"`
+	CargoBonus   int `json:"cargo_bonus,omitempty"`
+	FuelBonus    int `json:"fuel_bonus,omitempty"`
+	ScannerRange int `json:"scanner_range,omitempty"`
+	JumpRange    int `json:"jump_range,omitempty"`
 
 	// Special stats
-	CloakingPower int     `json:"cloaking_power,omitempty"`
-	ECMStrength   int     `json:"ecm_strength,omitempty"` // Electronic countermeasures
-	RepairRate    int     `json:"repair_rate,omitempty"`
+	CloakingPower int `json:"cloaking_power,omitempty"`
+	ECMStrength   int `json:"ecm_strength,omitempty"` // Electronic countermeasures
+	RepairRate    int `json:"repair_rate,omitempty"`
 }
 
 // ShipLoadout represents a saved ship configuration
 type ShipLoadout struct {
-	ID          uuid.UUID          `json:"id"`
-	PlayerID    uuid.UUID          `json:"player_id"`
-	ShipTypeID  string             `json:"ship_type_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+	ID          uuid.UUID `json:"id"`
+	PlayerID    uuid.UUID `json:"player_id"`
+	ShipTypeID  string    `json:"ship_type_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 
 	// Equipment configuration
-	Slots       []EquipmentSlot    `json:"slots"`
+	Slots []EquipmentSlot `json:"slots"`
 
 	// Metadata
-	TotalCost   int64              `json:"total_cost"`   // Sum of all equipment prices
-	UsedOutfitSpace int            `json:"used_outfit_space"`
+	TotalCost       int64 `json:"total_cost"` // Sum of all equipment prices
+	UsedOutfitSpace int   `json:"used_outfit_space"`
 }
 
 // OutfitPurchase represents a transaction for buying equipment
@@ -199,14 +200,14 @@ func (slot *EquipmentSlot) IsEmpty() bool {
 // NewShipLoadout creates a new ship loadout
 func NewShipLoadout(playerID uuid.UUID, shipTypeID string, name string) *ShipLoadout {
 	return &ShipLoadout{
-		ID:         uuid.New(),
-		PlayerID:   playerID,
-		ShipTypeID: shipTypeID,
-		Name:       name,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-		Slots:      []EquipmentSlot{},
-		TotalCost:  0,
+		ID:              uuid.New(),
+		PlayerID:        playerID,
+		ShipTypeID:      shipTypeID,
+		Name:            name,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+		Slots:           []EquipmentSlot{},
+		TotalCost:       0,
 		UsedOutfitSpace: 0,
 	}
 }
@@ -310,15 +311,15 @@ func (loadout *ShipLoadout) GetCombinedStats() EquipmentStats {
 // Clone creates a copy of this loadout
 func (loadout *ShipLoadout) Clone(newName string) *ShipLoadout {
 	clone := &ShipLoadout{
-		ID:         uuid.New(),
-		PlayerID:   loadout.PlayerID,
-		ShipTypeID: loadout.ShipTypeID,
-		Name:       newName,
-		Description: "Clone of " + loadout.Name,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-		Slots:      make([]EquipmentSlot, len(loadout.Slots)),
-		TotalCost:  loadout.TotalCost,
+		ID:              uuid.New(),
+		PlayerID:        loadout.PlayerID,
+		ShipTypeID:      loadout.ShipTypeID,
+		Name:            newName,
+		Description:     "Clone of " + loadout.Name,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+		Slots:           make([]EquipmentSlot, len(loadout.Slots)),
+		TotalCost:       loadout.TotalCost,
 		UsedOutfitSpace: loadout.UsedOutfitSpace,
 	}
 

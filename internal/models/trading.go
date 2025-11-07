@@ -10,6 +10,7 @@ package models
 import "github.com/google/uuid"
 
 // Commodity represents a tradeable good
+
 type Commodity struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`

@@ -9,11 +9,12 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/help"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // Help view modes
+
 const (
 	helpViewTopics   = "topics"   // List of help topics
 	helpViewContent  = "content"  // Viewing a specific topic

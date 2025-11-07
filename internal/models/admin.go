@@ -14,13 +14,14 @@ import (
 )
 
 // AdminRole represents different admin privilege levels
+
 type AdminRole string
 
 const (
-	RolePlayer      AdminRole = "player"       // Normal player (no admin)
-	RoleModerator   AdminRole = "moderator"    // Can mute/kick players
-	RoleAdmin       AdminRole = "admin"        // Can manage server settings
-	RoleSuperAdmin  AdminRole = "superadmin"   // Full server control
+	RolePlayer     AdminRole = "player"     // Normal player (no admin)
+	RoleModerator  AdminRole = "moderator"  // Can mute/kick players
+	RoleAdmin      AdminRole = "admin"      // Can manage server settings
+	RoleSuperAdmin AdminRole = "superadmin" // Full server control
 )
 
 // AdminPermission represents specific admin permissions
@@ -28,11 +29,11 @@ type AdminPermission string
 
 const (
 	// Player management
-	PermKickPlayer      AdminPermission = "kick_player"
-	PermBanPlayer       AdminPermission = "ban_player"
-	PermMutePlayer      AdminPermission = "mute_player"
-	PermViewPlayerData  AdminPermission = "view_player_data"
-	PermEditPlayerData  AdminPermission = "edit_player_data"
+	PermKickPlayer     AdminPermission = "kick_player"
+	PermBanPlayer      AdminPermission = "ban_player"
+	PermMutePlayer     AdminPermission = "mute_player"
+	PermViewPlayerData AdminPermission = "view_player_data"
+	PermEditPlayerData AdminPermission = "edit_player_data"
 
 	// Server management
 	PermServerSettings  AdminPermission = "server_settings"
@@ -42,61 +43,61 @@ const (
 	PermExecuteCommands AdminPermission = "execute_commands"
 
 	// Content management
-	PermEditEconomy     AdminPermission = "edit_economy"
-	PermSpawnItems      AdminPermission = "spawn_items"
-	PermEditSystems     AdminPermission = "edit_systems"
-	PermEditFactions    AdminPermission = "edit_factions"
+	PermEditEconomy  AdminPermission = "edit_economy"
+	PermSpawnItems   AdminPermission = "spawn_items"
+	PermEditSystems  AdminPermission = "edit_systems"
+	PermEditFactions AdminPermission = "edit_factions"
 
 	// Monitoring
-	PermViewMetrics     AdminPermission = "view_metrics"
-	PermViewSessions    AdminPermission = "view_sessions"
-	PermViewDatabase    AdminPermission = "view_database"
+	PermViewMetrics  AdminPermission = "view_metrics"
+	PermViewSessions AdminPermission = "view_sessions"
+	PermViewDatabase AdminPermission = "view_database"
 
 	// Communication
-	PermBroadcast       AdminPermission = "broadcast"
-	PermViewAllChat     AdminPermission = "view_all_chat"
+	PermBroadcast   AdminPermission = "broadcast"
+	PermViewAllChat AdminPermission = "view_all_chat"
 )
 
 // AdminUser represents an admin user
 type AdminUser struct {
-	ID          uuid.UUID       `json:"id"`
-	PlayerID    uuid.UUID       `json:"player_id"`
-	Username    string          `json:"username"`
-	Role        AdminRole       `json:"role"`
+	ID          uuid.UUID         `json:"id"`
+	PlayerID    uuid.UUID         `json:"player_id"`
+	Username    string            `json:"username"`
+	Role        AdminRole         `json:"role"`
 	Permissions []AdminPermission `json:"permissions"`
-	CreatedAt   time.Time       `json:"created_at"`
-	CreatedBy   uuid.UUID       `json:"created_by"`
-	LastActive  time.Time       `json:"last_active"`
-	IsActive    bool            `json:"is_active"`
+	CreatedAt   time.Time         `json:"created_at"`
+	CreatedBy   uuid.UUID         `json:"created_by"`
+	LastActive  time.Time         `json:"last_active"`
+	IsActive    bool              `json:"is_active"`
 }
 
 // AdminAction represents an admin action for audit logging
 type AdminAction struct {
-	ID          uuid.UUID       `json:"id"`
-	AdminID     uuid.UUID       `json:"admin_id"`
-	AdminName   string          `json:"admin_name"`
-	Action      string          `json:"action"`
-	TargetID    uuid.UUID       `json:"target_id,omitempty"`
-	TargetName  string          `json:"target_name,omitempty"`
-	Details     string          `json:"details"`
-	Timestamp   time.Time       `json:"timestamp"`
-	IPAddress   string          `json:"ip_address"`
-	Success     bool            `json:"success"`
-	ErrorMsg    string          `json:"error_msg,omitempty"`
+	ID         uuid.UUID `json:"id"`
+	AdminID    uuid.UUID `json:"admin_id"`
+	AdminName  string    `json:"admin_name"`
+	Action     string    `json:"action"`
+	TargetID   uuid.UUID `json:"target_id,omitempty"`
+	TargetName string    `json:"target_name,omitempty"`
+	Details    string    `json:"details"`
+	Timestamp  time.Time `json:"timestamp"`
+	IPAddress  string    `json:"ip_address"`
+	Success    bool      `json:"success"`
+	ErrorMsg   string    `json:"error_msg,omitempty"`
 }
 
 // PlayerBan represents a banned player
 type PlayerBan struct {
-	ID          uuid.UUID `json:"id"`
-	PlayerID    uuid.UUID `json:"player_id"`
-	Username    string    `json:"username"`
-	IPAddress   string    `json:"ip_address"`
-	Reason      string    `json:"reason"`
-	BannedBy    uuid.UUID `json:"banned_by"`
-	BannedAt    time.Time `json:"banned_at"`
+	ID          uuid.UUID  `json:"id"`
+	PlayerID    uuid.UUID  `json:"player_id"`
+	Username    string     `json:"username"`
+	IPAddress   string     `json:"ip_address"`
+	Reason      string     `json:"reason"`
+	BannedBy    uuid.UUID  `json:"banned_by"`
+	BannedAt    time.Time  `json:"banned_at"`
 	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
-	IsPermanent bool      `json:"is_permanent"`
-	IsActive    bool      `json:"is_active"`
+	IsPermanent bool       `json:"is_permanent"`
+	IsActive    bool       `json:"is_active"`
 }
 
 // PlayerMute represents a muted player
@@ -113,43 +114,43 @@ type PlayerMute struct {
 
 // ServerMetrics represents server performance metrics
 type ServerMetrics struct {
-	Timestamp       time.Time `json:"timestamp"`
+	Timestamp time.Time `json:"timestamp"`
 
 	// Player metrics
-	TotalPlayers    int       `json:"total_players"`
-	ActivePlayers   int       `json:"active_players"`
-	PeakPlayers     int       `json:"peak_players"`
-	NewPlayersToday int       `json:"new_players_today"`
+	TotalPlayers    int `json:"total_players"`
+	ActivePlayers   int `json:"active_players"`
+	PeakPlayers     int `json:"peak_players"`
+	NewPlayersToday int `json:"new_players_today"`
 
 	// Session metrics
-	ActiveSessions  int       `json:"active_sessions"`
-	AvgSessionTime  int64     `json:"avg_session_time"` // seconds
-	TotalCommands   int       `json:"total_commands"`
+	ActiveSessions int   `json:"active_sessions"`
+	AvgSessionTime int64 `json:"avg_session_time"` // seconds
+	TotalCommands  int   `json:"total_commands"`
 
 	// Performance metrics
-	CPUUsage        float64   `json:"cpu_usage"`
-	MemoryUsage     int64     `json:"memory_usage"` // bytes
-	GoroutineCount  int       `json:"goroutine_count"`
+	CPUUsage       float64 `json:"cpu_usage"`
+	MemoryUsage    int64   `json:"memory_usage"` // bytes
+	GoroutineCount int     `json:"goroutine_count"`
 
 	// Game metrics
-	ActiveTrades    int       `json:"active_trades"`
-	ActiveCombats   int       `json:"active_combats"`
-	TotalJumps      int       `json:"total_jumps"`
-	TotalTransactions int     `json:"total_transactions"`
+	ActiveTrades      int `json:"active_trades"`
+	ActiveCombats     int `json:"active_combats"`
+	TotalJumps        int `json:"total_jumps"`
+	TotalTransactions int `json:"total_transactions"`
 
 	// Database metrics
-	DBConnections   int       `json:"db_connections"`
-	DBLatency       int64     `json:"db_latency"` // milliseconds
-	DBErrors        int       `json:"db_errors"`
+	DBConnections int   `json:"db_connections"`
+	DBLatency     int64 `json:"db_latency"` // milliseconds
+	DBErrors      int   `json:"db_errors"`
 }
 
 // ServerSettings represents configurable server settings
 type ServerSettings struct {
 	// General
-	ServerName        string  `json:"server_name"`
-	MOTD              string  `json:"motd"` // Message of the day
-	MaxPlayers        int     `json:"max_players"`
-	TickRate          int     `json:"tick_rate"` // Updates per second
+	ServerName string `json:"server_name"`
+	MOTD       string `json:"motd"` // Message of the day
+	MaxPlayers int    `json:"max_players"`
+	TickRate   int    `json:"tick_rate"` // Updates per second
 
 	// Economy
 	StartingCredits   int64   `json:"starting_credits"`
@@ -157,30 +158,30 @@ type ServerSettings struct {
 	TaxRate           float64 `json:"tax_rate"`
 
 	// Difficulty
-	CombatDifficulty  float64 `json:"combat_difficulty"`
-	PirateFrequency   float64 `json:"pirate_frequency"`
-	PriceVolatility   float64 `json:"price_volatility"`
+	CombatDifficulty float64 `json:"combat_difficulty"`
+	PirateFrequency  float64 `json:"pirate_frequency"`
+	PriceVolatility  float64 `json:"price_volatility"`
 
 	// Rules
-	PvPEnabled        bool    `json:"pvp_enabled"`
-	PermadeathMode    bool    `json:"permadeath_mode"`
-	FriendlyFire      bool    `json:"friendly_fire"`
+	PvPEnabled     bool `json:"pvp_enabled"`
+	PermadeathMode bool `json:"permadeath_mode"`
+	FriendlyFire   bool `json:"friendly_fire"`
 
 	// Limits
-	MaxShipsPerPlayer int     `json:"max_ships_per_player"`
-	MaxCargoSpace     int     `json:"max_cargo_space"`
-	MaxCredits        int64   `json:"max_credits"`
+	MaxShipsPerPlayer int   `json:"max_ships_per_player"`
+	MaxCargoSpace     int   `json:"max_cargo_space"`
+	MaxCredits        int64 `json:"max_credits"`
 
 	// Timeouts
-	SessionTimeout    int     `json:"session_timeout"` // minutes
-	AutosaveInterval  int     `json:"autosave_interval"` // seconds
-	CleanupInterval   int     `json:"cleanup_interval"` // minutes
+	SessionTimeout   int `json:"session_timeout"`   // minutes
+	AutosaveInterval int `json:"autosave_interval"` // seconds
+	CleanupInterval  int `json:"cleanup_interval"`  // minutes
 
 	// Features
-	EnableEncounters  bool    `json:"enable_encounters"`
-	EnableFactions    bool    `json:"enable_factions"`
-	EnableAchievements bool   `json:"enable_achievements"`
-	EnableLeaderboards bool   `json:"enable_leaderboards"`
+	EnableEncounters   bool `json:"enable_encounters"`
+	EnableFactions     bool `json:"enable_factions"`
+	EnableAchievements bool `json:"enable_achievements"`
+	EnableLeaderboards bool `json:"enable_leaderboards"`
 }
 
 // NewAdminUser creates a new admin user
@@ -369,27 +370,27 @@ func (m *PlayerMute) IsExpired() bool {
 // GetDefaultServerSettings returns default server settings
 func GetDefaultServerSettings() *ServerSettings {
 	return &ServerSettings{
-		ServerName:        "Terminal Velocity Server",
-		MOTD:              "Welcome to Terminal Velocity!",
-		MaxPlayers:        100,
-		TickRate:          20,
-		StartingCredits:   10000,
-		EconomyMultiplier: 1.0,
-		TaxRate:           0.05,
-		CombatDifficulty:  1.0,
-		PirateFrequency:   0.2,
-		PriceVolatility:   0.15,
-		PvPEnabled:        true,
-		PermadeathMode:    false,
-		FriendlyFire:      false,
-		MaxShipsPerPlayer: 5,
-		MaxCargoSpace:     1000,
-		MaxCredits:        1000000000,
-		SessionTimeout:    15,
-		AutosaveInterval:  30,
-		CleanupInterval:   5,
-		EnableEncounters:  true,
-		EnableFactions:    true,
+		ServerName:         "Terminal Velocity Server",
+		MOTD:               "Welcome to Terminal Velocity!",
+		MaxPlayers:         100,
+		TickRate:           20,
+		StartingCredits:    10000,
+		EconomyMultiplier:  1.0,
+		TaxRate:            0.05,
+		CombatDifficulty:   1.0,
+		PirateFrequency:    0.2,
+		PriceVolatility:    0.15,
+		PvPEnabled:         true,
+		PermadeathMode:     false,
+		FriendlyFire:       false,
+		MaxShipsPerPlayer:  5,
+		MaxCargoSpace:      1000,
+		MaxCredits:         1000000000,
+		SessionTimeout:     15,
+		AutosaveInterval:   30,
+		CleanupInterval:    5,
+		EnableEncounters:   true,
+		EnableFactions:     true,
 		EnableAchievements: true,
 		EnableLeaderboards: true,
 	}

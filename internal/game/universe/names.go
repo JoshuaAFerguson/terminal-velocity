@@ -13,6 +13,7 @@ import (
 )
 
 // NameGenerator generates star system names
+
 type NameGenerator struct {
 	rand      *rand.Rand
 	usedNames map[string]bool

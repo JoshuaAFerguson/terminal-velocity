@@ -10,6 +10,7 @@ package models
 import "github.com/google/uuid"
 
 // StarSystem represents a star system in the galaxy
+
 type StarSystem struct {
 	ID               uuid.UUID   `json:"id"`
 	Name             string      `json:"name"`

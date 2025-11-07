@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 )
 
 // Trade view modes
+
 const (
 	tradeViewReceived = "received" // Offers received from others
 	tradeViewSent     = "sent"     // Offers sent by player
@@ -29,17 +30,17 @@ type tradeModel struct {
 	selectedTrade *models.TradeOffer
 
 	// Create mode fields
-	createRecipient string
-	createOfferedCredits int64
+	createRecipient        string
+	createOfferedCredits   int64
 	createRequestedCredits int64
-	createMessage string
-	createInputField int // 0=recipient, 1=offered, 2=requested, 3=message
+	createMessage          string
+	createInputField       int // 0=recipient, 1=offered, 2=requested, 3=message
 }
 
 func newTradeModel() tradeModel {
 	return tradeModel{
-		viewMode:      tradeViewReceived,
-		cursor:        0,
+		viewMode:         tradeViewReceived,
+		cursor:           0,
 		createInputField: 0,
 	}
 }
@@ -200,7 +201,7 @@ func (m Model) updateTradeDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		// Accept trade
 		if m.tradeModel.selectedTrade.RecipientID == m.playerID &&
-		   m.tradeModel.selectedTrade.Status == models.TradeStatusPending {
+			m.tradeModel.selectedTrade.Status == models.TradeStatusPending {
 			err := m.tradeManager.AcceptOffer(m.tradeModel.selectedTrade.ID, m.playerID)
 			if err == nil {
 				// TODO: Deduct items/credits, add to escrow
@@ -214,7 +215,7 @@ func (m Model) updateTradeDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		// Reject trade
 		if m.tradeModel.selectedTrade.RecipientID == m.playerID &&
-		   m.tradeModel.selectedTrade.Status == models.TradeStatusPending {
+			m.tradeModel.selectedTrade.Status == models.TradeStatusPending {
 			_ = m.tradeManager.RejectOffer(m.tradeModel.selectedTrade.ID, m.playerID)
 		}
 		m.tradeModel.viewMode = tradeViewReceived
@@ -223,7 +224,7 @@ func (m Model) updateTradeDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		// Cancel trade
 		if m.tradeModel.selectedTrade.InitiatorID == m.playerID &&
-		   m.tradeModel.selectedTrade.CanBeCancelled() {
+			m.tradeModel.selectedTrade.CanBeCancelled() {
 			_ = m.tradeManager.CancelOffer(m.tradeModel.selectedTrade.ID, m.playerID)
 		}
 		m.tradeModel.viewMode = tradeViewSent

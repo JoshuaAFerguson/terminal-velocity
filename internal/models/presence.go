@@ -19,19 +19,20 @@ import (
 // This is used to track which players are online, where they are in the universe,
 // and when they were last active. This enables multiplayer features like seeing
 // other players in the same system, chat, and player-to-player interactions.
+
 type PlayerPresence struct {
-	PlayerID      uuid.UUID  `json:"player_id"`       // Player unique identifier
-	Username      string     `json:"username"`        // Player display name
-	CurrentSystem uuid.UUID  `json:"current_system"`  // System player is currently in
+	PlayerID      uuid.UUID  `json:"player_id"`                // Player unique identifier
+	Username      string     `json:"username"`                 // Player display name
+	CurrentSystem uuid.UUID  `json:"current_system"`           // System player is currently in
 	CurrentPlanet *uuid.UUID `json:"current_planet,omitempty"` // Planet if landed, nil if in space
-	ShipName      string     `json:"ship_name"`       // Name of player's current ship
-	ShipType      string     `json:"ship_type"`       // Type of ship (Fighter, Freighter, etc.)
-	CombatRating  int        `json:"combat_rating"`   // Player's combat rating
+	ShipName      string     `json:"ship_name"`                // Name of player's current ship
+	ShipType      string     `json:"ship_type"`                // Type of ship (Fighter, Freighter, etc.)
+	CombatRating  int        `json:"combat_rating"`            // Player's combat rating
 
 	// Online status
-	Online       bool      `json:"online"`        // Is the player currently online?
-	LastSeen     time.Time `json:"last_seen"`     // Last activity timestamp
-	ConnectedAt  time.Time `json:"connected_at"`  // When the player logged in
+	Online       bool          `json:"online"`        // Is the player currently online?
+	LastSeen     time.Time     `json:"last_seen"`     // Last activity timestamp
+	ConnectedAt  time.Time     `json:"connected_at"`  // When the player logged in
 	IdleDuration time.Duration `json:"idle_duration"` // How long since last action
 
 	// Activity status
@@ -40,24 +41,24 @@ type PlayerPresence struct {
 	Docked          bool   `json:"docked"`           // Is player docked at a planet?
 
 	// Faction and reputation
-	FactionID string `json:"faction_id,omitempty"` // Player faction (if any)
-	IsCriminal bool  `json:"is_criminal"`          // Is player wanted/criminal?
+	FactionID  string `json:"faction_id,omitempty"` // Player faction (if any)
+	IsCriminal bool   `json:"is_criminal"`          // Is player wanted/criminal?
 }
 
 // ActivityType represents different player activities
 type ActivityType string
 
 const (
-	ActivityIdle        ActivityType = "idle"         // Not doing anything specific
-	ActivityTrading     ActivityType = "trading"      // At a commodity market
-	ActivityCombat      ActivityType = "combat"       // In active combat
-	ActivityNavigation  ActivityType = "navigating"   // Planning routes
-	ActivityShipyard    ActivityType = "shipyard"     // Browsing ships
-	ActivityOutfitter   ActivityType = "outfitter"    // Browsing equipment
-	ActivityMissions    ActivityType = "missions"     // Viewing mission board
-	ActivityJumping     ActivityType = "jumping"      // In hyperspace
-	ActivityDocked      ActivityType = "docked"       // Docked at planet
-	ActivityInSpace     ActivityType = "in_space"     // Flying in system
+	ActivityIdle       ActivityType = "idle"       // Not doing anything specific
+	ActivityTrading    ActivityType = "trading"    // At a commodity market
+	ActivityCombat     ActivityType = "combat"     // In active combat
+	ActivityNavigation ActivityType = "navigating" // Planning routes
+	ActivityShipyard   ActivityType = "shipyard"   // Browsing ships
+	ActivityOutfitter  ActivityType = "outfitter"  // Browsing equipment
+	ActivityMissions   ActivityType = "missions"   // Viewing mission board
+	ActivityJumping    ActivityType = "jumping"    // In hyperspace
+	ActivityDocked     ActivityType = "docked"     // Docked at planet
+	ActivityInSpace    ActivityType = "in_space"   // Flying in system
 )
 
 // NewPlayerPresence creates a new presence record for a player

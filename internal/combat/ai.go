@@ -10,10 +10,14 @@ package combat
 import (
 	"math/rand"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 // AILevel represents the difficulty/capability of an AI
+
+var log = logger.WithComponent("Combat")
+
 type AILevel int
 
 const (

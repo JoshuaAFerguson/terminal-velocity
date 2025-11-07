@@ -17,6 +17,7 @@ import (
 )
 
 // MarketRepository handles market price data persistence
+
 type MarketRepository struct {
 	db *DB
 }

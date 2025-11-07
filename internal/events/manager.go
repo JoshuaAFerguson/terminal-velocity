@@ -13,17 +13,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles server events and scheduling
+
+var log = logger.WithComponent("Events")
+
 type Manager struct {
-	mu              sync.RWMutex
-	events          map[string]*models.Event
-	participations  map[uuid.UUID][]*models.EventParticipation // playerID -> participations
-	leaderboards    map[string]*models.EventLeaderboard
-	notifications   map[uuid.UUID][]*models.EventNotification
+	mu             sync.RWMutex
+	events         map[string]*models.Event
+	participations map[uuid.UUID][]*models.EventParticipation // playerID -> participations
+	leaderboards   map[string]*models.EventLeaderboard
+	notifications  map[uuid.UUID][]*models.EventNotification
 
 	// Background worker
 	ctx    context.Context
@@ -172,8 +176,8 @@ func (m *Manager) initializeDefaultEvents() {
 	festival.CreditsMultiplier = 2.0
 	festival.ExperienceMultiplier = 1.5
 	festival.Rewards = models.EventReward{
-		Credits:    25000,
-		Title:      "Festival Goer",
+		Credits: 25000,
+		Title:   "Festival Goer",
 	}
 	m.RegisterEvent(festival)
 }
@@ -463,10 +467,10 @@ func (m *Manager) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_events":        len(m.events),
-		"active_events":       activeCount,
-		"scheduled_events":    scheduledCount,
-		"ended_events":        endedCount,
+		"total_events":         len(m.events),
+		"active_events":        activeCount,
+		"scheduled_events":     scheduledCount,
+		"ended_events":         endedCount,
 		"total_participations": totalParticipations,
 	}
 }

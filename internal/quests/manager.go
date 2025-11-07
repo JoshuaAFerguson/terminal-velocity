@@ -12,15 +12,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles quest progression and storylines
+
+var log = logger.WithComponent("Quests")
+
 type Manager struct {
-	mu         sync.RWMutex
-	quests     map[string]*models.Quest           // questID -> Quest
-	storylines map[string]*models.Storyline       // storylineID -> Storyline
+	mu           sync.RWMutex
+	quests       map[string]*models.Quest            // questID -> Quest
+	storylines   map[string]*models.Storyline        // storylineID -> Storyline
 	playerQuests map[uuid.UUID][]*models.PlayerQuest // playerID -> PlayerQuests
 }
 

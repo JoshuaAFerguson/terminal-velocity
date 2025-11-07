@@ -14,13 +14,14 @@ import (
 )
 
 // TutorialStep represents a single tutorial step
+
 type TutorialStep struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
-	Screen      string   `json:"screen"`      // Which screen this tutorial is for
-	Objective   string   `json:"objective"`   // What the player needs to do
-	Hints       []string `json:"hints"`       // Progressive hints
+	Screen      string   `json:"screen"`    // Which screen this tutorial is for
+	Objective   string   `json:"objective"` // What the player needs to do
+	Hints       []string `json:"hints"`     // Progressive hints
 	Completed   bool     `json:"completed"`
 	OrderIndex  int      `json:"order_index"` // Order in the tutorial sequence
 }
@@ -29,28 +30,28 @@ type TutorialStep struct {
 type TutorialCategory string
 
 const (
-	TutorialBasics     TutorialCategory = "basics"     // Basic navigation and UI
-	TutorialTrading    TutorialCategory = "trading"    // Trading mechanics
-	TutorialCombat     TutorialCategory = "combat"     // Combat basics
-	TutorialShips      TutorialCategory = "ships"      // Ship management
-	TutorialMissions   TutorialCategory = "missions"   // Mission system
+	TutorialBasics      TutorialCategory = "basics"      // Basic navigation and UI
+	TutorialTrading     TutorialCategory = "trading"     // Trading mechanics
+	TutorialCombat      TutorialCategory = "combat"      // Combat basics
+	TutorialShips       TutorialCategory = "ships"       // Ship management
+	TutorialMissions    TutorialCategory = "missions"    // Mission system
 	TutorialMultiplayer TutorialCategory = "multiplayer" // Social features
-	TutorialAdvanced   TutorialCategory = "advanced"   // Advanced mechanics
+	TutorialAdvanced    TutorialCategory = "advanced"    // Advanced mechanics
 )
 
 // TutorialProgress tracks a player's tutorial progress
 type TutorialProgress struct {
-	ID              uuid.UUID                   `json:"id"`
-	PlayerID        uuid.UUID                   `json:"player_id"`
-	CurrentStep     string                      `json:"current_step"`      // Current step ID
-	CompletedSteps  map[string]time.Time        `json:"completed_steps"`   // stepID -> completion time
-	SkippedSteps    map[string]time.Time        `json:"skipped_steps"`     // stepID -> skip time
-	CategoryProgress map[TutorialCategory]int   `json:"category_progress"` // category -> steps completed
-	TutorialEnabled bool                        `json:"tutorial_enabled"`  // Can be disabled by player
-	StartedAt       time.Time                   `json:"started_at"`
-	LastUpdated     time.Time                   `json:"last_updated"`
-	TotalSteps      int                         `json:"total_steps"`
-	CompletedCount  int                         `json:"completed_count"`
+	ID               uuid.UUID                `json:"id"`
+	PlayerID         uuid.UUID                `json:"player_id"`
+	CurrentStep      string                   `json:"current_step"`      // Current step ID
+	CompletedSteps   map[string]time.Time     `json:"completed_steps"`   // stepID -> completion time
+	SkippedSteps     map[string]time.Time     `json:"skipped_steps"`     // stepID -> skip time
+	CategoryProgress map[TutorialCategory]int `json:"category_progress"` // category -> steps completed
+	TutorialEnabled  bool                     `json:"tutorial_enabled"`  // Can be disabled by player
+	StartedAt        time.Time                `json:"started_at"`
+	LastUpdated      time.Time                `json:"last_updated"`
+	TotalSteps       int                      `json:"total_steps"`
+	CompletedCount   int                      `json:"completed_count"`
 }
 
 // TutorialHintLevel represents hint progression
@@ -131,14 +132,14 @@ func (tp *TutorialProgress) GetCategoryProgress(category TutorialCategory, total
 
 // Tutorial represents a complete tutorial sequence
 type Tutorial struct {
-	ID          string             `json:"id"`
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	Category    TutorialCategory   `json:"category"`
-	Steps       []*TutorialStep    `json:"steps"`
+	ID            string           `json:"id"`
+	Title         string           `json:"title"`
+	Description   string           `json:"description"`
+	Category      TutorialCategory `json:"category"`
+	Steps         []*TutorialStep  `json:"steps"`
 	Prerequisites []string         `json:"prerequisites"` // Tutorial IDs that must be completed first
-	IsOptional  bool               `json:"is_optional"`
-	OrderIndex  int                `json:"order_index"`
+	IsOptional    bool             `json:"is_optional"`
+	OrderIndex    int              `json:"order_index"`
 }
 
 // NewTutorial creates a new tutorial
@@ -196,21 +197,21 @@ func (t *Tutorial) GetProgress(progress *TutorialProgress) (completed int, total
 type TutorialTrigger string
 
 const (
-	TriggerFirstLogin      TutorialTrigger = "first_login"
-	TriggerFirstTrade      TutorialTrigger = "first_trade"
-	TriggerFirstCombat     TutorialTrigger = "first_combat"
-	TriggerFirstJump       TutorialTrigger = "first_jump"
+	TriggerFirstLogin        TutorialTrigger = "first_login"
+	TriggerFirstTrade        TutorialTrigger = "first_trade"
+	TriggerFirstCombat       TutorialTrigger = "first_combat"
+	TriggerFirstJump         TutorialTrigger = "first_jump"
 	TriggerFirstShipPurchase TutorialTrigger = "first_ship_purchase"
-	TriggerFirstMission    TutorialTrigger = "first_mission"
-	TriggerFirstDeath      TutorialTrigger = "first_death"
-	TriggerLowCredits      TutorialTrigger = "low_credits"
-	TriggerHighCredits     TutorialTrigger = "high_credits"
-	TriggerScreenEnter     TutorialTrigger = "screen_enter"
+	TriggerFirstMission      TutorialTrigger = "first_mission"
+	TriggerFirstDeath        TutorialTrigger = "first_death"
+	TriggerLowCredits        TutorialTrigger = "low_credits"
+	TriggerHighCredits       TutorialTrigger = "high_credits"
+	TriggerScreenEnter       TutorialTrigger = "screen_enter"
 )
 
 // TutorialEvent represents an event that can trigger tutorials
 type TutorialEvent struct {
-	Trigger   TutorialTrigger       `json:"trigger"`
+	Trigger   TutorialTrigger        `json:"trigger"`
 	Context   map[string]interface{} `json:"context"` // Additional context data
 	Timestamp time.Time              `json:"timestamp"`
 }

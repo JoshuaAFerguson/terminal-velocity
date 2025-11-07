@@ -17,6 +17,7 @@ import (
 )
 
 // ShipRepository handles ship data persistence
+
 type ShipRepository struct {
 	db *DB
 }

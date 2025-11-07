@@ -14,6 +14,7 @@ import (
 )
 
 // Mission represents a mission/quest
+
 type Mission struct {
 	ID          uuid.UUID `json:"id"`
 	Type        string    `json:"type"` // delivery, combat, escort, bounty, exploration

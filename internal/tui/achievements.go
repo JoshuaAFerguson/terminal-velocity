@@ -12,9 +12,12 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
+
+var log = logger.WithComponent("Tui")
 
 type achievementsModel struct {
 	cursor int
@@ -133,9 +136,9 @@ func (m Model) viewAchievements() string {
 		}
 
 		if isActive {
-			s += highlightStyle.Render("["+tabName+"]")
+			s += highlightStyle.Render("[" + tabName + "]")
 		} else {
-			s += helpStyle.Render(" "+tabName+" ")
+			s += helpStyle.Render(" " + tabName + " ")
 		}
 
 		if i < len(tabs)-1 {

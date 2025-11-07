@@ -14,40 +14,41 @@ import (
 )
 
 // EncounterType represents different types of random encounters
+
 type EncounterType string
 
 const (
 	// Common encounters
-	EncounterPirate       EncounterType = "pirate"         // Hostile pirate attack
-	EncounterTrader       EncounterType = "trader"         // Friendly trader
-	EncounterPatrol       EncounterType = "patrol"         // System patrol
-	EncounterDistress     EncounterType = "distress"       // Ship in distress
+	EncounterPirate   EncounterType = "pirate"   // Hostile pirate attack
+	EncounterTrader   EncounterType = "trader"   // Friendly trader
+	EncounterPatrol   EncounterType = "patrol"   // System patrol
+	EncounterDistress EncounterType = "distress" // Ship in distress
 
 	// Uncommon encounters
-	EncounterConvoy       EncounterType = "convoy"         // Trading convoy
-	EncounterMercenary    EncounterType = "mercenary"      // Mercenary offer
-	EncounterScavenger    EncounterType = "scavenger"      // Scavenger ship
+	EncounterConvoy    EncounterType = "convoy"    // Trading convoy
+	EncounterMercenary EncounterType = "mercenary" // Mercenary offer
+	EncounterScavenger EncounterType = "scavenger" // Scavenger ship
 
 	// Rare encounters
-	EncounterDerelict     EncounterType = "derelict"       // Abandoned ship
-	EncounterAnomaly      EncounterType = "anomaly"        // Space anomaly
-	EncounterBountyTarget EncounterType = "bounty_target"  // Wanted criminal
-	EncounterMystery      EncounterType = "mystery"        // Unknown signal
+	EncounterDerelict     EncounterType = "derelict"      // Abandoned ship
+	EncounterAnomaly      EncounterType = "anomaly"       // Space anomaly
+	EncounterBountyTarget EncounterType = "bounty_target" // Wanted criminal
+	EncounterMystery      EncounterType = "mystery"       // Unknown signal
 
 	// Very rare encounters
-	EncounterAncient      EncounterType = "ancient"        // Ancient artifact
-	EncounterLeviathan    EncounterType = "leviathan"      // Massive creature
-	EncounterGhostShip    EncounterType = "ghost_ship"     // Mysterious vessel
+	EncounterAncient   EncounterType = "ancient"    // Ancient artifact
+	EncounterLeviathan EncounterType = "leviathan"  // Massive creature
+	EncounterGhostShip EncounterType = "ghost_ship" // Mysterious vessel
 )
 
 // EncounterRarity determines how often an encounter appears
 type EncounterRarity string
 
 const (
-	RarityCommon   EncounterRarity = "common"    // 50% chance
-	RarityUncommon EncounterRarity = "uncommon"  // 30% chance
-	RarityRare     EncounterRarity = "rare"      // 15% chance
-	RarityVeryRare EncounterRarity = "very_rare" // 5% chance
+	RarityCommon    EncounterRarity = "common"    // 50% chance
+	RarityUncommon  EncounterRarity = "uncommon"  // 30% chance
+	RarityRare      EncounterRarity = "rare"      // 15% chance
+	RarityVeryRare  EncounterRarity = "very_rare" // 5% chance
 	RarityLegendary EncounterRarity = "legendary" // 1% chance
 )
 
@@ -55,45 +56,45 @@ const (
 type EncounterOutcome string
 
 const (
-	OutcomeEngaged  EncounterOutcome = "engaged"  // Player engaged
-	OutcomeAvoided  EncounterOutcome = "avoided"  // Player avoided
-	OutcomeFled     EncounterOutcome = "fled"     // Player fled
-	OutcomeHelped   EncounterOutcome = "helped"   // Player helped
-	OutcomeIgnored  EncounterOutcome = "ignored"  // Player ignored
+	OutcomeEngaged   EncounterOutcome = "engaged"   // Player engaged
+	OutcomeAvoided   EncounterOutcome = "avoided"   // Player avoided
+	OutcomeFled      EncounterOutcome = "fled"      // Player fled
+	OutcomeHelped    EncounterOutcome = "helped"    // Player helped
+	OutcomeIgnored   EncounterOutcome = "ignored"   // Player ignored
 	OutcomeDestroyed EncounterOutcome = "destroyed" // Player destroyed enemy
 )
 
 // Encounter represents a random event
 type Encounter struct {
-	ID          uuid.UUID       `json:"id"`
-	Type        EncounterType   `json:"type"`
-	Rarity      EncounterRarity `json:"rarity"`
+	ID     uuid.UUID       `json:"id"`
+	Type   EncounterType   `json:"type"`
+	Rarity EncounterRarity `json:"rarity"`
 
 	// Location
-	SystemID    uuid.UUID       `json:"system_id"`
-	SystemName  string          `json:"system_name"`
+	SystemID   uuid.UUID `json:"system_id"`
+	SystemName string    `json:"system_name"`
 
 	// Timing
-	OccurredAt  time.Time       `json:"occurred_at"`
-	ResolvedAt  *time.Time      `json:"resolved_at,omitempty"`
+	OccurredAt time.Time  `json:"occurred_at"`
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
 
 	// Details
-	Title       string          `json:"title"`
-	Description string          `json:"description"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
 
 	// NPCs involved
-	NPCName     string          `json:"npc_name,omitempty"`
-	NPCShipType string          `json:"npc_ship_type,omitempty"`
-	NPCLevel    int             `json:"npc_level"` // Difficulty
+	NPCName     string `json:"npc_name,omitempty"`
+	NPCShipType string `json:"npc_ship_type,omitempty"`
+	NPCLevel    int    `json:"npc_level"` // Difficulty
 
 	// Rewards/penalties
-	Credits     int64           `json:"credits"`
-	Cargo       map[string]int  `json:"cargo,omitempty"`
-	Reputation  int             `json:"reputation"`
+	Credits    int64          `json:"credits"`
+	Cargo      map[string]int `json:"cargo,omitempty"`
+	Reputation int            `json:"reputation"`
 
 	// Outcome
-	Outcome     EncounterOutcome `json:"outcome,omitempty"`
-	PlayerID    uuid.UUID        `json:"player_id"`
+	Outcome  EncounterOutcome `json:"outcome,omitempty"`
+	PlayerID uuid.UUID        `json:"player_id"`
 }
 
 // EncounterTemplate defines a type of encounter
@@ -109,9 +110,9 @@ type EncounterTemplate struct {
 	RequiredGovType string // Empty = any
 
 	// NPC details
-	ShipTypes       []string
-	MinLevel        int
-	MaxLevel        int
+	ShipTypes []string
+	MinLevel  int
+	MaxLevel  int
 
 	// Rewards
 	MinCredits      int64
@@ -120,10 +121,10 @@ type EncounterTemplate struct {
 	ReputationRange [2]int // Min, max
 
 	// Options
-	CanAvoid        bool
-	CanFlee         bool
-	RequiresCombat  bool
-	IsHostile       bool
+	CanAvoid       bool
+	CanFlee        bool
+	RequiresCombat bool
+	IsHostile      bool
 }
 
 // NewEncounter creates a new encounter from a template
@@ -200,22 +201,22 @@ func (t EncounterType) GetIcon() string {
 
 // EncounterHistory tracks player's encounter history
 type EncounterHistory struct {
-	PlayerID           uuid.UUID                    `json:"player_id"`
-	TotalEncounters    int                          `json:"total_encounters"`
-	ByType             map[EncounterType]int        `json:"by_type"`
-	ByRarity           map[EncounterRarity]int      `json:"by_rarity"`
-	RarestFound        EncounterRarity              `json:"rarest_found"`
-	LastEncounterAt    time.Time                    `json:"last_encounter_at"`
+	PlayerID        uuid.UUID               `json:"player_id"`
+	TotalEncounters int                     `json:"total_encounters"`
+	ByType          map[EncounterType]int   `json:"by_type"`
+	ByRarity        map[EncounterRarity]int `json:"by_rarity"`
+	RarestFound     EncounterRarity         `json:"rarest_found"`
+	LastEncounterAt time.Time               `json:"last_encounter_at"`
 
 	// Statistics
-	Engaged            int                          `json:"engaged"`
-	Avoided            int                          `json:"avoided"`
-	Fled               int                          `json:"fled"`
-	Helped             int                          `json:"helped"`
+	Engaged int `json:"engaged"`
+	Avoided int `json:"avoided"`
+	Fled    int `json:"fled"`
+	Helped  int `json:"helped"`
 
 	// Rewards
-	TotalCreditsEarned int64                        `json:"total_credits_earned"`
-	TotalCargoFound    int                          `json:"total_cargo_found"`
+	TotalCreditsEarned int64 `json:"total_credits_earned"`
+	TotalCargoFound    int   `json:"total_cargo_found"`
 }
 
 // NewEncounterHistory creates a new encounter history
@@ -295,5 +296,5 @@ func (h *EncounterHistory) GetAvoidanceRate() float64 {
 	if h.TotalEncounters == 0 {
 		return 0.0
 	}
-	return (float64(h.Avoided + h.Fled) / float64(h.TotalEncounters)) * 100.0
+	return (float64(h.Avoided+h.Fled) / float64(h.TotalEncounters)) * 100.0
 }

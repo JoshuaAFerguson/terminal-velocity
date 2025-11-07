@@ -13,11 +13,15 @@ import (
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Session represents an active player session
+
+var log = logger.WithComponent("Session")
+
 type Session struct {
 	ID           uuid.UUID
 	PlayerID     uuid.UUID
@@ -34,9 +38,9 @@ type Session struct {
 	ErrorsEncountered  int
 
 	// State tracking
-	CurrentScreen    string
-	DirtyState       bool // Has unsaved changes
-	LastError        error
+	CurrentScreen string
+	DirtyState    bool // Has unsaved changes
+	LastError     error
 }
 
 // Manager handles player sessions and auto-persistence

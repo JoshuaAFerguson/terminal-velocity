@@ -12,13 +12,13 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type newsModel struct {
-	cursor         int
-	selectedFilter models.NewsCategory // Empty string for all news
-	viewMode       string               // "list" or "detail"
+	cursor          int
+	selectedFilter  models.NewsCategory // Empty string for all news
+	viewMode        string              // "list" or "detail"
 	selectedArticle *models.NewsArticle
 }
 
@@ -138,9 +138,9 @@ func (m Model) viewNews() string {
 		isActive := m.newsModel.selectedFilter == tab.category
 
 		if isActive {
-			s += highlightStyle.Render("["+tab.label+"]")
+			s += highlightStyle.Render("[" + tab.label + "]")
 		} else {
-			s += helpStyle.Render(" "+tab.label+" ")
+			s += helpStyle.Render(" " + tab.label + " ")
 		}
 
 		if i < len(tabs)-1 {

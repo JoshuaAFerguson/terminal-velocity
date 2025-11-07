@@ -11,17 +11,18 @@ import (
 	"fmt"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Settings views
+
 const (
-	settingsViewMain         = "main"
-	settingsViewDisplay      = "display"
-	settingsViewAudio        = "audio"
-	settingsViewGameplay     = "gameplay"
-	settingsViewControls     = "controls"
-	settingsViewPrivacy      = "privacy"
+	settingsViewMain          = "main"
+	settingsViewDisplay       = "display"
+	settingsViewAudio         = "audio"
+	settingsViewGameplay      = "gameplay"
+	settingsViewControls      = "controls"
+	settingsViewPrivacy       = "privacy"
 	settingsViewNotifications = "notifications"
 )
 

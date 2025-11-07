@@ -16,6 +16,7 @@ import (
 )
 
 // LootDrop represents items dropped from a destroyed ship
+
 type LootDrop struct {
 	Credits    int64
 	Cargo      []models.CargoItem // cargo items

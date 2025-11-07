@@ -10,7 +10,7 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type mainMenuModel struct {

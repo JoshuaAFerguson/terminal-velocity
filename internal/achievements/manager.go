@@ -20,11 +20,15 @@ package achievements
 import (
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles achievement tracking for a player
+
+var log = logger.WithComponent("Achievements")
+
 type Manager struct {
 	unlocked map[string]*models.PlayerAchievement // Map of achievement ID to unlock data
 }

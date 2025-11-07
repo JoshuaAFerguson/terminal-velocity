@@ -14,19 +14,20 @@ import (
 )
 
 // EventType represents different types of server events
+
 type EventType string
 
 const (
-	EventTypeTrading     EventType = "trading"      // Trading competitions
-	EventTypeCombat      EventType = "combat"       // Combat challenges
-	EventTypeRacing      EventType = "racing"       // Racing events
-	EventTypeScavenging  EventType = "scavenging"   // Resource gathering
-	EventTypeInvasion    EventType = "invasion"     // System invasions
-	EventTypeFestival    EventType = "festival"     // Peaceful festivals
-	EventTypeTournament  EventType = "tournament"   // PvP tournaments
-	EventTypeExpedition  EventType = "expedition"   // Exploration events
-	EventTypeBoss        EventType = "boss"         // Boss encounters
-	EventTypeCommunity   EventType = "community"    // Community goals
+	EventTypeTrading    EventType = "trading"    // Trading competitions
+	EventTypeCombat     EventType = "combat"     // Combat challenges
+	EventTypeRacing     EventType = "racing"     // Racing events
+	EventTypeScavenging EventType = "scavenging" // Resource gathering
+	EventTypeInvasion   EventType = "invasion"   // System invasions
+	EventTypeFestival   EventType = "festival"   // Peaceful festivals
+	EventTypeTournament EventType = "tournament" // PvP tournaments
+	EventTypeExpedition EventType = "expedition" // Exploration events
+	EventTypeBoss       EventType = "boss"       // Boss encounters
+	EventTypeCommunity  EventType = "community"  // Community goals
 )
 
 // EventStatus represents the current status of an event
@@ -42,52 +43,52 @@ const (
 
 // EventReward represents rewards for event participation
 type EventReward struct {
-	Credits      int64          `json:"credits"`
-	Items        map[string]int `json:"items"`
-	Reputation   map[string]int `json:"reputation"`
-	Experience   int            `json:"experience"`
-	Title        string         `json:"title"`         // Special title awarded
-	Badge        string         `json:"badge"`         // Achievement badge
-	Exclusive    string         `json:"exclusive"`     // Exclusive item/ship
-	LeaderboardTop int          `json:"leaderboard_top"` // Top N get rewards
+	Credits        int64          `json:"credits"`
+	Items          map[string]int `json:"items"`
+	Reputation     map[string]int `json:"reputation"`
+	Experience     int            `json:"experience"`
+	Title          string         `json:"title"`           // Special title awarded
+	Badge          string         `json:"badge"`           // Achievement badge
+	Exclusive      string         `json:"exclusive"`       // Exclusive item/ship
+	LeaderboardTop int            `json:"leaderboard_top"` // Top N get rewards
 }
 
 // Event represents a server-wide event
 type Event struct {
-	ID          string        `json:"id"`
-	Title       string        `json:"title"`
-	Description string        `json:"description"`
-	Type        EventType     `json:"type"`
-	Status      EventStatus   `json:"status"`
+	ID          string      `json:"id"`
+	Title       string      `json:"title"`
+	Description string      `json:"description"`
+	Type        EventType   `json:"type"`
+	Status      EventStatus `json:"status"`
 
 	// Timing
-	StartTime   time.Time     `json:"start_time"`
-	EndTime     time.Time     `json:"end_time"`
-	Duration    time.Duration `json:"duration"`
+	StartTime time.Time     `json:"start_time"`
+	EndTime   time.Time     `json:"end_time"`
+	Duration  time.Duration `json:"duration"`
 
 	// Participation
-	MinLevel        int       `json:"min_level"`
-	MaxParticipants int       `json:"max_participants"`
-	CurrentCount    int       `json:"current_count"`
-	RequiredPlayers int       `json:"required_players"` // Min to start
+	MinLevel        int `json:"min_level"`
+	MaxParticipants int `json:"max_participants"`
+	CurrentCount    int `json:"current_count"`
+	RequiredPlayers int `json:"required_players"` // Min to start
 
 	// Objectives
-	Objectives      []EventObjective `json:"objectives"`
-	CommunityGoal   int64            `json:"community_goal"`   // Total goal for all players
-	CommunityProgress int64          `json:"community_progress"`
+	Objectives        []EventObjective `json:"objectives"`
+	CommunityGoal     int64            `json:"community_goal"` // Total goal for all players
+	CommunityProgress int64            `json:"community_progress"`
 
 	// Rewards
-	Rewards         EventReward      `json:"rewards"`
+	Rewards         EventReward         `json:"rewards"`
 	ProgressRewards map[int]EventReward `json:"progress_rewards"` // % -> rewards
 
 	// Location
-	SystemID        *uuid.UUID       `json:"system_id"`
-	SystemName      string           `json:"system_name"`
+	SystemID   *uuid.UUID `json:"system_id"`
+	SystemName string     `json:"system_name"`
 
 	// Modifiers
-	CreditsMultiplier float64        `json:"credits_multiplier"`
-	ExperienceMultiplier float64     `json:"experience_multiplier"`
-	DropRateMultiplier float64       `json:"drop_rate_multiplier"`
+	CreditsMultiplier    float64 `json:"credits_multiplier"`
+	ExperienceMultiplier float64 `json:"experience_multiplier"`
+	DropRateMultiplier   float64 `json:"drop_rate_multiplier"`
 }
 
 // EventObjective represents a specific event objective
@@ -101,42 +102,42 @@ type EventObjective struct {
 
 // EventParticipation tracks a player's participation in an event
 type EventParticipation struct {
-	ID              uuid.UUID          `json:"id"`
-	PlayerID        uuid.UUID          `json:"player_id"`
-	EventID         string             `json:"event_id"`
-	JoinedAt        time.Time          `json:"joined_at"`
-	Progress        map[string]int64   `json:"progress"` // objectiveID -> progress
-	Score           int64              `json:"score"`
-	Rank            int                `json:"rank"`
-	RewardsClaimed  bool               `json:"rewards_claimed"`
-	CompletedAt     *time.Time         `json:"completed_at"`
+	ID             uuid.UUID        `json:"id"`
+	PlayerID       uuid.UUID        `json:"player_id"`
+	EventID        string           `json:"event_id"`
+	JoinedAt       time.Time        `json:"joined_at"`
+	Progress       map[string]int64 `json:"progress"` // objectiveID -> progress
+	Score          int64            `json:"score"`
+	Rank           int              `json:"rank"`
+	RewardsClaimed bool             `json:"rewards_claimed"`
+	CompletedAt    *time.Time       `json:"completed_at"`
 }
 
 // EventLeaderboard represents leaderboard standings for an event
 type EventLeaderboard struct {
-	EventID   string                 `json:"event_id"`
-	UpdatedAt time.Time              `json:"updated_at"`
+	EventID   string                  `json:"event_id"`
+	UpdatedAt time.Time               `json:"updated_at"`
 	Entries   []EventLeaderboardEntry `json:"entries"`
 }
 
 // EventLeaderboardEntry represents a single leaderboard entry
 type EventLeaderboardEntry struct {
-	Rank       int       `json:"rank"`
-	PlayerID   uuid.UUID `json:"player_id"`
-	Username   string    `json:"username"`
-	Score      int64     `json:"score"`
-	Completed  bool      `json:"completed"`
+	Rank      int       `json:"rank"`
+	PlayerID  uuid.UUID `json:"player_id"`
+	Username  string    `json:"username"`
+	Score     int64     `json:"score"`
+	Completed bool      `json:"completed"`
 }
 
 // EventNotification represents a notification about an event
 type EventNotification struct {
-	ID        uuid.UUID            `json:"id"`
-	PlayerID  uuid.UUID            `json:"player_id"`
-	EventID   string               `json:"event_id"`
+	ID        uuid.UUID             `json:"id"`
+	PlayerID  uuid.UUID             `json:"player_id"`
+	EventID   string                `json:"event_id"`
 	Type      EventNotificationType `json:"type"`
-	Message   string               `json:"message"`
-	Timestamp time.Time            `json:"timestamp"`
-	Read      bool                 `json:"read"`
+	Message   string                `json:"message"`
+	Timestamp time.Time             `json:"timestamp"`
+	Read      bool                  `json:"read"`
 }
 
 // EventNotificationType represents types of event notifications
