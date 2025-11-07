@@ -32,13 +32,13 @@ nano .env
 
 ```bash
 # Start server and database
-docker-compose up -d
+docker compose up -d
 
 # Check status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### 4. Connect to the Game
@@ -140,57 +140,57 @@ game:
 
 ```bash
 # Start in background
-docker-compose up -d
+docker compose up -d
 
 # Start with logs visible
-docker-compose up
+docker compose up
 
 # Start specific service
-docker-compose up -d postgres
+docker compose up -d postgres
 ```
 
 ### Stop Services
 
 ```bash
 # Stop all services
-docker-compose down
+docker compose down
 
 # Stop and remove volumes (WARNING: deletes all data!)
-docker-compose down -v
+docker compose down -v
 ```
 
 ### View Logs
 
 ```bash
 # All services
-docker-compose logs -f
+docker compose logs -f
 
 # Specific service
-docker-compose logs -f server
-docker-compose logs -f postgres
+docker compose logs -f server
+docker compose logs -f postgres
 
 # Last 100 lines
-docker-compose logs --tail=100 server
+docker compose logs --tail=100 server
 ```
 
 ### Service Status
 
 ```bash
 # Check status
-docker-compose ps
+docker compose ps
 
 # Check health
-docker-compose ps server
+docker compose ps server
 ```
 
 ### Restart Services
 
 ```bash
 # Restart all
-docker-compose restart
+docker compose restart
 
 # Restart specific service
-docker-compose restart server
+docker compose restart server
 ```
 
 ---
@@ -203,7 +203,7 @@ Start PgAdmin for database management:
 
 ```bash
 # Start with pgadmin
-docker-compose --profile tools up -d
+docker compose --profile tools up -d
 
 # Access at http://localhost:5050
 # Login with credentials from .env
@@ -220,20 +220,20 @@ docker-compose --profile tools up -d
 
 ```bash
 # Connect to database
-docker-compose exec postgres psql -U terminal_velocity -d terminal_velocity
+docker compose exec postgres psql -U terminal_velocity -d terminal_velocity
 
 # Run SQL file
-docker-compose exec -T postgres psql -U terminal_velocity -d terminal_velocity < backup.sql
+docker compose exec -T postgres psql -U terminal_velocity -d terminal_velocity < backup.sql
 ```
 
 ### Backup Database
 
 ```bash
 # Create backup
-docker-compose exec -T postgres pg_dump -U terminal_velocity terminal_velocity > backup.sql
+docker compose exec -T postgres pg_dump -U terminal_velocity terminal_velocity > backup.sql
 
 # Restore backup
-docker-compose exec -T postgres psql -U terminal_velocity terminal_velocity < backup.sql
+docker compose exec -T postgres psql -U terminal_velocity terminal_velocity < backup.sql
 ```
 
 ---
@@ -266,7 +266,7 @@ docker run --rm -v terminal-velocity_postgres_data:/data -v $(pwd):/backup alpin
 
 ```bash
 # Stop services
-docker-compose down
+docker compose down
 
 # Remove volumes (WARNING: deletes all data!)
 docker volume rm terminal-velocity_postgres_data
@@ -274,7 +274,7 @@ docker volume rm terminal-velocity_server_logs
 docker volume rm terminal-velocity_server_data
 
 # Start fresh
-docker-compose up -d
+docker compose up -d
 ```
 
 ---
@@ -285,13 +285,13 @@ docker-compose up -d
 
 ```bash
 # Build image
-docker-compose build server
+docker compose build server
 
 # Build with version info
-VERSION=0.1.0 COMMIT=$(git rev-parse --short HEAD) docker-compose build server
+VERSION=0.1.0 COMMIT=$(git rev-parse --short HEAD) docker compose build server
 
 # Build without cache
-docker-compose build --no-cache server
+docker compose build --no-cache server
 ```
 
 ### Multi-Platform Builds
@@ -324,11 +324,11 @@ Default ports:
 - `5432` - PostgreSQL (database)
 - `5050` - PgAdmin (with --profile tools)
 
-Change ports in `docker-compose.yml` or override:
+Change ports in `docker compose.yml` or override:
 
 ```bash
 # Use different SSH port
-SSH_PORT=2223 docker-compose up -d
+SSH_PORT=2223 docker compose up -d
 ```
 
 ---
@@ -345,7 +345,7 @@ openssl rand -base64 32 > .env.secret
 
 **2. Use Secrets Management**
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 secrets:
   db_password:
     file: .env.secret
@@ -365,7 +365,7 @@ ufw deny 5432/tcp  # Don't expose database
 
 ### Resource Limits
 
-Add to `docker-compose.yml`:
+Add to `docker compose.yml`:
 
 ```yaml
 services:
@@ -385,7 +385,7 @@ services:
 **Health Checks**:
 ```bash
 # Check container health
-docker-compose ps
+docker compose ps
 
 # Manual health check
 docker exec terminal-velocity-server nc -z localhost 2222
@@ -394,7 +394,7 @@ docker exec terminal-velocity-server nc -z localhost 2222
 **Logs**:
 ```bash
 # Set up log rotation
-docker-compose logs --tail=1000 server > logs/server.log
+docker compose logs --tail=1000 server > logs/server.log
 ```
 
 ### Backups
@@ -404,7 +404,7 @@ docker-compose logs --tail=1000 server > logs/server.log
 #!/bin/bash
 # backup.sh
 DATE=$(date +%Y%m%d_%H%M%S)
-docker-compose exec -T postgres pg_dump -U terminal_velocity terminal_velocity | gzip > backups/backup_$DATE.sql.gz
+docker compose exec -T postgres pg_dump -U terminal_velocity terminal_velocity | gzip > backups/backup_$DATE.sql.gz
 find backups/ -name "backup_*.sql.gz" -mtime +7 -delete  # Keep 7 days
 ```
 
@@ -422,35 +422,35 @@ find backups/ -name "backup_*.sql.gz" -mtime +7 -delete  # Keep 7 days
 
 ```bash
 # Check logs
-docker-compose logs server
+docker compose logs server
 
 # Check if database is ready
-docker-compose exec postgres pg_isready -U terminal_velocity
+docker compose exec postgres pg_isready -U terminal_velocity
 
 # Restart with fresh build
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ### Database Connection Failed
 
 ```bash
 # Verify database is running
-docker-compose ps postgres
+docker compose ps postgres
 
 # Check database logs
-docker-compose logs postgres
+docker compose logs postgres
 
 # Test connection
-docker-compose exec server nc -zv postgres 5432
+docker compose exec server nc -zv postgres 5432
 ```
 
 ### Permission Denied Errors
 
 ```bash
 # Fix volume permissions
-docker-compose exec server chown -R terminalvelocity:terminalvelocity /app
+docker compose exec server chown -R terminalvelocity:terminalvelocity /app
 ```
 
 ### Can't Connect via SSH
@@ -460,7 +460,7 @@ docker-compose exec server chown -R terminalvelocity:terminalvelocity /app
 nc -zv localhost 2222
 
 # Check server health
-docker-compose exec server nc -z localhost 2222
+docker compose exec server nc -z localhost 2222
 
 # Check firewall
 ufw status
@@ -472,7 +472,7 @@ ufw status
 # Check resource usage
 docker stats terminal-velocity-server
 
-# Increase memory limit in docker-compose.yml
+# Increase memory limit in docker compose.yml
 ```
 
 ---
@@ -491,28 +491,28 @@ go install github.com/cosmtrek/air@latest
 air init
 
 # Run with volume mount
-docker-compose -f docker-compose.dev.yml up
+docker compose -f docker compose.dev.yml up
 ```
 
 ### Debug Mode
 
 ```bash
 # Run server with debug output
-docker-compose exec server /app/terminal-velocity --debug
+docker compose exec server /app/terminal-velocity --debug
 
 # Interactive shell
-docker-compose exec server sh
+docker compose exec server sh
 ```
 
 ### Testing
 
 ```bash
 # Run tests in container
-docker-compose exec server go test ./...
+docker compose exec server go test ./...
 
 # Build and test
-docker-compose build server
-docker-compose run --rm server go test -v ./...
+docker compose build server
+docker compose run --rm server go test -v ./...
 ```
 
 ---
@@ -530,10 +530,10 @@ pg_dump -U postgres terminal_velocity > export.sql
 
 ```bash
 # Start docker containers
-docker-compose up -d
+docker compose up -d
 
 # Import data
-docker-compose exec -T postgres psql -U terminal_velocity terminal_velocity < export.sql
+docker compose exec -T postgres psql -U terminal_velocity terminal_velocity < export.sql
 ```
 
 ---
@@ -563,10 +563,10 @@ docker build -f Dockerfile.custom -t terminal-velocity:custom .
 
 ```bash
 # Production
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker compose.yml -f docker compose.prod.yml up -d
 
 # Development
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+docker compose -f docker compose.yml -f docker compose.dev.yml up -d
 ```
 
 ---
@@ -577,7 +577,7 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 ```bash
 # Scale server instances
-docker-compose up -d --scale server=3
+docker compose up -d --scale server=3
 ```
 
 **Note**: Requires load balancer and shared session storage.
@@ -595,10 +595,10 @@ Set up PostgreSQL streaming replication for high availability.
 ```yaml
 # .github/workflows/docker.yml
 - name: Build Docker image
-  run: docker-compose build
+  run: docker compose build
 
 - name: Push to registry
-  run: docker-compose push
+  run: docker compose push
 ```
 
 ### Registry
@@ -616,7 +616,7 @@ docker push ghcr.io/joshuaaferguson/terminal-velocity:latest
 ### PostgreSQL
 
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 postgres:
   command:
     - "postgres"

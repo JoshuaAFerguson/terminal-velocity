@@ -1178,7 +1178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Online status tracking
 - Docker support:
   - Multi-stage Dockerfile
-  - docker-compose.yml with PostgreSQL and PgAdmin
+  - docker compose.yml with PostgreSQL and PgAdmin
   - .dockerignore optimization
   - .env.example template
   - Health checks and auto-initialization

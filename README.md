@@ -153,7 +153,7 @@ cp .env.example .env
 # Edit .env and set DB_PASSWORD
 
 # Start the stack
-docker-compose up -d
+docker compose up -d
 
 # Connect to game
 ssh -p 2222 username@localhost

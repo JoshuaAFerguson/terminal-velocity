@@ -47,7 +47,7 @@ Paste relevant error messages, logs, or stack traces
 ## Configuration Files
 Relevant configuration (sanitize any secrets!):
 
-**docker-compose.yml** (if applicable):
+**docker compose.yml** (if applicable):
 ```yaml
 # paste relevant sections
 ```
@@ -75,7 +75,7 @@ Relevant configuration (sanitize any secrets!):
 ## Docker Information (if applicable)
 ```bash
 # Output of: docker --version
-# Output of: docker-compose --version
+# Output of: docker compose --version
 # Output of: docker ps
 # Output of: docker logs <container>
 ```

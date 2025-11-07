@@ -36,20 +36,20 @@ docker-build: ## Build Docker image
 docker-run: ## Run server in Docker
 	docker run -p 2222:2222 terminal-velocity:latest
 
-docker-compose-up: ## Start full stack with docker-compose
-	docker-compose up -d
+docker compose-up: ## Start full stack with docker compose
+	docker compose up -d
 
-docker-compose-down: ## Stop docker-compose stack
-	docker-compose down
+docker compose-down: ## Stop docker compose stack
+	docker compose down
 
-docker-compose-logs: ## View docker-compose logs
-	docker-compose logs -f
+docker compose-logs: ## View docker compose logs
+	docker compose logs -f
 
-docker-compose-restart: ## Restart docker-compose stack
-	docker-compose restart
+docker compose-restart: ## Restart docker compose stack
+	docker compose restart
 
 docker-clean: ## Remove all Docker artifacts
-	docker-compose down -v
+	docker compose down -v
 	docker system prune -f
 
 run: ## Run the server (development)
@@ -90,11 +90,11 @@ docker-build: ## Build Docker image
 docker-run: ## Run in Docker
 	docker run -p 2222:2222 terminal-velocity:$(VERSION)
 
-docker-compose-up: ## Start with docker-compose
-	docker-compose up -d
+docker compose-up: ## Start with docker compose
+	docker compose up -d
 
-docker-compose-down: ## Stop docker-compose
-	docker-compose down
+docker compose-down: ## Stop docker compose
+	docker compose down
 
 # Development helpers
 dev-setup: install-deps ## Complete development setup

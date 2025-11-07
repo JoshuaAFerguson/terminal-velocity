@@ -40,10 +40,10 @@ make genmap         # Generate and preview universe (100 systems)
 ### Docker Development
 
 ```bash
-make docker-compose-up      # Start full stack (PostgreSQL + server)
-make docker-compose-down    # Stop stack
-make docker-compose-logs    # View logs
-make docker-compose-restart # Restart services
+make docker compose-up      # Start full stack (PostgreSQL + server)
+make docker compose-down    # Stop stack
+make docker compose-logs    # View logs
+make docker compose-restart # Restart services
 ```
 
 ### Connecting to Server
