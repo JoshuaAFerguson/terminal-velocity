@@ -224,6 +224,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ApplyReputationChanges() with -100 to +100 clamping
   - Active bounty tracking across multiple factions
   - GetReputationChangeMessage() for player feedback
+- **Loot and Salvage System (Phase 4, Issue #19)**:
+  - LootDrop structure for combat rewards
+  - GenerateLoot() with dynamic reward calculation
+  - Ship destruction drop system (10-20% of ship value)
+  - Cargo recovery mechanics (30-60% survival rate)
+  - Outfit salvaging (40% chance per outfit)
+  - Weapon salvaging (30-45% chance, higher for hostile ships)
+  - Credit rewards including bounty payouts
+  - Rare item drop system with 4 rarity tiers:
+    - Legendary (5% chance): Ancient artifacts worth 250K
+    - Epic (15% chance): Prototype components, neural processors (75-100K)
+    - Rare (30% chance): Military plans, jump drive data (50-60K)
+    - Uncommon (50% chance): Fusion cores (25K)
+  - 6 standard rare items (artifacts, components, data, contraband)
+  - Rarity-weighted drop system based on ship class and hostility
+  - Cargo space calculation for loot
+  - CanCarryLoot() validation before salvage
+  - ApplyLoot() with automatic cargo integration
+  - Salvage time calculation (2-5 turns based on loot complexity)
+  - Total loot value tracking
+  - Formatted loot summaries with credit shorthand (K/M)
+  - SalvageSpecificItem() for targeted salvage attempts
 
 ### Changed
 - Module path corrected from github.com/s0v3r1gn to github.com/JoshuaAFerguson
