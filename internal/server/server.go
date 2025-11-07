@@ -6,8 +6,11 @@ import (
 	"log"
 	"net"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 	"github.com/s0v3r1gn/terminal-velocity/internal/database"
 	"github.com/s0v3r1gn/terminal-velocity/internal/models"
+	"github.com/s0v3r1gn/terminal-velocity/internal/tui"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -168,12 +171,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 
 		// Handle this session
-		go s.handleSession(sshConn.User(), channel, requests)
+		go s.handleSession(sshConn.User(), sshConn.Permissions, channel, requests)
 	}
 }
 
 // handleSession handles a single SSH session
-func (s *Server) handleSession(username string, channel ssh.Channel, requests <-chan *ssh.Request) {
+func (s *Server) handleSession(username string, perms *ssh.Permissions, channel ssh.Channel, requests <-chan *ssh.Request) {
 	defer channel.Close()
 
 	// Handle session requests (pty-req, shell, etc.)
@@ -184,7 +187,7 @@ func (s *Server) handleSession(username string, channel ssh.Channel, requests <-
 		case "shell":
 			req.Reply(true, nil)
 			// Start game session
-			s.startGameSession(username, channel)
+			s.startGameSession(username, perms, channel)
 			return
 		default:
 			req.Reply(false, nil)
@@ -193,21 +196,78 @@ func (s *Server) handleSession(username string, channel ssh.Channel, requests <-
 }
 
 // startGameSession starts a game session for a player
-func (s *Server) startGameSession(username string, channel ssh.Channel) {
-	// TODO: Implement game session using bubbletea
-	welcome := fmt.Sprintf("\r\n=== Welcome to Terminal Velocity ===\r\n\r\nHello, %s!\r\n\r\nThis is a placeholder. The game is under development.\r\n\r\nPress Ctrl+D to disconnect.\r\n", username)
-	channel.Write([]byte(welcome))
+func (s *Server) startGameSession(username string, perms *ssh.Permissions, channel ssh.Channel) {
+	ctx := context.Background()
 
-	// Wait for input (simple for now)
-	buf := make([]byte, 1024)
-	for {
-		n, err := channel.Read(buf)
-		if err != nil {
-			break
+	// Get player ID from permissions
+	var playerID uuid.UUID
+	if perms != nil && perms.Extensions != nil {
+		if playerIDStr, ok := perms.Extensions["player_id"]; ok {
+			var err error
+			playerID, err = uuid.Parse(playerIDStr)
+			if err != nil {
+				log.Printf("Invalid player ID in permissions: %v", err)
+				channel.Write([]byte("Error: Invalid session. Please reconnect.\r\n"))
+				return
+			}
 		}
-		// Echo back for now
-		channel.Write(buf[:n])
 	}
+
+	// If no player ID, this might be a new user registration flow
+	if playerID == uuid.Nil {
+		// Check if player exists
+		player, err := s.playerRepo.GetByUsername(ctx, username)
+		if err == database.ErrPlayerNotFound && s.config.AllowRegistration {
+			// Start registration flow
+			s.startRegistrationSession(username, channel)
+			return
+		} else if err != nil {
+			log.Printf("Error checking for player %s: %v", username, err)
+			channel.Write([]byte("Error: Authentication failed. Please reconnect.\r\n"))
+			return
+		}
+		playerID = player.ID
+	}
+
+	// Initialize TUI model
+	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo)
+
+	// Create BubbleTea program with SSH channel as input/output
+	p := tea.NewProgram(
+		model,
+		tea.WithInput(channel),
+		tea.WithOutput(channel),
+	)
+
+	// Run the program
+	if _, err := p.Run(); err != nil {
+		log.Printf("Error running TUI for %s: %v", username, err)
+	}
+
+	log.Printf("Game session ended for %s", username)
+
+	// Mark player as offline
+	s.playerRepo.SetOnlineStatus(ctx, playerID, false)
+}
+
+// startRegistrationSession starts a registration session for a new player
+func (s *Server) startRegistrationSession(username string, channel ssh.Channel) {
+	// Initialize TUI model for registration
+	model := tui.NewRegistrationModel(username, s.config.RequireEmail, nil, s.playerRepo, s.systemRepo, s.sshKeyRepo)
+
+	// Create BubbleTea program with SSH channel as input/output
+	p := tea.NewProgram(
+		model,
+		tea.WithInput(channel),
+		tea.WithOutput(channel),
+	)
+
+	// Run the program
+	if _, err := p.Run(); err != nil {
+		log.Printf("Error running registration TUI for %s: %v", username, err)
+	}
+
+	log.Printf("Registration session ended for %s", username)
 }
 
 // initSSHConfig initializes SSH server configuration
