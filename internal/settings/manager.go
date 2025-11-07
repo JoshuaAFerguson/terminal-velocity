@@ -10,6 +10,7 @@ package settings
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -30,7 +31,10 @@ type Manager struct {
 func NewManager(configDir string) *Manager {
 	// Create config directory if it doesn't exist
 	if configDir != "" {
-		os.MkdirAll(configDir, 0755)
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			// Log error but continue - settings will be in-memory only
+			fmt.Fprintf(os.Stderr, "Warning: failed to create config directory %s: %v\n", configDir, err)
+		}
 	}
 
 	return &Manager{
@@ -81,7 +85,10 @@ func (m *Manager) LoadSettings(playerID uuid.UUID) (*models.Settings, error) {
 
 	// Save default settings
 	if m.autosave {
-		m.saveSettingsUnsafe(playerID)
+		if err := m.saveSettingsUnsafe(playerID); err != nil {
+			// Log error but continue - settings are still in memory
+			fmt.Fprintf(os.Stderr, "Warning: failed to save default settings for player %s: %v\n", playerID, err)
+		}
 	}
 
 	return settings, nil

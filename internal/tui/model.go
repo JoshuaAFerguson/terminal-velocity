@@ -9,6 +9,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/admin"
@@ -529,7 +530,7 @@ func (m *Model) getAchievementNotification() string {
 	}
 
 	achievement := m.pendingAchievements[0]
-	return achievement.Icon + " Achievement Unlocked: " + achievement.Title + " (" + string(achievement.Rarity) + ", " + string(achievement.Points) + " pts)"
+	return fmt.Sprintf("%s Achievement Unlocked: %s (%s, %d pts)", achievement.Icon, achievement.Title, achievement.Rarity, achievement.Points)
 }
 
 // clearAchievementNotification removes the first pending achievement from the queue

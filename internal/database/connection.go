@@ -109,7 +109,7 @@ func (db *DB) WithTransaction(ctx context.Context, fn func(*sql.Tx) error) error
 	defer func() {
 		if p := recover(); p != nil {
 			// Rollback on panic
-			tx.Rollback()
+			_ = tx.Rollback() // Ignore rollback error during panic
 			panic(p)
 		}
 	}()

@@ -57,7 +57,10 @@ func main() {
 
 	switch os.Args[1] {
 	case "create":
-		createCmd.Parse(os.Args[2:])
+		if err := createCmd.Parse(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to parse flags: %v\n", err)
+			os.Exit(1)
+		}
 		if *createUsername == "" {
 			fmt.Fprintln(os.Stderr, "Error: -username is required")
 			createCmd.Usage()
@@ -84,7 +87,10 @@ func main() {
 		}
 
 	case "add-key":
-		addKeyCmd.Parse(os.Args[2:])
+		if err := addKeyCmd.Parse(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to parse flags: %v\n", err)
+			os.Exit(1)
+		}
 		if *addKeyUsername == "" || *addKeyFile == "" {
 			fmt.Fprintln(os.Stderr, "Error: -username and -key are required")
 			addKeyCmd.Usage()

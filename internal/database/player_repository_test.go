@@ -78,7 +78,7 @@ func TestPlayerRepository_Create(t *testing.T) {
 	}
 
 	// Cleanup
-	repo.Delete(ctx, player.ID)
+	_ = repo.Delete(ctx, player.ID)
 }
 
 func TestPlayerRepository_Authenticate(t *testing.T) {
@@ -96,7 +96,7 @@ func TestPlayerRepository_Authenticate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create player: %v", err)
 	}
-	defer repo.Delete(ctx, created.ID)
+	defer func() { _ = repo.Delete(ctx, created.ID) }()
 
 	// Test successful authentication
 	player, err := repo.Authenticate(ctx, username, password)
@@ -135,7 +135,7 @@ func TestPlayerRepository_ModifyCredits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create player: %v", err)
 	}
-	defer repo.Delete(ctx, player.ID)
+	defer func() { _ = repo.Delete(ctx, player.ID) }()
 
 	// Add credits
 	err = repo.ModifyCredits(ctx, player.ID, 5000)
@@ -189,7 +189,7 @@ func TestPlayerRepository_UpdateReputation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create player: %v", err)
 	}
-	defer repo.Delete(ctx, player.ID)
+	defer func() { _ = repo.Delete(ctx, player.ID) }()
 
 	// Update reputation
 	err = repo.UpdateReputation(ctx, player.ID, "united_earth_federation", 10)

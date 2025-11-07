@@ -205,7 +205,11 @@ func (r *SystemRepository) GetSystemsByGovernment(ctx context.Context, governmen
 			return nil, fmt.Errorf("failed to scan system: %w", err)
 		}
 
-		system.ConnectedSystems, _ = r.getJumpConnections(ctx, system.ID)
+		connectedSystems, err := r.getJumpConnections(ctx, system.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get jump connections for system %s: %w", system.ID, err)
+		}
+		system.ConnectedSystems = connectedSystems
 		systems = append(systems, &system)
 	}
 
