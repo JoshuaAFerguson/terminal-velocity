@@ -11,6 +11,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
@@ -101,6 +102,9 @@ type Model struct {
 	// Faction system
 	factionManager *factions.Manager
 
+	// Territory system
+	territoryManager *territory.Manager
+
 	// Error message
 	err error
 }
@@ -148,6 +152,7 @@ func NewModel(
 		chatManager:         chat.NewManager(),
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
+		territoryManager:    territory.NewManager(),
 	}
 }
 

@@ -8,6 +8,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Territory Control System (Phase 6, Issue #31)**:
+  - Comprehensive system claiming and ownership for factions
+  - Territory models with detailed state tracking:
+    - Control levels (Contested, Weak, Stable, Strong, Dominant)
+    - Control points progression system
+    - Weekly upkeep costs and passive income
+    - Defense and development levels (0-5 each)
+    - Faction station construction
+    - Activity tracking (member visits, trade volume)
+  - Upkeep and income calculations:
+    - Base costs scale with development and defense
+    - Stations add 5K weekly cost, 3K income
+    - Income multipliers based on control level (0.5x-1.5x)
+    - Trade volume provides 1% bonus to income
+  - Territory benefits system:
+    - Trade bonus (5% per development level)
+    - Production bonus (3% per development level)
+    - Defense rating boost (+10 per defense level)
+    - Passive weekly income
+    - Control level enhances all benefits
+  - Territory manager with thread-safe operations:
+    - Claim system (10K credit cost)
+    - Abandon system
+    - Pay weekly upkeep (7-day cycles)
+    - Upgrade defense (costs: 5K, 10K, 15K, 20K, 25K)
+    - Upgrade development (costs: 10K, 20K, 30K, 40K, 50K)
+    - Build faction station (100K cost)
+    - Activity tracking for control points
+  - Control progression:
+    - Automatic leveling based on control points
+    - Maintenance activities add points
+    - Required points: Weak(100), Stable(250), Strong(500), Dominant(1000)
+  - Foundation for future features:
+    - Territory defense mechanics
+    - System contests and wars
+    - Benefit application to member activities
+    - Strategic resource control
 - **Player Factions System (Phase 6, Issue #30)**:
   - Player-created organizations with full management system
   - Faction creation with name, tag (3-5 chars), and alignment selection
