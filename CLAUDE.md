@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Terminal Velocity is a multiplayer space trading and combat game inspired by Escape Velocity, playable entirely through SSH. Players navigate a persistent universe, trade commodities, upgrade ships, engage in combat, and form factions—all within a terminal UI built with BubbleTea.
 
-**Tech Stack**: Go 1.24+, PostgreSQL (pgx/v5), BubbleTea + Lipgloss (TUI), golang.org/x/crypto/ssh
+**Tech Stack**: Go 1.23+, PostgreSQL (pgx/v5), BubbleTea + Lipgloss (TUI), golang.org/x/crypto/ssh
 
-**Current Phase**: Phase 1 - Foundation & Navigation (see ROADMAP.md for full development plan)
+**Current Phase**: Phases 0-7 Complete - Feature Complete (see ROADMAP.md for full development history)
 
 ## Building and Running
 
@@ -62,13 +62,29 @@ ssh -p 2222 username@localhost
   - `accounts/` - Account management tool
 - `internal/` - Private application code
   - `server/` - SSH server, authentication, session management
-  - `tui/` - BubbleTea UI screens (main menu, navigation, registration, etc.)
-  - `database/` - Repository pattern for data access (PlayerRepository, SystemRepository, SSHKeyRepository)
-  - `models/` - Core data models (Player, Ship, StarSystem, Planet, etc.)
-  - `game/` - Game logic modules
-    - `universe/` - Procedural universe generation with MST-based jump routes
-    - `combat/`, `trading/`, `faction/`, `mission/`, `ship/` - Future game systems
-  - `ui/` - Reusable UI components (future)
+  - `tui/` - BubbleTea UI screens (30+ screens for all features)
+  - `database/` - Repository pattern for data access (20+ repositories)
+  - `models/` - Core data models (Player, Ship, StarSystem, Planet, Quest, Event, etc.)
+  - `combat/` - Turn-based combat system with AI (5 difficulty levels)
+  - `missions/` - Mission lifecycle management (4 mission types)
+  - `quests/` - Quest & storyline system (7 types, 12 objectives)
+  - `events/` - Dynamic events manager (10 event types)
+  - `achievements/` - Achievement tracking system
+  - `news/` - News generation system (10+ event types)
+  - `leaderboards/` - Player rankings (4 categories)
+  - `chat/` - Multiplayer chat (4 channels)
+  - `factions/` - Player faction system with treasury
+  - `territory/` - Territory control & passive income
+  - `trade/` - Player-to-player trading with escrow
+  - `pvp/` - PvP combat system
+  - `presence/` - Player presence tracking
+  - `encounters/` - Random encounter system
+  - `outfitting/` - Equipment & loadout management (6 slot types, 16 items)
+  - `settings/` - Player settings (6 categories, JSON persistence)
+  - `tutorial/` - Tutorial & onboarding (7 categories, 20+ steps)
+  - `admin/` - Server administration (RBAC, 20+ permissions)
+  - `session/` - Session & auto-save (30s autosave)
+  - `universe/` - Procedural universe generation with MST-based jump routes
 - `scripts/` - Database schema and migrations
 - `configs/` - YAML configuration files
 
@@ -208,54 +224,99 @@ Use parameterized queries ($1, $2, etc.) to prevent SQL injection. Handle nullab
 
 ## Development Notes
 
-### Current State (as of Phase 1)
+### Current State (Phases 0-7 Complete)
 
-✅ **Implemented**:
+✅ **Fully Implemented** (29+ interconnected systems):
+
+**Core Gameplay**:
 - SSH server with password + public key authentication
-- User registration flow (interactive TUI)
-- Account management CLI tool
-- Database layer with repositories
-- BubbleTea TUI framework (main menu, registration, navigation screens)
-- Universe generation (procedural systems, MST jump routes)
-- Navigation system (jump between systems, fuel cost calculation)
-- Location persistence
+- Dynamic trading economy (15 commodities, supply/demand)
+- Ship progression (11 ship types: Shuttle → Battleship)
+- Turn-based combat with tactical AI (5 difficulty levels)
+- Advanced ship outfitting (6 slot types, 16 equipment items)
+- Loadout system (save/load/clone configurations)
+- Reputation system (6 NPC factions, bounty tracking)
+- Loot & salvage (4 rarity tiers, rare item drops)
 
-⏳ **Partial**:
-- Ship repository (models exist, repository not implemented)
-- Fuel consumption (calculated but not persisted to database)
-- Player ship loading (currentShip is nil in TUI)
+**Content Systems**:
+- Quest & storyline system (7 quest types, 12 objective types, branching narratives)
+- Mission system (4 mission types with progress tracking)
+- Dynamic events (10 event types, leaderboards, progress rewards)
+- Achievements system (milestone tracking)
+- Random encounters (pirates, traders, police, distress calls)
+- News system (10+ event types, dynamic generation)
 
-❌ **Not Implemented**:
-- Trading system
-- Combat system
-- Mission system
-- Player factions
-- Chat/messaging
-- Most game screens (Trading, Shipyard, Missions, Settings)
+**Multiplayer Features**:
+- Chat system (4 channels: global, system, faction, DM)
+- Player presence tracking (real-time locations)
+- Player factions (treasury, member management, ranks)
+- Territory control (system claiming, passive income)
+- Player-to-player trading (escrow system)
+- PvP combat (consensual duels, faction wars)
+- Leaderboards (4 categories: credits, combat, trade, exploration)
 
-### Known Limitations
+**Infrastructure & Polish**:
+- Server administration (RBAC with 4 roles, 20+ permissions)
+- Moderation tools (ban/mute with expiration)
+- Audit logging (10,000 entry buffer)
+- Session management (auto-save every 30 seconds)
+- Server-authoritative architecture
+- Interactive tutorial (7 categories, 20+ steps)
+- Settings system (6 categories, 5 color schemes, JSON persistence)
+- Server metrics & monitoring
 
-- No ship repository yet - ship data not loaded or updated
-- Fuel cost calculated but not deducted from ship fuel
-- No jump animation or travel time
-- No landing/docking UI for planets
-- Registration creates account but requires reconnection (no live auth transition)
+**Technical**:
+- 30+ BubbleTea UI screens
+- 20+ database repositories
+- Thread-safe concurrency (sync.RWMutex throughout)
+- Background workers (event scheduling, metrics, cleanup)
+- 100+ star systems with MST jump routes
+
+### Known Limitations & Future Enhancements
+
+Current limitations:
+- No two-factor authentication
+- No password reset functionality
+- No web dashboard (SSH only)
+- No modding support yet
+
+Future enhancements (Phase 8+):
+- Integration testing across all systems
+- Balance tuning (economy, combat, progression)
+- Performance optimization (indexing, caching, load testing)
+- Community testing and feedback gathering
+- Additional content (more quests, events, ships)
+- Advanced features (player stations, mining, manufacturing)
 
 ### Testing
 
-Only 2 test files exist currently. When adding tests:
+When adding tests:
 - Place `*_test.go` files alongside source
 - Use `testify/assert` for assertions
-- Test critical paths: auth, database operations, universe generation
+- Test critical paths: auth, database operations, game systems
 - Run with race detector: `go test -race`
+- Focus on integration testing across multiple systems
 
-## Phase 1 Completion Checklist
+## Development Best Practices
 
-Refer to GitHub Issues with `phase-1` label and ROADMAP.md Phase 1 section for remaining tasks.
-- lint files before commiting, files must pass lint checks.
-- The github repository is located at https://github.com/JoshuaAFerguson/terminal-velocity/
-- update CHANGELOG.md after chnages aee made
-- check if ROADMAP.md needs updates before commit
-- check if README.md needs updates before commits
-- incriment version numbers in changelog accordingly
-- always add comment headers to code files, always throughly comment the code, always incriment file version numbers in header after changes
+Before committing:
+- Lint files: `make lint` - files must pass lint checks
+- Run tests: `make test`
+- Update CHANGELOG.md after changes are made
+- Check if ROADMAP.md needs updates before commit
+- Check if README.md needs updates before commits
+- Increment version numbers in changelog accordingly
+- Always add comment headers to code files
+- Thoroughly comment the code
+- Increment file version numbers in header after changes
+
+The github repository is located at https://github.com/JoshuaAFerguson/terminal-velocity/
+
+## Current Focus (Phase 8)
+
+Phases 0-7 are complete! Current priorities:
+1. **Integration Testing**: Ensure all 29+ systems work together seamlessly
+2. **Balance Tuning**: Economy, combat, and progression adjustments
+3. **Performance Optimization**: Database indexing, caching, load testing
+4. **Community Testing**: Gather feedback from players
+5. **Launch Preparation**: Deployment, monitoring, community management

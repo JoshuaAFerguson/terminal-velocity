@@ -6,9 +6,10 @@ We release patches for security vulnerabilities. Currently supported versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.7.x   | :white_check_mark: |
+| 0.1-0.6 | :x:                |
 
-**Note**: Terminal Velocity is currently in early development (Phase 1). Security updates will be provided for the current development version.
+**Note**: Terminal Velocity has completed Phases 0-7 and is feature-complete for core gameplay. Security updates will be provided for the current development version.
 
 ## Reporting a Vulnerability
 
@@ -106,12 +107,10 @@ systemctl start terminal-velocity
 
 ### Current Development Phase
 
-Terminal Velocity is in **Phase 1** development. Some security features are not yet implemented:
+Terminal Velocity has completed **Phases 0-7** and is feature-complete for core gameplay. Some security features are not yet implemented:
 
-- ⚠️ Password reset functionality (planned for Phase 2)
+- ⚠️ Password reset functionality (planned for future)
 - ⚠️ Two-factor authentication (planned for future)
-- ⚠️ Advanced rate limiting (basic implementation only)
-- ⚠️ Audit logging (planned for Phase 2)
 - ⚠️ Encrypted player data at rest (planned for future)
 
 ### Security Features Implemented
@@ -121,7 +120,13 @@ Terminal Velocity is in **Phase 1** development. Some security features are not 
 - ✅ SQL injection prevention (parameterized queries)
 - ✅ Input validation and sanitization
 - ✅ Protection against path traversal
-- ✅ Safe concurrency primitives (mutexes, channels)
+- ✅ Safe concurrency primitives (sync.RWMutex throughout)
+- ✅ Role-Based Access Control (RBAC) with 4 admin roles and 20+ permissions
+- ✅ Audit logging (10,000 entry buffer for admin actions)
+- ✅ Rate limiting for connections
+- ✅ Session management with auto-persistence
+- ✅ Server-authoritative architecture (no client-side saves)
+- ✅ Moderation tools (ban/mute with expiration tracking)
 
 ### Future Security Enhancements
 
@@ -199,7 +204,7 @@ For general questions, use GitHub Issues.
 
 ---
 
-**Last Updated**: 2025-11-06
-**Version**: 0.1.0 (Phase 1 Development)
+**Last Updated**: 2025-01-07
+**Version**: 0.7.0 (Phases 0-7 Complete - Feature Complete)
 
 Thank you for helping keep Terminal Velocity secure!

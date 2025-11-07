@@ -5,129 +5,138 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/JoshuaAFerguson/terminal-velocity)](https://go.dev/)
 
-A multiplayer space trading and combat game inspired by Escape Velocity, playable entirely through SSH.
+A feature-rich multiplayer space trading and combat game inspired by Escape Velocity, playable entirely through SSH.
 
 ## Overview
 
-Terminal Velocity is a space trading and combat game inspired by Escape Velocity. Currently in active development with a fully playable single-player experience.
+Terminal Velocity is a comprehensive space trading and combat game with **full multiplayer support**. Phases 0-7 complete with 29+ interconnected systems!
 
-**What's Playable Now**:
+**🎮 Fully Playable Now**:
 - ✅ Dynamic trading economy with 15 commodities
 - ✅ 11 ship types with full progression system
-- ✅ Turn-based combat with tactical AI opponents
-- ✅ Equipment customization (9 weapons, 15 outfits)
-- ✅ Mission board with 4 mission types
-- ✅ Reputation and bounty system with 6 NPC factions
-- ✅ Loot and salvage from combat victories
-
-**Coming Soon**:
-- 🔄 Random encounters (pirates, traders, distress calls)
-- 🔄 News and dynamic universe events
-- 🔄 Multiplayer features (player factions, PvP, territory control)
+- ✅ Advanced ship customization & outfitting
+- ✅ Turn-based combat with tactical AI
+- ✅ Quest & storyline system with branching narratives
+- ✅ Mission board with 4+ mission types
+- ✅ Achievements, leaderboards, and player stats
+- ✅ **Multiplayer**: Chat, factions, territory, PvP, player trading
+- ✅ **Dynamic events**: Server-wide competitions and boss encounters
+- ✅ **Tutorial system**: Interactive onboarding for new players
+- ✅ **Admin tools**: Full server management and monitoring
 
 ## Features
 
-### ✅ Implemented Features
+### 🎯 Core Gameplay
 
-#### Core Gameplay
-- **Space Trading System**: Dynamic economy with 15 commodities
-  - Supply and demand price fluctuations
-  - Tech level modifiers affecting prices
-  - 5+ profitable trade routes documented
-  - Real-time market updates
-  - Illegal goods tracking (contraband)
+#### Trading & Economy
+- **Dynamic Market System**: 15 commodities with real-time price fluctuations
+- **Supply & Demand**: Tech level modifiers, illegal goods tracking
+- **Profitable Routes**: Multiple documented trade routes
+- **Player Trading**: Direct player-to-player commerce with escrow
 
-- **Ship Progression**: 11 ship types from Shuttle to Battleship
-  - Complete ship statistics (hull, shields, speed, cargo, maneuverability)
-  - Combat rating requirements for advanced ships
-  - Trade-in system (70% value)
-  - Side-by-side ship comparison tools
-  - Performance ratings (combat, trading, speed)
+#### Ship Systems
+- **11 Ship Types**: Shuttle → Battleship progression
+- **Advanced Outfitting**: 6 equipment slot types, 16 unique items
+- **Loadout System**: Save/load/clone ship configurations
+- **Fleet Management**: Own multiple ships, switch between them
+- **Performance Ratings**: Combat, trading, and speed metrics
 
-- **Equipment & Outfitting**: Comprehensive customization system
-  - 9 weapon types (laser, missile, plasma, railgun)
-  - 15 outfit types (shields, hull, cargo, fuel, engines)
-  - Tab-based installation interface
-  - Equipment removal with 50% refund
-  - Real-time stat calculations with bonuses
+#### Combat
+- **Turn-Based Tactical**: Full-screen display with ASCII radar
+- **9 Weapon Types**: Lasers, missiles, plasma, railguns
+- **5 AI Difficulty Levels**: Easy to Ace with unique behaviors
+- **PvP Combat**: Consensual duels, faction wars, piracy
+- **Loot & Salvage**: 4 rarity tiers, rare item drops
 
-- **Turn-based Combat**: Tactical space battles
-  - Full-screen tactical display with ASCII radar
-  - 5 AI difficulty levels (Easy to Ace)
-  - Weapon mechanics (range, accuracy, cooldown, ammo)
-  - Shield penetration and critical hits
-  - Target selection with threat assessment
-  - Combat log with scrolling messages
+#### Reputation & Progression
+- **Faction System**: 6 NPC factions with dynamic relationships
+- **Reputation Tracking**: −100 to +100 per faction
+- **Bounty System**: Legal status (clean → fugitive)
+- **Achievements**: Track milestones and unlock rewards
+- **Leaderboards**: Compete globally in multiple categories
 
-- **Reputation & Bounty System**:
-  - Faction reputation tracking (−100 to +100)
-  - 8 combat event types affecting reputation
-  - Bounty system with expiration
-  - Legal status (clean, offender, wanted, fugitive)
-  - Faction reinforcement mechanics
+### 📖 Content Systems
 
-- **Loot & Salvage System**:
-  - Dynamic loot generation from combat
-  - Cargo recovery (30-60% survival rate)
-  - Equipment salvaging (weapons, outfits)
-  - Rare item drops (4 rarity tiers: legendary, epic, rare, uncommon)
-  - 6 unique rare items worth 25K-250K credits
+#### Quests & Storylines
+- **7 Quest Types**: Main, Side, Faction, Daily, Chain, Hidden, Event
+- **12 Objective Types**: Deliver, destroy, travel, collect, investigate, and more
+- **Branching Narratives**: Player choices affect quest outcomes
+- **"The Void Threat"**: Multi-quest main storyline
+- **Comprehensive Rewards**: Credits, XP, items, reputation, unlocks
 
-- **Mission System**: Mission board with multiple types
-  - 4 mission types: Delivery, Combat, Bounty, Trading
-  - Mission requirements (combat rating, reputation)
-  - Deadline tracking with auto-expiration
-  - Progress tracking for multi-part missions
-  - Accept/decline mechanics with validation
-  - 5 concurrent active mission limit
+#### Missions
+- **4 Mission Types**: Delivery, Combat, Bounty, Trading
+- **Mission Board**: Browse and accept available missions
+- **Progress Tracking**: Monitor objectives and deadlines
+- **Reputation Requirements**: Unlock advanced missions
 
-- **Fleet Management**:
-  - Ship inventory with multiple owned ships
-  - Active ship selection and switching
-  - Ship renaming functionality
-  - Configuration viewer (weapons, outfits, cargo)
-  - Status displays (hull, shields, fuel)
+#### Dynamic Events
+- **10 Event Types**: Trading competitions, combat tournaments, boss encounters, festivals
+- **Community Goals**: Server-wide objectives with shared progress
+- **Event Leaderboards**: Real-time rankings and rewards
+- **Event Modifiers**: Temporary bonuses (2x credits, 1.5x XP, 2x drops)
+- **5 Pre-defined Events**: Trade challenges, PvP tournaments, expeditions, boss fights
 
-#### Technical Features
-- **SSH Server**: Multi-method authentication
-  - Password authentication with bcrypt
-  - SSH public key authentication
-  - Multiple keys per account support
-  - Account management CLI tool
+#### Random Encounters
+- **Encounter System**: Pirates, traders, police, distress calls
+- **Dynamic Spawns**: Based on system security and faction control
+- **Loot Opportunities**: Combat rewards and salvage
 
-- **Database Layer**: PostgreSQL with pgx/v5
-  - Player, ship, system, and market repositories
-  - Connection pooling
-  - Transaction support with rollback
-  - Migration system
+#### News System
+- **Dynamic News**: Universe events, player achievements, faction updates
+- **10+ Event Types**: Combat victories, trade milestones, territorial changes
+- **News Feed**: Stay informed about the galaxy
 
-- **Universe**: Procedurally generated galaxy
-  - 100+ star systems
-  - MST-based jump route connectivity
-  - 6 NPC factions with territories and relationships
-  - Tech level distribution (1-10)
+### 👥 Multiplayer Features
 
-- **UI Framework**: Beautiful terminal interface
-  - BubbleTea + Lipgloss styling
-  - Multiple game screens (trading, shipyard, outfitter, combat, missions)
-  - Tab-based navigation
-  - Visual status bars and indicators
+#### Communication
+- **4 Chat Channels**: Global, System, Faction, Direct Messages
+- **Player Presence**: See who's online and where
+- **Announcements**: Server-wide notifications
 
-### 🔄 In Development
+#### Factions & Territory
+- **Player Factions**: Create guilds with shared treasury
+- **Territory Control**: Claim systems, earn passive income
+- **Faction Wars**: Coordinate attacks and defense
+- **Member Management**: Ranks, permissions, invitations
 
-- **Mission Integration**: Reward application and reputation effects
-- **Random Encounters**: Pirates, traders, distress calls
-- **News System**: Dynamic universe events
+#### Player Interaction
+- **Player Visibility**: Real-time player locations
+- **Direct Trading**: Exchange credits and items
+- **PvP Combat**: Consensual and faction-based combat
+- **Leaderboards**: Credits, combat rating, trade volume, exploration
 
-### 📋 Planned Features
+### 🛠️ Infrastructure & Polish
 
-#### Multiplayer Features (Phase 6)
-- **Player Factions**: Create guilds/corporations with shared goals
-- **Territory Control**: Claim systems and earn passive income
-- **Player Trading**: Direct player-to-player commerce
-- **PvP Combat**: Consensual duels, faction wars, and piracy
-- **Real-time Interactions**: See other players in your system
-- **Communication**: Global, faction, and system chat channels
+#### Server Administration
+- **4 Admin Roles**: Player, Moderator, Admin, SuperAdmin
+- **20+ Permissions**: Granular access control (RBAC)
+- **Moderation Tools**: Ban/mute with expiration tracking
+- **Server Metrics**: Real-time performance monitoring
+- **Audit Logging**: Complete action history (10,000 buffer)
+- **Settings Management**: Configure economy, difficulty, rules
+
+#### Session Management
+- **Auto-Persistence**: Automatic saving every 30 seconds
+- **Server-Authoritative**: No player-controlled saves
+- **Session Tracking**: Monitor activity and connections
+- **Graceful Disconnect**: Final save on exit
+
+#### Player Experience
+- **Interactive Tutorial**: 7 categories, 20+ steps with hints
+- **Context-Aware Help**: Tutorials trigger based on actions
+- **Settings System**: 6 categories, 5 color schemes including colorblind
+- **Achievement Tracking**: Unlock milestones and badges
+- **Notification System**: Event alerts, rewards, updates
+
+### 🎨 Technical Features
+
+- **SSH Server**: Multi-method authentication (password + public key)
+- **PostgreSQL Database**: Full persistence with pgx connection pooling
+- **BubbleTea UI**: Beautiful terminal interface with Lipgloss styling
+- **Thread-Safe**: Concurrent operations with sync.RWMutex throughout
+- **Background Workers**: Event scheduling, metrics collection, session cleanup
+- **100+ Star Systems**: Procedurally generated with MST jump routes
 
 ## Quick Start
 
@@ -149,8 +158,6 @@ docker-compose up -d
 ssh -p 2222 username@localhost
 ```
 
-See [Docker Guide](docs/DOCKER.md) for detailed instructions.
-
 ### Manual Setup
 
 ```bash
@@ -168,15 +175,84 @@ cp configs/config.example.yaml configs/config.yaml
 go run cmd/server/main.go
 ```
 
-### Client Connection
+### First-Time Players
 
-```bash
-ssh -p 2222 player@your-server-address
-```
+When you connect, you'll be greeted by an interactive tutorial system that guides you through:
+1. Basic navigation and UI
+2. Trading fundamentals
+3. Ship management
+4. Combat basics
+5. Mission system
+6. Multiplayer features
 
-## Development
+## Game Statistics
 
-### Project Structure
+### Content
+- **11** ship types (Shuttle → Battleship)
+- **15** commodities (Food, Electronics, Weapons, Narcotics, etc.)
+- **9** weapon types (Lasers, Missiles, Plasma, Railguns)
+- **16** equipment items across 6 slot types
+- **100+** star systems with jump routes
+- **6** NPC factions with dynamic relationships
+- **7** quest types with branching storylines
+- **10** dynamic event types
+- **4** mission types
+- **20+** tutorial steps
+
+### Systems
+- **29+** interconnected game systems
+- **7** Phase 7 major features
+- **4** admin roles with 20+ permissions
+- **5** AI difficulty levels
+- **4** chat channels
+- **4** rarity tiers for loot
+
+## Development Status
+
+**Current Status**: Phases 0-7 Complete! ✅
+
+### Completed Phases
+
+- ✅ **Phase 1**: Foundation & Navigation
+- ✅ **Phase 2**: Core Economy
+- ✅ **Phase 3**: Ship Progression
+- ✅ **Phase 4**: Combat System
+- ✅ **Phase 5**: Missions & Progression
+- ✅ **Phase 6**: Multiplayer Features
+- ✅ **Phase 7**: Infrastructure, Polish & Content
+  - Advanced ship outfitting
+  - Settings & configuration
+  - Session management & auto-persistence
+  - Server administration & monitoring
+  - Interactive tutorial & onboarding
+  - Quest & storyline system
+  - Dynamic events & server events
+
+### Milestones
+
+- ✅ **M1**: Playable Prototype
+- ✅ **M1.5**: Single-Player Complete
+- ✅ **M2**: Feature Complete (Multiplayer functional)
+- 🎯 **M3**: Release Candidate (Next: Integration testing)
+
+## Technology Stack
+
+- **Language**: Go 1.23+
+- **UI Framework**: Bubble Tea + Lipgloss
+- **Database**: PostgreSQL with pgx
+- **SSH**: golang.org/x/crypto/ssh
+- **Concurrency**: sync.RWMutex, context, goroutines
+- **Testing**: Go testing + testify
+
+## Documentation
+
+- [ROADMAP.md](ROADMAP.md) - Development phases and status
+- [CHANGELOG.md](CHANGELOG.md) - Complete feature history
+- [QUICKSTART.md](QUICKSTART.md) - Quick start guide
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community standards
+
+## Project Structure
 
 ```
 terminal-velocity/
@@ -185,118 +261,34 @@ terminal-velocity/
 │   ├── accounts/        # Account management CLI
 │   └── genmap/          # Universe generation tool
 ├── internal/
-│   ├── server/          # SSH server and session management
-│   ├── database/        # Database repositories (pgx)
-│   │   ├── player.go    # Player CRUD operations
-│   │   ├── system.go    # Universe persistence
-│   │   ├── ship.go      # Ship management
-│   │   └── market.go    # Market data
-│   ├── models/          # Data models
-│   │   ├── player.go    # Player, ship, cargo
-│   │   ├── universe.go  # Systems, planets, routes
-│   │   ├── trading.go   # Commodities, markets
-│   │   ├── faction.go   # NPC factions
-│   │   ├── ship.go      # Ship types, weapons, outfits
-│   │   └── mission.go   # Mission structures
-│   ├── combat/          # Combat system
-│   │   ├── weapons.go   # Weapon mechanics
-│   │   ├── ai.go        # Enemy AI
-│   │   ├── reputation.go # Reputation & bounties
-│   │   └── loot.go      # Loot generation
-│   ├── missions/        # Mission system
-│   │   └── manager.go   # Mission lifecycle
+│   ├── server/          # SSH server & session management
+│   ├── database/        # PostgreSQL repositories (pgx)
+│   ├── models/          # Data models (player, universe, trading, etc.)
+│   ├── combat/          # Combat system & AI
+│   ├── missions/        # Mission lifecycle management
+│   ├── quests/          # Quest & storyline system
+│   ├── events/          # Dynamic events manager
+│   ├── achievements/    # Achievement tracking
+│   ├── news/            # News generation system
+│   ├── leaderboards/    # Player rankings
+│   ├── chat/            # Multiplayer chat
+│   ├── factions/        # Player faction system
+│   ├── territory/       # Territory control
+│   ├── trade/           # Player-to-player trading
+│   ├── pvp/             # PvP combat system
+│   ├── presence/        # Player presence tracking
+│   ├── encounters/      # Random encounter system
+│   ├── outfitting/      # Equipment & loadouts
+│   ├── settings/        # Player settings management
+│   ├── tutorial/        # Tutorial & onboarding
+│   ├── admin/           # Server administration
+│   ├── session/         # Session & auto-save
 │   ├── tui/             # Terminal UI (BubbleTea)
-│   │   ├── model.go     # Main TUI model
-│   │   ├── trading.go   # Trading screen
-│   │   ├── cargo.go     # Cargo management
-│   │   ├── shipyard.go  # Ship purchasing
-│   │   ├── outfitter.go # Equipment installation
-│   │   ├── combat.go    # Combat interface
-│   │   └── missions.go  # Mission board
 │   └── universe/        # Universe generation
 ├── configs/             # Configuration files
 ├── docs/                # Documentation
 └── scripts/             # Database migrations
 ```
-
-### Development Status
-
-**Current Phase**: Phase 5 - Missions & Progression (20% complete)
-
-**Completed Phases**:
-- ✅ **Phase 1**: Foundation & Navigation
-  - SSH authentication (password + public key)
-  - PostgreSQL database layer
-  - Universe generation (100+ systems)
-  - BubbleTea UI framework
-
-- ✅ **Phase 2**: Core Economy
-  - Trading system with 15 commodities
-  - Dynamic market engine
-  - Cargo management
-  - Balanced economy
-
-- ✅ **Phase 3**: Ship Progression
-  - 11 ship types
-  - Shipyard with comparison
-  - Outfitter system
-  - Fleet management
-
-- ✅ **Phase 4**: Combat System
-  - Turn-based combat
-  - 9 weapon types
-  - AI opponents (5 difficulty levels)
-  - Reputation & bounty system
-  - Loot & salvage
-
-**In Progress**:
-- 🔄 Mission system integration
-- 🔄 Random encounter system
-- 🔄 News/events system
-
-**Milestones**:
-- ✅ M1: Playable Prototype (trading works)
-- ✅ M1.5: Single-Player Complete (combat + progression)
-- 🎯 M2: Feature Complete (target: end of Phase 6)
-
-## Technology Stack
-
-- **Language**: Go 1.23+
-- **UI Framework**: Bubble Tea + Lipgloss
-- **Database**: PostgreSQL with pgx
-- **SSH**: golang.org/x/crypto/ssh
-- **Testing**: Go testing + testify
-
-## Game Statistics
-
-- **11** ship types (Shuttle, Fighter, Light Freighter, Heavy Freighter, Corvette, Frigate, Destroyer, Heavy Destroyer, Cruiser, Heavy Cruiser, Battleship)
-- **15** commodities (Food, Water, Medicine, Luxury Goods, Electronics, Machinery, Weapons, Fuel, Ore, Rare Metals, Radioactives, Gems, Art, Narcotics, Slaves)
-- **9** weapon types (Pulse Laser, Beam Laser, Heavy Laser, Light Missile, Heavy Missile, Plasma Cannon, Light Railgun, Heavy Railgun, Gatling Laser)
-- **15** outfit types (Shield Boosters, Hull Reinforcement, Cargo Pods, Fuel Tanks, Engine Upgrades)
-- **100+** star systems with procedural generation
-- **6** NPC factions (UEF, Rigel Outer Marches, Free Traders Guild, Free Worlds Alliance, Crimson Syndicate, Auroran Empire)
-- **4** mission types (Delivery, Combat, Bounty, Trading)
-- **5** AI difficulty levels (Easy, Medium, Hard, Expert, Ace)
-
-## Documentation
-
-- [ROADMAP.md](ROADMAP.md) - Detailed development phases
-- [CHANGELOG.md](CHANGELOG.md) - Complete change history
-- [UNIVERSE_DESIGN.md](docs/UNIVERSE_DESIGN.md) - Galaxy structure and lore
-- [FACTION_RELATIONS.md](docs/FACTION_RELATIONS.md) - NPC faction relationships
-- [ECONOMY_BALANCE.md](docs/ECONOMY_BALANCE.md) - Trade route analysis
-- [DOCKER.md](docs/DOCKER.md) - Docker deployment guide
-- [IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) - Feature tracking
-
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for detailed development phases and current status.
-
-**Next Steps**:
-1. Complete mission system integration
-2. Implement random encounters
-3. Add news/events system
-4. Begin multiplayer features (Phase 6)
 
 ## Contributing
 
@@ -307,8 +299,21 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - Suggest features or improvements
 - Submit pull requests
 - Write documentation
-- Create content (missions, ships, commodities)
+- Create content (quests, events, ships)
 - Balance testing and feedback
+- Multiplayer testing
+
+## Roadmap
+
+Terminal Velocity is feature-complete for core gameplay! Next steps:
+
+1. **Integration Testing**: Ensure all 29+ systems work together seamlessly
+2. **Balance Tuning**: Economy, combat, and progression adjustments
+3. **Performance Optimization**: Database indexing, caching, load testing
+4. **Community Testing**: Gather feedback from players
+5. **Launch Preparation**: Deployment, monitoring, community management
+
+See [ROADMAP.md](ROADMAP.md) for detailed phase information.
 
 ## License
 
@@ -316,4 +321,8 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-Inspired by the classic Escape Velocity series by Ambrosia Software.
+Inspired by the classic Escape Velocity series by Ambrosia Software. Built with love for terminal-based gaming and the SSH community.
+
+---
+
+**Ready to play?** `ssh -p 2222 username@your-server-address`

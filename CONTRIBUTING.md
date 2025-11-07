@@ -113,16 +113,38 @@ Thank you for your interest in contributing to Terminal Velocity! This document 
 
 ```
 terminal-velocity/
-├── cmd/server/          # Main application entry
-├── internal/            # Private application code
-│   ├── server/         # SSH server & sessions
-│   ├── game/           # Game engine modules
-│   ├── ui/             # Terminal UI components
-│   ├── database/       # Database layer
-│   └── models/         # Data models
-├── pkg/                # Public libraries
-├── configs/            # Configuration files
-└── scripts/            # Tools and migrations
+├── cmd/
+│   ├── server/          # SSH game server
+│   ├── accounts/        # Account management CLI
+│   └── genmap/          # Universe generation tool
+├── internal/
+│   ├── server/          # SSH server & session management
+│   ├── database/        # PostgreSQL repositories (pgx)
+│   ├── models/          # Data models (player, universe, trading, etc.)
+│   ├── combat/          # Combat system & AI
+│   ├── missions/        # Mission lifecycle management
+│   ├── quests/          # Quest & storyline system
+│   ├── events/          # Dynamic events manager
+│   ├── achievements/    # Achievement tracking
+│   ├── news/            # News generation system
+│   ├── leaderboards/    # Player rankings
+│   ├── chat/            # Multiplayer chat
+│   ├── factions/        # Player faction system
+│   ├── territory/       # Territory control
+│   ├── trade/           # Player-to-player trading
+│   ├── pvp/             # PvP combat system
+│   ├── presence/        # Player presence tracking
+│   ├── encounters/      # Random encounter system
+│   ├── outfitting/      # Equipment & loadouts
+│   ├── settings/        # Player settings management
+│   ├── tutorial/        # Tutorial & onboarding
+│   ├── admin/           # Server administration
+│   ├── session/         # Session & auto-save
+│   ├── tui/             # Terminal UI (BubbleTea)
+│   └── universe/        # Universe generation
+├── configs/             # Configuration files
+├── docs/                # Documentation
+└── scripts/             # Database migrations
 ```
 
 ### Testing
@@ -178,25 +200,28 @@ func CalculateProfit(buyPrice, sellPrice int64, quantity int) int64 {
 ## Areas for Contribution
 
 ### High Priority
-- Universe generation algorithms
-- Combat system implementation
-- Mission generation
-- UI/UX improvements
-- Performance optimization
+- Integration testing across all 29+ systems
+- Performance optimization (database indexing, caching)
+- Balance tuning (economy, combat, progression)
+- Load testing for multiplayer
+- Bug fixes and stability improvements
 
 ### Good First Issues
-- Adding new ship types
-- Adding new commodities
-- Writing tests
+- Adding new quest storylines
+- Creating new dynamic events
+- Adding new ship types or equipment
+- Writing tests for game systems
 - Documentation improvements
-- Bug fixes
+- Tutorial content expansion
 
 ### Ideas Welcome
-- New mission types
-- Special events
-- Random encounters
-- Achievements
+- New mission types beyond the current 4
+- Special event types
+- New random encounter scenarios
+- Additional achievements
 - Quality of life features
+- Player faction features
+- Territory control mechanics
 
 ## Reporting Issues
 
