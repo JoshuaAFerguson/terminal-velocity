@@ -27,6 +27,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bounty target cleanup on mission completion
   - Support for multi-target bounty missions
   - Progress messages for partial bounty completion
+- **News and Events System (Phase 5, Issue #26)**:
+  - Dynamic news generation based on player actions
+  - 8 news categories (Combat, Economic, Political, Exploration, Military, Criminal, General, Achievement)
+  - 4 priority levels (Low, Medium, High, Critical)
+  - Event-based article generation:
+    - Combat news for significant battles (3+ enemies)
+    - Trade news for large transactions (10K+ credits)
+    - Achievement news for rare/epic/legendary unlocks
+    - Faction relation news
+    - Random universe events
+  - News UI with filtering and detail view
+  - Category-based filtering (6 categories)
+  - Age tracking ("Just now", "2 hours ago", etc.)
+  - Priority icons (📰 Low, 📢 Medium, ⚠️ High, 🚨 Critical)
+  - Player action indicators (⭐ Your Action)
+  - Automatic news expiration (6-48 hours based on priority)
+  - Breaking news detection
+  - Initial news generation on game start
+  - Article word wrapping for readability
 - **Random Encounter System (Phase 5, Issue #25)**:
   - 8 encounter types with unique mechanics
   - Encounter types: Pirate, Trader, Distress, Police, Faction Patrol, Derelict, Merchant, Asteroid
@@ -130,8 +149,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added jump recording for exploration tracking
   - Added achievement checks after jumps
   - Integrated encounter probability system
+- **Main Model (internal/tui/model.go)**:
+  - Added news manager integration
+  - Added ScreenNews constant
+  - Added newsModel field
+  - Enhanced checkAchievements() to generate news
+  - Added InitializeNews() helper method
+  - Integrated news screen routing
+- **Main Menu (internal/tui/main_menu.go)**:
+  - Added News menu item
 
 ### Added Files
+- **News Model (internal/models/news.go)**:
+  - NewsArticle and NewsEvent data structures
+  - NewsCategory and NewsPriority enums
+  - NewNewsArticle() with automatic expiration
+  - GenerateCombatNews(), GenerateTradeNews(), GenerateAchievementNews()
+  - GenerateFactionNews() and GenerateRandomNews()
+  - IsExpired(), GetAgeString(), GetPriorityString()
+  - 8 random event templates
+- **News Manager (internal/news/manager.go)**:
+  - Manager for news feed and article storage
+  - AddArticle() and GetRecentArticles()
+  - GetArticlesByPriority() and GetBreakingNews()
+  - Event handlers: OnPlayerCombat(), OnPlayerTrade(), OnPlayerAchievement()
+  - Automatic news expiration with pruneExpiredArticles()
+  - Update() with random news generation (30min intervals)
+  - GetPlayerNews() for action-based filtering
+  - GenerateInitialNews() for game start
+- **News UI (internal/tui/news.go)**:
+  - Complete news screen with list and detail views
+  - Category filtering (6 categories)
+  - Article detail view with word wrapping
+  - Priority and category badges
+  - Age display and player action indicators
 - **Encounter Model (internal/models/encounter.go)**:
   - Encounter data structures with 8 types
   - Encounter generation methods for each type

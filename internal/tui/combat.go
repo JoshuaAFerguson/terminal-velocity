@@ -249,6 +249,8 @@ func (m Model) executeFireWeapon() (tea.Model, tea.Cmd) {
 		if len(m.combat.enemyShips) == 0 {
 			m.addCombatLog("VICTORY! All enemies destroyed!")
 			m.combat.playerTurn = false
+
+			// Generate news for significant battles (handled on combat end)
 		}
 	}
 

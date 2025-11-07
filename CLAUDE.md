@@ -254,3 +254,8 @@ Only 2 test files exist currently. When adding tests:
 Refer to GitHub Issues with `phase-1` label and ROADMAP.md Phase 1 section for remaining tasks.
 - lint files before commiting, files must pass lint checks.
 - The github repository is located at https://github.com/JoshuaAFerguson/terminal-velocity/
+- update CHANGELOG.md after chnages aee made
+- check if ROADMAP.md needs updates before commit
+- check if README.md needs updates before commits
+- incriment version numbers in changelog accordingly
+- always add comment headers to code files, always throughly comment the code, always incriment file version numbers in header after changes

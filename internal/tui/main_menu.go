@@ -30,6 +30,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Ship Management", screen: ScreenShipManagement},
 			{label: "Missions", screen: ScreenMissions},
 			{label: "Achievements", screen: ScreenAchievements},
+			{label: "News", screen: ScreenNews},
 			{label: "Settings", screen: ScreenSettings},
 			{label: "Quit", action: func(m *Model) tea.Cmd { return tea.Quit }},
 		},

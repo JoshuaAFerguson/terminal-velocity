@@ -6,6 +6,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
@@ -26,6 +27,7 @@ const (
 	ScreenMissions
 	ScreenAchievements
 	ScreenEncounter
+	ScreenNews
 	ScreenSettings
 	ScreenRegistration
 )
@@ -66,10 +68,14 @@ type Model struct {
 	missions       missionsModel
 	achievementsUI achievementsModel
 	encounterModel encounterModel
+	newsModel      newsModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
 	pendingAchievements []*models.Achievement // Newly unlocked, pending display
+
+	// News system
+	newsManager *news.Manager
 
 	// Error message
 	err error
@@ -108,6 +114,15 @@ func NewModel(
 		achievementManager:  achievements.NewManager(),
 		pendingAchievements: []*models.Achievement{},
 		encounterModel:      newEncounterModel(),
+		newsModel:           newNewsModel(),
+		newsManager:         news.NewManager(),
+	}
+}
+
+// InitializeNews generates initial news articles
+func (m *Model) InitializeNews() {
+	if m.newsManager != nil {
+		m.newsManager.GenerateInitialNews()
 	}
 }
 
@@ -197,6 +212,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateAchievements(msg)
 	case ScreenEncounter:
 		return m.updateEncounter(msg)
+	case ScreenNews:
+		return m.updateNews(msg)
 	default:
 		return m, nil
 	}
@@ -242,6 +259,8 @@ func (m Model) View() string {
 		return m.viewAchievements()
 	case ScreenEncounter:
 		return m.viewEncounter()
+	case ScreenNews:
+		return m.viewNews()
 	default:
 		return "Unknown screen"
 	}
@@ -295,6 +314,13 @@ func (m *Model) checkAchievements() {
 	newUnlocks := m.achievementManager.CheckNewUnlocks(m.player)
 	if len(newUnlocks) > 0 {
 		m.pendingAchievements = append(m.pendingAchievements, newUnlocks...)
+
+		// Generate news for notable achievements
+		if m.newsManager != nil {
+			for _, achievement := range newUnlocks {
+				m.newsManager.OnPlayerAchievement(m.username, achievement)
+			}
+		}
 	}
 }
 
