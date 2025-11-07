@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
@@ -32,6 +33,7 @@ const (
 	ScreenNews
 	ScreenLeaderboards
 	ScreenPlayers
+	ScreenChat
 	ScreenSettings
 	ScreenRegistration
 )
@@ -75,6 +77,7 @@ type Model struct {
 	newsModel      newsModel
 	leaderboardsModel leaderboardsModel
 	playersModel   playersModel
+	chatModel      chatModel
 
 	// Achievement tracking
 	achievementManager *achievements.Manager
@@ -88,6 +91,9 @@ type Model struct {
 
 	// Presence system
 	presenceManager *presence.Manager
+
+	// Chat system
+	chatManager *chat.Manager
 
 	// Error message
 	err error
@@ -132,6 +138,8 @@ func NewModel(
 		leaderboardManager:  leaderboards.NewManager(),
 		playersModel:        newPlayersModel(),
 		presenceManager:     presence.NewManager(),
+		chatModel:           newChatModel(),
+		chatManager:         chat.NewManager(),
 	}
 }
 
@@ -261,6 +269,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateLeaderboards(msg)
 	case ScreenPlayers:
 		return m.updatePlayers(msg)
+	case ScreenChat:
+		return m.updateChat(msg)
 	default:
 		return m, nil
 	}
@@ -312,6 +322,8 @@ func (m Model) View() string {
 		return m.viewLeaderboards()
 	case ScreenPlayers:
 		return m.viewPlayers()
+	case ScreenChat:
+		return m.viewChat()
 	default:
 		return "Unknown screen"
 	}

@@ -8,6 +8,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Communication System with Multi-Channel Chat (Phase 6, Issue #29)**:
+  - Comprehensive multiplayer chat system with 6 channel types
+  - Chat channels:
+    - Global Chat: All online players can communicate
+    - System Chat: Players in the same star system
+    - Faction Chat: Private faction member communication
+    - Direct Messages: Private 1-on-1 conversations
+    - Trade Channel: Trading and deals
+    - Combat Log: Combat notifications and events
+  - ChatMessage model with full metadata:
+    - Sender information and timestamps
+    - Channel routing
+    - System vs player messages
+    - Recipient tracking for DMs
+    - Context (system ID, faction ID)
+  - Chat manager with message routing:
+    - Send to global, system, faction, or direct channels
+    - Per-player chat history (100 messages per channel)
+    - Recent message retention
+    - Automatic history trimming
+    - Thread-safe operations
+  - Interactive chat UI:
+    - Tab-based channel navigation (1-5 keyboard shortcuts)
+    - Input mode for typing messages (I or Enter)
+    - Message scrolling (↑/↓ keys)
+    - Formatted message display with timestamps
+    - Color-coded messages (system, self, others)
+    - Channel-specific empty states
+    - Scroll pagination for long histories
+  - Chat commands:
+    - /help - Show available commands
+    - /dm <username> <message> - Send direct message
+    - /clear - Clear current channel
+    - /me <action> - Send action message
+  - Integration with presence system:
+    - System chat uses presence to find players in same system
+    - Player online status affects message delivery
+  - Foundation for future features:
+    - Faction chat ready for faction system
+    - DM infrastructure for player trading negotiations
+    - Combat log for PvP notifications
 - **Player Presence and Visibility System (Phase 6, Issue #28)**:
   - Real-time player presence tracking for multiplayer visibility
   - PlayerPresence model tracking:
