@@ -10,16 +10,18 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
+
+var log = logger.WithComponent("server")
 
 // Server represents the SSH game server
 type Server struct {
@@ -56,6 +58,8 @@ type Config struct {
 
 // NewServer creates a new game server
 func NewServer(configFile string, port int) (*Server, error) {
+	log.Debug("NewServer called with configFile=%s, port=%d", configFile, port)
+
 	// TODO: Load config from file
 	config := &Config{
 		Host:       "0.0.0.0",
@@ -72,6 +76,9 @@ func NewServer(configFile string, port int) (*Server, error) {
 		RequireEmailVerify: false, // Email verification not yet implemented
 	}
 
+	log.Info("Server configuration: host=%s, port=%d, maxPlayers=%d, tickRate=%d",
+		config.Host, config.Port, config.MaxPlayers, config.TickRate)
+
 	srv := &Server{
 		config:   config,
 		port:     port,
@@ -79,49 +86,60 @@ func NewServer(configFile string, port int) (*Server, error) {
 	}
 
 	// Initialize database
+	log.Debug("Initializing database connection")
 	if err := srv.initDatabase(); err != nil {
+		log.Error("Failed to initialize database: %v", err)
 		return nil, fmt.Errorf("failed to init database: %w", err)
 	}
 
 	// Initialize SSH config
+	log.Debug("Initializing SSH configuration")
 	if err := srv.initSSHConfig(); err != nil {
+		log.Error("Failed to initialize SSH config: %v", err)
 		srv.db.Close() // Clean up database on error
 		return nil, fmt.Errorf("failed to init SSH config: %w", err)
 	}
 
+	log.Info("Server created successfully")
 	return srv, nil
 }
 
 // initDatabase initializes the database connection
 func (s *Server) initDatabase() error {
+	log.Debug("Connecting to database at %s:%d", s.config.Database.Host, s.config.Database.Port)
+
 	var err error
 	s.db, err = database.NewDB(s.config.Database)
 	if err != nil {
+		log.Error("Database connection failed: %v", err)
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	// Initialize repositories
+	log.Debug("Initializing database repositories")
 	s.playerRepo = database.NewPlayerRepository(s.db)
 	s.systemRepo = database.NewSystemRepository(s.db)
 	s.sshKeyRepo = database.NewSSHKeyRepository(s.db)
 	s.shipRepo = database.NewShipRepository(s.db)
 	s.marketRepo = database.NewMarketRepository(s.db)
 
-	log.Println("Database connected successfully")
+	log.Info("Database connected successfully")
 	return nil
 }
 
 // Start starts the SSH server
 func (s *Server) Start(ctx context.Context) error {
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
+	log.Debug("Starting SSH server on %s", addr)
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
+		log.Error("Failed to listen on %s: %v", addr, err)
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
 	s.listener = listener
 
-	log.Printf("SSH server listening on %s", addr)
+	log.Info("SSH server listening on %s", addr)
 
 	// Start accepting connections
 	go s.acceptConnections(ctx)
@@ -129,23 +147,26 @@ func (s *Server) Start(ctx context.Context) error {
 	// Wait for context cancellation
 	<-ctx.Done()
 
-	log.Println("Shutting down server...")
+	log.Info("Context cancelled, shutting down server...")
 	return s.shutdown()
 }
 
 // acceptConnections handles incoming SSH connections
 func (s *Server) acceptConnections(ctx context.Context) {
+	log.Debug("Started accepting connections")
 	for {
 		select {
 		case <-ctx.Done():
+			log.Debug("Accept loop terminated due to context cancellation")
 			return
 		default:
 			conn, err := s.listener.Accept()
 			if err != nil {
-				log.Printf("Failed to accept connection: %v", err)
+				log.Warn("Failed to accept connection: %v", err)
 				continue
 			}
 
+			log.Debug("Accepted new connection from %s", conn.RemoteAddr())
 			go s.handleConnection(conn)
 		}
 	}
@@ -154,36 +175,43 @@ func (s *Server) acceptConnections(ctx context.Context) {
 // handleConnection handles a single SSH connection
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
+	remoteAddr := conn.RemoteAddr().String()
+	log.Debug("handleConnection called for %s", remoteAddr)
 
 	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, s.sshConfig)
 	if err != nil {
-		log.Printf("Failed to handshake: %v", err)
+		log.Warn("SSH handshake failed from %s: %v", remoteAddr, err)
 		return
 	}
 	defer sshConn.Close()
 
-	log.Printf("New SSH connection from %s (%s)", sshConn.RemoteAddr(), sshConn.User())
+	log.Info("SSH connection established: user=%s, addr=%s", sshConn.User(), sshConn.RemoteAddr())
 
 	// Discard all global out-of-band requests
 	go ssh.DiscardRequests(reqs)
 
 	// Handle channels
 	for newChannel := range chans {
-		if newChannel.ChannelType() != "session" {
+		channelType := newChannel.ChannelType()
+		if channelType != "session" {
+			log.Debug("Rejecting unknown channel type %s from %s", channelType, sshConn.User())
 			newChannel.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
 		}
 
 		channel, requests, err := newChannel.Accept()
 		if err != nil {
-			log.Printf("Could not accept channel: %v", err)
+			log.Error("Could not accept channel from %s: %v", sshConn.User(), err)
 			continue
 		}
 
+		log.Debug("Accepted session channel for %s", sshConn.User())
 		// Handle this session
 		go s.handleSession(sshConn.User(), sshConn.Permissions, channel, requests)
 	}
+
+	log.Debug("SSH connection closed for %s", sshConn.User())
 }
 
 // handleSession handles a single SSH session
@@ -208,6 +236,7 @@ func (s *Server) handleSession(username string, perms *ssh.Permissions, channel 
 
 // startGameSession starts a game session for a player
 func (s *Server) startGameSession(username string, perms *ssh.Permissions, channel ssh.Channel) {
+	log.Debug("startGameSession called for user=%s", username)
 	ctx := context.Background()
 
 	// Get player ID from permissions
@@ -217,28 +246,34 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 			var err error
 			playerID, err = uuid.Parse(playerIDStr)
 			if err != nil {
-				log.Printf("Invalid player ID in permissions: %v", err)
+				log.Error("Invalid player ID in permissions for %s: %v", username, err)
 				channel.Write([]byte("Error: Invalid session. Please reconnect.\r\n"))
 				return
 			}
+			log.Debug("Player ID from permissions: %s", playerID)
 		}
 	}
 
 	// If no player ID, this might be a new user registration flow
 	if playerID == uuid.Nil {
+		log.Debug("No player ID in permissions, checking if player exists: %s", username)
 		// Check if player exists
 		player, err := s.playerRepo.GetByUsername(ctx, username)
 		if err == database.ErrPlayerNotFound && s.config.AllowRegistration {
+			log.Info("Starting registration flow for new user: %s", username)
 			// Start registration flow
 			s.startRegistrationSession(username, channel)
 			return
 		} else if err != nil {
-			log.Printf("Error checking for player %s: %v", username, err)
+			log.Error("Error checking for player %s: %v", username, err)
 			channel.Write([]byte("Error: Authentication failed. Please reconnect.\r\n"))
 			return
 		}
 		playerID = player.ID
+		log.Debug("Found existing player ID: %s", playerID)
 	}
+
+	log.Info("Starting game session for user=%s, playerID=%s", username, playerID)
 
 	// Initialize TUI model
 	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo)
@@ -252,13 +287,15 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 
 	// Run the program
 	if _, err := p.Run(); err != nil {
-		log.Printf("Error running TUI for %s: %v", username, err)
+		log.Error("Error running TUI for %s: %v", username, err)
 	}
 
-	log.Printf("Game session ended for %s", username)
+	log.Info("Game session ended for user=%s, playerID=%s", username, playerID)
 
 	// Mark player as offline
-	s.playerRepo.SetOnlineStatus(ctx, playerID, false)
+	if err := s.playerRepo.SetOnlineStatus(ctx, playerID, false); err != nil {
+		log.Warn("Failed to set offline status for %s: %v", username, err)
+	}
 }
 
 // startRegistrationSession starts a registration session for a new player
@@ -275,10 +312,10 @@ func (s *Server) startRegistrationSession(username string, channel ssh.Channel) 
 
 	// Run the program
 	if _, err := p.Run(); err != nil {
-		log.Printf("Error running registration TUI for %s: %v", username, err)
+		log.Info("Error running registration TUI for %s: %v", username, err)
 	}
 
-	log.Printf("Registration session ended for %s", username)
+	log.Info("Registration session ended for %s", username)
 }
 
 // initSSHConfig initializes SSH server configuration
@@ -312,7 +349,7 @@ func (s *Server) initSSHConfig() error {
 	}
 
 	s.sshConfig.AddHostKey(privateKey)
-	log.Printf("SSH authentication methods: password=%v publickey=%v",
+	log.Info("SSH authentication methods: password=%v publickey=%v",
 		s.config.AllowPasswordAuth, s.config.AllowPublicKeyAuth)
 	return nil
 }
@@ -320,7 +357,7 @@ func (s *Server) initSSHConfig() error {
 // handlePasswordAuth handles password-based authentication
 func (s *Server) handlePasswordAuth(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 	username := conn.User()
-	log.Printf("Password login attempt: %s from %s", username, conn.RemoteAddr())
+	log.Info("Password login attempt: %s from %s", username, conn.RemoteAddr())
 
 	ctx := context.Background()
 
@@ -335,20 +372,20 @@ func (s *Server) handlePasswordAuth(conn ssh.ConnMetadata, password []byte) (*ss
 				if s.config.AllowRegistration {
 					return s.handleNewUserRegistration(ctx, conn, string(password))
 				}
-				log.Printf("Failed login - user not found: %s", username)
+				log.Info("Failed login - user not found: %s", username)
 				return nil, fmt.Errorf("invalid username or password")
 			}
 
 			// User exists but SSH-key-only
 			if existingPlayer != nil && existingPlayer.PasswordHash == "" {
-				log.Printf("Failed login - SSH key required for: %s", username)
+				log.Info("Failed login - SSH key required for: %s", username)
 				return nil, fmt.Errorf("this account requires SSH key authentication")
 			}
 
-			log.Printf("Failed login - invalid password: %s", username)
+			log.Info("Failed login - invalid password: %s", username)
 			return nil, fmt.Errorf("invalid username or password")
 		}
-		log.Printf("Authentication error for %s: %v", username, err)
+		log.Info("Authentication error for %s: %v", username, err)
 		return nil, fmt.Errorf("authentication error")
 	}
 
@@ -359,7 +396,7 @@ func (s *Server) handlePasswordAuth(conn ssh.ConnMetadata, password []byte) (*ss
 // handlePublicKeyAuth handles SSH public key authentication
 func (s *Server) handlePublicKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	username := conn.User()
-	log.Printf("Public key login attempt: %s from %s", username, conn.RemoteAddr())
+	log.Info("Public key login attempt: %s from %s", username, conn.RemoteAddr())
 
 	ctx := context.Background()
 
@@ -377,28 +414,28 @@ func (s *Server) handlePublicKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (
 				if s.config.AllowRegistration {
 					return s.handleNewUserSSHRegistration(ctx, conn, keyData)
 				}
-				log.Printf("Failed SSH key login - user not found: %s", username)
+				log.Info("Failed SSH key login - user not found: %s", username)
 				return nil, fmt.Errorf("public key not authorized")
 			}
 
 			// User exists but key not registered
-			log.Printf("Failed SSH key login - key not registered for: %s (ID: %s)", username, player.ID)
+			log.Info("Failed SSH key login - key not registered for: %s (ID: %s)", username, player.ID)
 			return nil, fmt.Errorf("public key not authorized for this user")
 		}
-		log.Printf("SSH key authentication error for %s: %v", username, err)
+		log.Info("SSH key authentication error for %s: %v", username, err)
 		return nil, fmt.Errorf("authentication error")
 	}
 
 	// Get player by ID
 	player, err := s.playerRepo.GetByID(ctx, playerID)
 	if err != nil {
-		log.Printf("Failed to get player %s: %v", playerID, err)
+		log.Info("Failed to get player %s: %v", playerID, err)
 		return nil, fmt.Errorf("authentication error")
 	}
 
 	// Verify username matches
 	if player.Username != username {
-		log.Printf("SSH key login - username mismatch: %s vs %s", username, player.Username)
+		log.Info("SSH key login - username mismatch: %s vs %s", username, player.Username)
 		return nil, fmt.Errorf("username does not match public key")
 	}
 
@@ -423,7 +460,7 @@ func (s *Server) onSuccessfulAuth(ctx context.Context, player *models.Player) (*
 		s.playerRepo.SetOnlineStatus(ctx, player.ID, true)
 	}()
 
-	log.Printf("Successful login: %s (ID: %s)", player.Username, player.ID)
+	log.Info("Successful login: %s (ID: %s)", player.Username, player.ID)
 
 	// Return permissions with player ID
 	return &ssh.Permissions{
@@ -447,7 +484,7 @@ func (s *Server) handleNewUserRegistration(ctx context.Context, conn ssh.ConnMet
 	// 5. Authenticate the user
 
 	// This requires interactive SSH session handling which we'll implement later
-	log.Printf("New user registration requested: %s (not yet implemented)", username)
+	log.Info("New user registration requested: %s (not yet implemented)", username)
 	return nil, fmt.Errorf("account not found. Contact administrator to create an account")
 }
 
@@ -456,7 +493,7 @@ func (s *Server) handleNewUserSSHRegistration(ctx context.Context, conn ssh.Conn
 	username := conn.User()
 
 	// Similar to password registration, this needs interactive handling
-	log.Printf("New user SSH key registration requested: %s (not yet implemented)", username)
+	log.Info("New user SSH key registration requested: %s (not yet implemented)", username)
 	return nil, fmt.Errorf("account not found. Contact administrator to create an account")
 }
 
@@ -474,13 +511,13 @@ func (s *Server) shutdown() error {
 	// Close database connection
 	if s.db != nil {
 		if err := s.db.Close(); err != nil {
-			log.Printf("Error closing database: %v", err)
+			log.Info("Error closing database: %v", err)
 		} else {
-			log.Println("Database connection closed")
+			log.Info("Database connection closed")
 		}
 	}
 
-	log.Println("Server shutdown complete")
+	log.Info("Server shutdown complete")
 	return nil
 }
 
