@@ -304,12 +304,12 @@ var StandardCommodities = []Commodity{
 		IllegalIn:   []string{"pacifist_union"},
 	},
 
-	// Contraband
+	// Contraband (High Risk, High Reward - 20-25% price increase)
 	{
 		ID:          "narcotics",
 		Name:        "Narcotics",
 		Description: "Illegal drugs and stimulants",
-		BasePrice:   800,
+		BasePrice:   1000,
 		Category:    CategoryContraband,
 		TechLevel:   4,
 		IllegalIn:   []string{"federation", "republic", "corporate"},
@@ -318,7 +318,7 @@ var StandardCommodities = []Commodity{
 		ID:          "slaves",
 		Name:        "Slaves",
 		Description: "Indentured laborers (highly illegal)",
-		BasePrice:   1500,
+		BasePrice:   2000,
 		Category:    CategoryContraband,
 		TechLevel:   1,
 		IllegalIn:   []string{"federation", "republic", "pacifist_union", "independent"},
@@ -327,7 +327,7 @@ var StandardCommodities = []Commodity{
 		ID:          "stolen_goods",
 		Name:        "Stolen Goods",
 		Description: "Hot merchandise from piracy",
-		BasePrice:   600,
+		BasePrice:   800,
 		Category:    CategoryContraband,
 		TechLevel:   1,
 		IllegalIn:   []string{"federation", "republic", "corporate"},
@@ -336,7 +336,7 @@ var StandardCommodities = []Commodity{
 		ID:          "alien_artifacts",
 		Name:        "Alien Artifacts",
 		Description: "Mysterious items of unknown origin",
-		BasePrice:   3000,
+		BasePrice:   3750,
 		Category:    CategoryContraband,
 		TechLevel:   1,
 		IllegalIn:   []string{"federation"},
@@ -345,7 +345,7 @@ var StandardCommodities = []Commodity{
 		ID:          "military_intel",
 		Name:        "Military Intelligence",
 		Description: "Classified military data (extremely illegal)",
-		BasePrice:   5000,
+		BasePrice:   7500,
 		Category:    CategoryContraband,
 		TechLevel:   7,
 		IllegalIn:   []string{"federation", "republic", "corporate", "independent"},
@@ -379,9 +379,9 @@ func GetPriceModifier(commodityTechLevel, planetTechLevel int, isBuying bool) fl
 		// Low tech planets pay more for high tech goods
 		return 1.0 + (float64(-diff) * 0.15)
 	}
-	// High tech planets sell high tech goods cheaper
+	// High tech planets sell high tech goods cheaper (improved from 0.05 to 0.07)
 	if diff >= 0 {
-		return 1.0 - (float64(diff) * 0.05)
+		return 1.0 - (float64(diff) * 0.07)
 	}
 	// Low tech planets sell high tech goods at premium
 	return 1.0 + (float64(-diff) * 0.2)
