@@ -5,7 +5,7 @@
 *.so
 *.dylib
 terminal-velocity
-server
+/server
 
 # Test binary
 *.test
