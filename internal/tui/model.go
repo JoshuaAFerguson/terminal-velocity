@@ -6,6 +6,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/achievements"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
@@ -119,6 +120,9 @@ type Model struct {
 	// PvP system
 	pvpManager *pvp.Manager
 
+	// Encounter system
+	encounterManager *encounters.Manager
+
 	// Error message
 	err error
 }
@@ -172,6 +176,7 @@ func NewModel(
 		pvpModel:            newPvPModel(),
 		pvpManager:          pvp.NewManager(),
 		helpModel:           newHelpModel(),
+		encounterManager:    encounters.NewManager(),
 	}
 }
 
