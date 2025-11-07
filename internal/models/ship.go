@@ -67,14 +67,21 @@ type CargoItem struct {
 
 // Weapon represents an installed weapon
 type Weapon struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Damage      int    `json:"damage"`
-	Range       string `json:"range"` // short, medium, long
-	Type        string `json:"type"`  // laser, missile, beam, etc.
-	Accuracy    int    `json:"accuracy"`
-	OutfitSpace int    `json:"outfit_space"`
-	Price       int64  `json:"price"`
+	ID                string  `json:"id"`
+	Name              string  `json:"name"`
+	Damage            int     `json:"damage"`
+	Range             string  `json:"range"`       // short, medium, long
+	RangeValue        int     `json:"range_value"` // actual range in units
+	Type              string  `json:"type"`        // laser, missile, plasma, railgun
+	Accuracy          int     `json:"accuracy"`
+	OutfitSpace       int     `json:"outfit_space"`
+	Price             int64   `json:"price"`
+	Cooldown          float64 `json:"cooldown"`           // seconds between shots
+	EnergyCost        int     `json:"energy_cost"`        // energy per shot (for energy weapons)
+	AmmoCapacity      int     `json:"ammo_capacity"`      // max ammo (for missile weapons)
+	AmmoConsumption   int     `json:"ammo_consumption"`   // ammo used per shot
+	ProjectileSpeed   int     `json:"projectile_speed"`   // units per second
+	ShieldPenetration float64 `json:"shield_penetration"` // 0.0-1.0, percentage that bypasses shields
 }
 
 // Outfit represents ship equipment/upgrades

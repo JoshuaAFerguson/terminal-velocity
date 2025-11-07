@@ -2,102 +2,149 @@ package models
 
 // Standard weapons available in the game
 var StandardWeapons = []Weapon{
-	// Laser Weapons
+	// Laser Weapons (fast firing, energy-based, no ammo)
 	{
-		ID:          "pulse_laser",
-		Name:        "Pulse Laser",
-		Damage:      15,
-		Range:       "medium",
-		Type:        "laser",
-		Accuracy:    85,
-		OutfitSpace: 5,
-		Price:       5000,
+		ID:                "pulse_laser",
+		Name:              "Pulse Laser",
+		Damage:            15,
+		Range:             "medium",
+		RangeValue:        500,
+		Type:              "laser",
+		Accuracy:          85,
+		OutfitSpace:       5,
+		Price:             5000,
+		Cooldown:          0.5,  // 2 shots per second
+		EnergyCost:        10,   // moderate energy consumption
+		ProjectileSpeed:   1000, // very fast
+		ShieldPenetration: 0.0,  // no shield penetration
 	},
 	{
-		ID:          "beam_laser",
-		Name:        "Beam Laser",
-		Damage:      25,
-		Range:       "medium",
-		Type:        "laser",
-		Accuracy:    80,
-		OutfitSpace: 8,
-		Price:       12000,
+		ID:                "beam_laser",
+		Name:              "Beam Laser",
+		Damage:            25,
+		Range:             "medium",
+		RangeValue:        600,
+		Type:              "laser",
+		Accuracy:          80,
+		OutfitSpace:       8,
+		Price:             12000,
+		Cooldown:          1.0,  // 1 shot per second
+		EnergyCost:        20,   // high energy consumption
+		ProjectileSpeed:   1200, // very fast
+		ShieldPenetration: 0.1,  // slight shield penetration
 	},
 	{
-		ID:          "heavy_laser",
-		Name:        "Heavy Laser",
-		Damage:      40,
-		Range:       "long",
-		Type:        "laser",
-		Accuracy:    75,
-		OutfitSpace: 12,
-		Price:       25000,
-	},
-
-	// Missile Weapons
-	{
-		ID:          "missile_launcher",
-		Name:        "Missile Launcher",
-		Damage:      50,
-		Range:       "long",
-		Type:        "missile",
-		Accuracy:    70,
-		OutfitSpace: 10,
-		Price:       15000,
-	},
-	{
-		ID:          "torpedo_launcher",
-		Name:        "Torpedo Launcher",
-		Damage:      80,
-		Range:       "long",
-		Type:        "missile",
-		Accuracy:    65,
-		OutfitSpace: 15,
-		Price:       35000,
+		ID:                "heavy_laser",
+		Name:              "Heavy Laser",
+		Damage:            40,
+		Range:             "long",
+		RangeValue:        800,
+		Type:              "laser",
+		Accuracy:          75,
+		OutfitSpace:       12,
+		Price:             25000,
+		Cooldown:          1.5, // slower firing
+		EnergyCost:        35,  // very high energy consumption
+		ProjectileSpeed:   1000,
+		ShieldPenetration: 0.15, // modest shield penetration
 	},
 
-	// Plasma Weapons
+	// Missile Weapons (high damage, ammo-based, slower)
 	{
-		ID:          "plasma_cannon",
-		Name:        "Plasma Cannon",
-		Damage:      35,
-		Range:       "medium",
-		Type:        "plasma",
-		Accuracy:    75,
-		OutfitSpace: 10,
-		Price:       20000,
+		ID:                "missile_launcher",
+		Name:              "Missile Launcher",
+		Damage:            50,
+		Range:             "long",
+		RangeValue:        1000,
+		Type:              "missile",
+		Accuracy:          70,
+		OutfitSpace:       10,
+		Price:             15000,
+		Cooldown:          2.0, // slow reload
+		AmmoCapacity:      20,  // 20 missiles
+		AmmoConsumption:   1,   // 1 missile per shot
+		ProjectileSpeed:   400, // slower projectile
+		ShieldPenetration: 0.2, // good shield penetration
 	},
 	{
-		ID:          "plasma_turret",
-		Name:        "Plasma Turret",
-		Damage:      30,
-		Range:       "short",
-		Type:        "plasma",
-		Accuracy:    90,
-		OutfitSpace: 12,
-		Price:       18000,
+		ID:                "torpedo_launcher",
+		Name:              "Torpedo Launcher",
+		Damage:            80,
+		Range:             "long",
+		RangeValue:        1200,
+		Type:              "missile",
+		Accuracy:          65,
+		OutfitSpace:       15,
+		Price:             35000,
+		Cooldown:          3.0, // very slow reload
+		AmmoCapacity:      10,  // 10 torpedoes
+		AmmoConsumption:   1,   // 1 torpedo per shot
+		ProjectileSpeed:   300, // slow projectile
+		ShieldPenetration: 0.4, // excellent shield penetration
 	},
 
-	// Railgun Weapons
+	// Plasma Weapons (balanced, moderate energy use)
 	{
-		ID:          "railgun",
-		Name:        "Railgun",
-		Damage:      60,
-		Range:       "long",
-		Type:        "railgun",
-		Accuracy:    70,
-		OutfitSpace: 14,
-		Price:       40000,
+		ID:                "plasma_cannon",
+		Name:              "Plasma Cannon",
+		Damage:            35,
+		Range:             "medium",
+		RangeValue:        550,
+		Type:              "plasma",
+		Accuracy:          75,
+		OutfitSpace:       10,
+		Price:             20000,
+		Cooldown:          1.2,  // moderate firing rate
+		EnergyCost:        25,   // moderate energy consumption
+		ProjectileSpeed:   600,  // moderate speed
+		ShieldPenetration: 0.25, // good shield penetration
 	},
 	{
-		ID:          "heavy_railgun",
-		Name:        "Heavy Railgun",
-		Damage:      100,
-		Range:       "long",
-		Type:        "railgun",
-		Accuracy:    65,
-		OutfitSpace: 20,
-		Price:       75000,
+		ID:                "plasma_turret",
+		Name:              "Plasma Turret",
+		Damage:            30,
+		Range:             "short",
+		RangeValue:        350,
+		Type:              "plasma",
+		Accuracy:          90,
+		OutfitSpace:       12,
+		Price:             18000,
+		Cooldown:          0.8, // faster firing
+		EnergyCost:        18,  // lower energy consumption
+		ProjectileSpeed:   700,
+		ShieldPenetration: 0.2, // good shield penetration
+	},
+
+	// Railgun Weapons (very high damage, kinetic, bypasses some shields)
+	{
+		ID:                "railgun",
+		Name:              "Railgun",
+		Damage:            60,
+		Range:             "long",
+		RangeValue:        900,
+		Type:              "railgun",
+		Accuracy:          70,
+		OutfitSpace:       14,
+		Price:             40000,
+		Cooldown:          2.5,  // slow firing
+		EnergyCost:        40,   // high energy consumption
+		ProjectileSpeed:   1500, // extremely fast
+		ShieldPenetration: 0.35, // excellent shield penetration
+	},
+	{
+		ID:                "heavy_railgun",
+		Name:              "Heavy Railgun",
+		Damage:            100,
+		Range:             "long",
+		RangeValue:        1000,
+		Type:              "railgun",
+		Accuracy:          65,
+		OutfitSpace:       20,
+		Price:             75000,
+		Cooldown:          4.0,  // very slow firing
+		EnergyCost:        60,   // very high energy consumption
+		ProjectileSpeed:   1800, // extremely fast
+		ShieldPenetration: 0.5,  // massive shield penetration
 	},
 }
 

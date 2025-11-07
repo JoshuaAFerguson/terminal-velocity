@@ -151,6 +151,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Hull/shield/fuel status display
   - Maintenance status indicators
   - Comprehensive ship details view
+- **Weapon Systems (Phase 4, Issue #15)**:
+  - Extended weapon model with combat mechanics
+  - Weapon type differentiation (laser, missile, plasma, railgun)
+  - Complete weapon stat definitions (damage, cooldown, energy, ammo, etc.)
+  - Damage calculation system with shield/hull damage split
+  - Range and accuracy systems with distance penalties
+  - Ammo tracking for missile weapons (capacity and consumption)
+  - Energy cost tracking for energy weapons
+  - Weapon cooldown system (time between shots)
+  - Shield penetration mechanics (railguns bypass shields)
+  - Critical hit system (10% chance for 1.5x damage)
+  - Hit chance calculation (accuracy, distance, evasion)
+  - Projectile speed differentiation
+  - DPS calculation utilities
+  - Weapon state tracking (ammo, cooldowns, last fired turn)
+  - Ammo reload functionality
 
 ### Changed
 - Module path corrected from github.com/s0v3r1gn to github.com/JoshuaAFerguson
