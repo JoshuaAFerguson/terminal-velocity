@@ -53,6 +53,7 @@ type Model struct {
 	navigation   navigationModel
 	trading      tradingModel
 	cargo        cargoModel
+	shipyard     shipyardModel
 
 	// Error message
 	err error
@@ -82,6 +83,7 @@ func NewModel(
 		mainMenu:   newMainMenuModel(),
 		trading:    newTradingModel(),
 		cargo:      newCargoModel(),
+		shipyard:   newShipyardModel(),
 	}
 }
 
@@ -157,6 +159,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTrading(msg)
 	case ScreenCargo:
 		return m.updateCargo(msg)
+	case ScreenShipyard:
+		return m.updateShipyard(msg)
 	default:
 		return m, nil
 	}
@@ -188,6 +192,8 @@ func (m Model) View() string {
 		return m.viewTrading()
 	case ScreenCargo:
 		return m.viewCargo()
+	case ScreenShipyard:
+		return m.viewShipyard()
 	default:
 		return "Unknown screen"
 	}

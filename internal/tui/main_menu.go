@@ -65,6 +65,10 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cargo = newCargoModel()
 				return m, nil
 			}
+			if selected.screen == ScreenShipyard {
+				m.shipyard = newShipyardModel()
+				return m, m.loadShipyard()
+			}
 
 			return m, nil
 		}

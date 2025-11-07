@@ -551,6 +551,31 @@ func (r *PlayerRepository) UpdateLocation(ctx context.Context, playerID uuid.UUI
 	return nil
 }
 
+// UpdateShip updates a player's current ship
+func (r *PlayerRepository) UpdateShip(ctx context.Context, playerID uuid.UUID, shipID uuid.UUID) error {
+	query := `
+		UPDATE players
+		SET ship_id = $1
+		WHERE id = $2
+	`
+
+	result, err := r.db.ExecContext(ctx, query, shipID, playerID)
+	if err != nil {
+		return fmt.Errorf("failed to update ship: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrPlayerNotFound
+	}
+
+	return nil
+}
+
 // isDuplicateKeyError checks if an error is a duplicate key violation
 func isDuplicateKeyError(err error) bool {
 	if err == nil {
