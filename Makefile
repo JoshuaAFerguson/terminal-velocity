@@ -24,6 +24,7 @@ build: ## Build the server binary
 
 build-tools: ## Build utility tools
 	$(GO) build $(GOFLAGS) -o genmap cmd/genmap/main.go
+	$(GO) build $(GOFLAGS) -o accounts cmd/accounts/main.go
 
 genmap: build-tools ## Generate and preview a universe
 	./genmap -systems 100 -stats

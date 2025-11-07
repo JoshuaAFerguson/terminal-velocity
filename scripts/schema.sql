@@ -13,7 +13,10 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS players (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username VARCHAR(32) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),  -- Nullable: users can auth with SSH keys only
+    email VARCHAR(255),
+    email_verified BOOLEAN DEFAULT FALSE,
+    email_verification_token VARCHAR(64),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -34,6 +37,21 @@ CREATE TABLE IF NOT EXISTS players (
 
     -- Metadata
     CONSTRAINT credits_non_negative CHECK (credits >= 0)
+);
+
+-- SSH public keys for authentication
+CREATE TABLE IF NOT EXISTS player_ssh_keys (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    key_type VARCHAR(20) NOT NULL,  -- rsa, ed25519, ecdsa, etc.
+    public_key TEXT NOT NULL,        -- The actual public key
+    fingerprint VARCHAR(64) NOT NULL UNIQUE,  -- SHA256 fingerprint
+    comment VARCHAR(255),            -- Optional comment from key
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_used TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+
+    CONSTRAINT unique_player_key UNIQUE (player_id, fingerprint)
 );
 
 -- Player reputation with NPC factions
@@ -254,7 +272,11 @@ CREATE TABLE IF NOT EXISTS events (
 
 -- Indexes for performance
 CREATE INDEX idx_players_username ON players(username);
+CREATE INDEX idx_players_email ON players(email) WHERE email IS NOT NULL;
 CREATE INDEX idx_players_online ON players(is_online);
+CREATE INDEX idx_ssh_keys_player ON player_ssh_keys(player_id);
+CREATE INDEX idx_ssh_keys_fingerprint ON player_ssh_keys(fingerprint);
+CREATE INDEX idx_ssh_keys_active ON player_ssh_keys(player_id, is_active);
 CREATE INDEX idx_systems_position ON star_systems(pos_x, pos_y);
 CREATE INDEX idx_planets_system ON planets(system_id);
 CREATE INDEX idx_ships_owner ON ships(owner_id);
@@ -276,6 +298,7 @@ ADD COLUMN faction_rank VARCHAR(20);
 
 -- Comments
 COMMENT ON TABLE players IS 'Player accounts and game state';
+COMMENT ON TABLE player_ssh_keys IS 'SSH public keys for player authentication';
 COMMENT ON TABLE star_systems IS 'Star systems in the universe';
 COMMENT ON TABLE planets IS 'Planets and stations';
 COMMENT ON TABLE ships IS 'Player and NPC ships';

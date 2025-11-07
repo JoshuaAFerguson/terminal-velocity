@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/s0v3r1gn/terminal-velocity/internal/database"
+	"github.com/s0v3r1gn/terminal-velocity/internal/models"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -20,6 +21,7 @@ type Server struct {
 	db         *database.DB
 	playerRepo *database.PlayerRepository
 	systemRepo *database.SystemRepository
+	sshKeyRepo *database.SSHKeyRepository
 }
 
 // Config holds server configuration
@@ -31,6 +33,13 @@ type Config struct {
 	MaxPlayers     int
 	TickRate       int // Game loop ticks per second
 	Database       *database.Config
+
+	// Authentication settings
+	AllowPasswordAuth     bool // Allow password authentication
+	AllowPublicKeyAuth    bool // Allow SSH public key authentication
+	AllowRegistration     bool // Allow new user registration
+	RequireEmail          bool // Require email for new accounts
+	RequireEmailVerify    bool // Require email verification (future)
 }
 
 // NewServer creates a new game server
@@ -42,6 +51,13 @@ func NewServer(configFile string, port int) (*Server, error) {
 		MaxPlayers: 100,
 		TickRate:   10,
 		Database:   database.DefaultConfig(),
+
+		// Default authentication settings
+		AllowPasswordAuth:  true,  // Allow password auth
+		AllowPublicKeyAuth: true,  // Allow SSH key auth
+		AllowRegistration:  true,  // Allow new user registration
+		RequireEmail:       true,  // Require email for new accounts
+		RequireEmailVerify: false, // Email verification not yet implemented
 	}
 
 	srv := &Server{
@@ -75,6 +91,7 @@ func (s *Server) initDatabase() error {
 	// Initialize repositories
 	s.playerRepo = database.NewPlayerRepository(s.db)
 	s.systemRepo = database.NewSystemRepository(s.db)
+	s.sshKeyRepo = database.NewSSHKeyRepository(s.db)
 
 	log.Println("Database connected successfully")
 	return nil
@@ -195,41 +212,25 @@ func (s *Server) startGameSession(username string, channel ssh.Channel) {
 
 // initSSHConfig initializes SSH server configuration
 func (s *Server) initSSHConfig() error {
-	s.sshConfig = &ssh.ServerConfig{
-		// Authenticate users against the database
-		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
-			username := conn.User()
-			log.Printf("Login attempt: %s from %s", username, conn.RemoteAddr())
+	s.sshConfig = &ssh.ServerConfig{}
 
-			// Authenticate against database
-			ctx := context.Background()
-			player, err := s.playerRepo.Authenticate(ctx, username, string(password))
-			if err != nil {
-				if err == database.ErrInvalidCredentials {
-					log.Printf("Failed login attempt: %s", username)
-					return nil, fmt.Errorf("invalid credentials")
-				}
-				log.Printf("Authentication error for %s: %v", username, err)
-				return nil, fmt.Errorf("authentication error")
-			}
+	// Password authentication callback
+	if s.config.AllowPasswordAuth {
+		s.sshConfig.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			return s.handlePasswordAuth(conn, password)
+		}
+	}
 
-			// Update last login and set online status
-			go func() {
-				ctx := context.Background()
-				s.playerRepo.UpdateLastLogin(ctx, player.ID)
-				s.playerRepo.SetOnlineStatus(ctx, player.ID, true)
-			}()
+	// Public key authentication callback
+	if s.config.AllowPublicKeyAuth {
+		s.sshConfig.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			return s.handlePublicKeyAuth(conn, key)
+		}
+	}
 
-			log.Printf("Successful login: %s (ID: %s)", username, player.ID)
-
-			// Return permissions with player ID
-			return &ssh.Permissions{
-				Extensions: map[string]string{
-					"player_id": player.ID.String(),
-					"username":  username,
-				},
-			}, nil
-		},
+	// If no auth methods enabled, return error
+	if !s.config.AllowPasswordAuth && !s.config.AllowPublicKeyAuth {
+		return fmt.Errorf("no authentication methods enabled")
 	}
 
 	// Generate a temporary host key (TODO: load from file)
@@ -240,7 +241,152 @@ func (s *Server) initSSHConfig() error {
 	}
 
 	s.sshConfig.AddHostKey(privateKey)
+	log.Printf("SSH authentication methods: password=%v publickey=%v",
+		s.config.AllowPasswordAuth, s.config.AllowPublicKeyAuth)
 	return nil
+}
+
+// handlePasswordAuth handles password-based authentication
+func (s *Server) handlePasswordAuth(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+	username := conn.User()
+	log.Printf("Password login attempt: %s from %s", username, conn.RemoteAddr())
+
+	ctx := context.Background()
+
+	// Try to authenticate
+	player, err := s.playerRepo.Authenticate(ctx, username, string(password))
+	if err != nil {
+		if err == database.ErrInvalidCredentials {
+			// Check if user exists
+			existingPlayer, checkErr := s.playerRepo.GetByUsername(ctx, username)
+			if checkErr == database.ErrPlayerNotFound {
+				// User doesn't exist - offer registration if enabled
+				if s.config.AllowRegistration {
+					return s.handleNewUserRegistration(ctx, conn, string(password))
+				}
+				log.Printf("Failed login - user not found: %s", username)
+				return nil, fmt.Errorf("invalid username or password")
+			}
+
+			// User exists but SSH-key-only
+			if existingPlayer != nil && existingPlayer.PasswordHash == "" {
+				log.Printf("Failed login - SSH key required for: %s", username)
+				return nil, fmt.Errorf("this account requires SSH key authentication")
+			}
+
+			log.Printf("Failed login - invalid password: %s", username)
+			return nil, fmt.Errorf("invalid username or password")
+		}
+		log.Printf("Authentication error for %s: %v", username, err)
+		return nil, fmt.Errorf("authentication error")
+	}
+
+	// Successful authentication
+	return s.onSuccessfulAuth(ctx, player)
+}
+
+// handlePublicKeyAuth handles SSH public key authentication
+func (s *Server) handlePublicKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	username := conn.User()
+	log.Printf("Public key login attempt: %s from %s", username, conn.RemoteAddr())
+
+	ctx := context.Background()
+
+	// Get the public key in authorized_keys format
+	keyData := ssh.MarshalAuthorizedKey(key)
+
+	// Try to find the player by public key
+	playerID, err := s.sshKeyRepo.GetPlayerIDByPublicKey(ctx, keyData)
+	if err != nil {
+		if err == database.ErrSSHKeyNotFound {
+			// Key not found - check if user exists
+			player, checkErr := s.playerRepo.GetByUsername(ctx, username)
+			if checkErr == database.ErrPlayerNotFound {
+				// New user with SSH key - offer registration if enabled
+				if s.config.AllowRegistration {
+					return s.handleNewUserSSHRegistration(ctx, conn, keyData)
+				}
+				log.Printf("Failed SSH key login - user not found: %s", username)
+				return nil, fmt.Errorf("public key not authorized")
+			}
+
+			// User exists but key not registered
+			log.Printf("Failed SSH key login - key not registered for: %s (ID: %s)", username, player.ID)
+			return nil, fmt.Errorf("public key not authorized for this user")
+		}
+		log.Printf("SSH key authentication error for %s: %v", username, err)
+		return nil, fmt.Errorf("authentication error")
+	}
+
+	// Get player by ID
+	player, err := s.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		log.Printf("Failed to get player %s: %v", playerID, err)
+		return nil, fmt.Errorf("authentication error")
+	}
+
+	// Verify username matches
+	if player.Username != username {
+		log.Printf("SSH key login - username mismatch: %s vs %s", username, player.Username)
+		return nil, fmt.Errorf("username does not match public key")
+	}
+
+	// Update last used timestamp for the key
+	go func() {
+		fingerprint := ssh.FingerprintSHA256(key)
+		if sshKey, err := s.sshKeyRepo.GetKeyByFingerprint(context.Background(), fingerprint); err == nil {
+			s.sshKeyRepo.UpdateLastUsed(context.Background(), sshKey.ID)
+		}
+	}()
+
+	// Successful authentication
+	return s.onSuccessfulAuth(ctx, player)
+}
+
+// onSuccessfulAuth handles post-authentication tasks
+func (s *Server) onSuccessfulAuth(ctx context.Context, player *models.Player) (*ssh.Permissions, error) {
+	// Update last login and set online status
+	go func() {
+		ctx := context.Background()
+		s.playerRepo.UpdateLastLogin(ctx, player.ID)
+		s.playerRepo.SetOnlineStatus(ctx, player.ID, true)
+	}()
+
+	log.Printf("Successful login: %s (ID: %s)", player.Username, player.ID)
+
+	// Return permissions with player ID
+	return &ssh.Permissions{
+		Extensions: map[string]string{
+			"player_id": player.ID.String(),
+			"username":  player.Username,
+		},
+	}, nil
+}
+
+// handleNewUserRegistration handles registration for a new user with password
+func (s *Server) handleNewUserRegistration(ctx context.Context, conn ssh.ConnMetadata, password string) (*ssh.Permissions, error) {
+	username := conn.User()
+
+	// For now, we'll just reject and log
+	// In a full implementation, this would:
+	// 1. Send a prompt to the user asking for email
+	// 2. Wait for email input
+	// 3. Validate email
+	// 4. Create the account
+	// 5. Authenticate the user
+
+	// This requires interactive SSH session handling which we'll implement later
+	log.Printf("New user registration requested: %s (not yet implemented)", username)
+	return nil, fmt.Errorf("account not found. Contact administrator to create an account")
+}
+
+// handleNewUserSSHRegistration handles registration for a new user with SSH key
+func (s *Server) handleNewUserSSHRegistration(ctx context.Context, conn ssh.ConnMetadata, keyData []byte) (*ssh.Permissions, error) {
+	username := conn.User()
+
+	// Similar to password registration, this needs interactive handling
+	log.Printf("New user SSH key registration requested: %s (not yet implemented)", username)
+	return nil, fmt.Errorf("account not found. Contact administrator to create an account")
 }
 
 // shutdown gracefully shuts down the server

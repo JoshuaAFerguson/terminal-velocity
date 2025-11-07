@@ -6,6 +6,8 @@
 *.dylib
 terminal-velocity
 /server
+/genmap
+/accounts
 
 # Test binary
 *.test

@@ -10,6 +10,8 @@ import (
 type Player struct {
 	ID             uuid.UUID          `json:"id"`
 	Username       string             `json:"username"`
+	Email          string             `json:"email,omitempty"`
+	EmailVerified  bool               `json:"email_verified"`
 	PasswordHash   string             `json:"-"` // Never serialize password
 	CreatedAt      time.Time          `json:"created_at"`
 	LastLogin      time.Time          `json:"last_login"`
@@ -35,6 +37,19 @@ type Player struct {
 	// Status
 	IsOnline       bool               `json:"is_online"`
 	IsCriminal     bool               `json:"is_criminal"`
+}
+
+// SSHKey represents an SSH public key for player authentication
+type SSHKey struct {
+	ID          uuid.UUID  `json:"id"`
+	PlayerID    uuid.UUID  `json:"player_id"`
+	KeyType     string     `json:"key_type"`     // rsa, ed25519, ecdsa
+	PublicKey   string     `json:"public_key"`   // The actual public key
+	Fingerprint string     `json:"fingerprint"`  // SHA256 fingerprint
+	Comment     string     `json:"comment,omitempty"`
+	AddedAt     time.Time  `json:"added_at"`
+	LastUsed    *time.Time `json:"last_used,omitempty"`
+	IsActive    bool       `json:"is_active"`
 }
 
 // NewPlayer creates a new player with default starting values

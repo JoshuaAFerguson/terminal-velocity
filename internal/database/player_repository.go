@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,12 +29,22 @@ func NewPlayerRepository(db *DB) *PlayerRepository {
 	return &PlayerRepository{db: db}
 }
 
-// Create creates a new player account
+// Create creates a new player account with password
 func (r *PlayerRepository) Create(ctx context.Context, username, password string) (*models.Player, error) {
-	// Hash the password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
+	return r.CreateWithEmail(ctx, username, password, "")
+}
+
+// CreateWithEmail creates a new player account with optional email
+func (r *PlayerRepository) CreateWithEmail(ctx context.Context, username, password, email string) (*models.Player, error) {
+	// Hash the password if provided
+	var hashedPassword *string
+	if password != "" {
+		hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash password: %w", err)
+		}
+		hashedStr := string(hashed)
+		hashedPassword = &hashedStr
 	}
 
 	// Generate a new UUID
@@ -41,17 +52,19 @@ func (r *PlayerRepository) Create(ctx context.Context, username, password string
 
 	// Insert the player
 	query := `
-		INSERT INTO players (id, username, password_hash, created_at, last_login)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, username, credits, combat_rating, created_at
+		INSERT INTO players (id, username, password_hash, email, created_at, last_login)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, username, email, credits, combat_rating, created_at
 	`
 
 	now := time.Now()
 	var player models.Player
+	var emailVal sql.NullString
 
-	err = r.db.QueryRowContext(ctx, query, playerID, username, string(hashedPassword), now, now).Scan(
+	err := r.db.QueryRowContext(ctx, query, playerID, username, hashedPassword, email, now, now).Scan(
 		&player.ID,
 		&player.Username,
+		&emailVal,
 		&player.Credits,
 		&player.CombatRating,
 		&player.CreatedAt,
@@ -64,21 +77,30 @@ func (r *PlayerRepository) Create(ctx context.Context, username, password string
 		return nil, fmt.Errorf("failed to create player: %w", err)
 	}
 
+	if emailVal.Valid {
+		player.Email = emailVal.String
+	}
+
 	player.Reputation = make(map[string]int)
 	return &player, nil
+}
+
+// CreateWithSSHKey creates a new player account with an SSH key (no password)
+func (r *PlayerRepository) CreateWithSSHKey(ctx context.Context, username, email string) (*models.Player, error) {
+	return r.CreateWithEmail(ctx, username, "", email)
 }
 
 // Authenticate verifies a player's credentials and returns the player if valid
 func (r *PlayerRepository) Authenticate(ctx context.Context, username, password string) (*models.Player, error) {
 	query := `
-		SELECT id, username, password_hash, credits, current_system, combat_rating,
+		SELECT id, username, password_hash, email, credits, current_system, combat_rating,
 		       total_kills, is_online, is_criminal, faction_id, faction_rank, created_at
 		FROM players
 		WHERE username = $1
 	`
 
 	var player models.Player
-	var passwordHash string
+	var passwordHash, email sql.NullString
 	var currentSystem, factionID sql.NullString
 	var factionRank sql.NullString
 
@@ -86,6 +108,7 @@ func (r *PlayerRepository) Authenticate(ctx context.Context, username, password 
 		&player.ID,
 		&player.Username,
 		&passwordHash,
+		&email,
 		&player.Credits,
 		&currentSystem,
 		&player.CombatRating,
@@ -104,9 +127,20 @@ func (r *PlayerRepository) Authenticate(ctx context.Context, username, password 
 		return nil, fmt.Errorf("failed to query player: %w", err)
 	}
 
+	// Check if player has a password set
+	if !passwordHash.Valid || passwordHash.String == "" {
+		// Account is SSH-key-only
+		return nil, fmt.Errorf("account requires SSH key authentication")
+	}
+
 	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash.String), []byte(password)); err != nil {
 		return nil, ErrInvalidCredentials
+	}
+
+	// Set email if present
+	if email.Valid {
+		player.Email = email.String
 	}
 
 	// Handle nullable fields
@@ -472,7 +506,8 @@ func isDuplicateKeyError(err error) bool {
 	if err == nil {
 		return false
 	}
+	errStr := err.Error()
 	// PostgreSQL unique violation error code is 23505
-	return err.Error() == "pq: duplicate key value violates unique constraint \"players_username_key\"" ||
-		err.Error() == "ERROR: duplicate key value violates unique constraint \"players_username_key\" (SQLSTATE 23505)"
+	return strings.Contains(errStr, "duplicate key value violates unique constraint") ||
+		strings.Contains(errStr, "23505")
 }

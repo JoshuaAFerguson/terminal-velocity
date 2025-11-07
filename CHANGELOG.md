@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Enhanced Authentication System (Phase 1, Issue #2 partial)**:
+  - SSH public key authentication support
+  - Multi-method authentication (password + SSH keys simultaneously)
+  - Email field for player accounts
+  - SSH key repository with fingerprint tracking
+  - Support for multiple SSH keys per account
+  - SSH key management (add, remove, deactivate, track last used)
+  - Password-optional accounts (SSH-key-only authentication)
+  - Account management CLI tool (`accounts`)
+  - Server configuration for auth methods and registration
+  - Placeholder for interactive registration (coming soon)
 - **Database Layer (Phase 1, Issue #1)**:
   - PostgreSQL connection management with pgx driver
   - Connection pooling with configurable limits
