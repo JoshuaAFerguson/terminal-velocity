@@ -27,6 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bounty target cleanup on mission completion
   - Support for multi-target bounty missions
   - Progress messages for partial bounty completion
+- **Player Progression System (Phase 5, Issue #23)**:
+  - Combat rating calculation (0-100 scale with sqrt diminishing returns)
+  - Trading rating calculation (profit-based with volume multiplier)
+  - Exploration rating calculation (systems and jumps tracking)
+  - 8-tier combat rank system (Harmless to Elite)
+  - 8-tier trading rank system (Peddler to Tycoon)
+  - 8-tier exploration rank system (Tourist to Pathfinder)
+  - Overall rank calculation with weighted average (10 tiers)
+  - RecordTrade() helper for automatic trading stats tracking
+  - RecordKill() helper for automatic combat stats tracking
+  - RecordSystemVisit() helper for exploration tracking
+  - RecordJump() helper for jump tracking
+  - RecordMissionCompletion() and RecordMissionFailure() helpers
+  - Highest profit tracking for trading achievements
+  - GetCombatRankTitle(), GetTradingRankTitle(), GetExplorationRankTitle()
+  - GetOverallRank() for combined progression display
 
 ### Changed
 - **Mission Manager (internal/missions/manager.go)**:
@@ -36,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added bountyTargets map for kill tracking
   - Enhanced AcceptMission() to register bounty targets
   - Enhanced ApplyMissionRewards() with detailed comments
+- **Player Model (internal/models/player.go)**:
+  - Version updated to 1.1.0
+  - Added comprehensive package header documentation
+  - Added progression tracking fields (trading, exploration, missions)
+  - Enhanced NewPlayer() to initialize all progression fields
+  - Added detailed function comments with parameters and returns
 
 ## [0.4.0] - 2025-01-07
 

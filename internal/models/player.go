@@ -1,6 +1,19 @@
+// Package models defines core game data structures.
+//
+// This package provides data models for all game entities including:
+// - Player characters with progression tracking
+// - Ships, weapons, and equipment
+// - Universe structures (systems, planets, routes)
+// - Trading commodities and markets
+// - Missions and objectives
+// - Factions and reputation
+//
+// Version: 1.1.0
+// Last Updated: 2025-01-07
 package models
 
 import (
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,10 +35,25 @@ type Player struct {
 	CurrentPlanet *uuid.UUID `json:"current_planet,omitempty"` // nil if in space
 	ShipID        uuid.UUID  `json:"ship_id"`
 
-	// Progression
+	// Progression - Combat
 	CombatRating int   `json:"combat_rating"`
 	TotalKills   int   `json:"total_kills"`
 	PlayTime     int64 `json:"play_time"` // seconds
+
+	// Progression - Trading
+	TradingRating  int   `json:"trading_rating"`
+	TotalTrades    int   `json:"total_trades"`
+	TradeProfit    int64 `json:"trade_profit"` // Total profit from trading
+	HighestProfit  int64 `json:"highest_profit"` // Largest single trade profit
+
+	// Progression - Exploration
+	ExplorationRating int `json:"exploration_rating"`
+	SystemsVisited    int `json:"systems_visited"`
+	TotalJumps        int `json:"total_jumps"`
+
+	// Progression - Missions
+	MissionsCompleted int `json:"missions_completed"`
+	MissionsFailed    int `json:"missions_failed"`
 
 	// Reputation with NPC factions (-100 to +100)
 	Reputation map[string]int `json:"reputation"`
@@ -52,7 +80,15 @@ type SSHKey struct {
 	IsActive    bool       `json:"is_active"`
 }
 
-// NewPlayer creates a new player with default starting values
+// NewPlayer creates a new player with default starting values.
+// All progression statistics start at zero.
+//
+// Parameters:
+//   - username: Player's chosen username
+//   - passwordHash: Bcrypt hash of player's password
+//
+// Returns:
+//   - Pointer to new Player struct with initialized values
 func NewPlayer(username, passwordHash string) *Player {
 	now := time.Now()
 	return &Player{
@@ -62,12 +98,30 @@ func NewPlayer(username, passwordHash string) *Player {
 		CreatedAt:    now,
 		LastLogin:    now,
 		Credits:      10000, // Starting credits
+
+		// Combat progression
 		CombatRating: 0,
 		TotalKills:   0,
 		PlayTime:     0,
-		Reputation:   make(map[string]int),
-		IsOnline:     false,
-		IsCriminal:   false,
+
+		// Trading progression
+		TradingRating: 0,
+		TotalTrades:   0,
+		TradeProfit:   0,
+		HighestProfit: 0,
+
+		// Exploration progression
+		ExplorationRating: 0,
+		SystemsVisited:    0,
+		TotalJumps:        0,
+
+		// Mission progression
+		MissionsCompleted: 0,
+		MissionsFailed:    0,
+
+		Reputation: make(map[string]int),
+		IsOnline:   false,
+		IsCriminal: false,
 	}
 }
 
@@ -115,4 +169,302 @@ func (p *Player) IsInFaction() bool {
 // IsDocked checks if player is currently docked at a planet
 func (p *Player) IsDocked() bool {
 	return p.CurrentPlanet != nil
+}
+
+// ==================== Progression System ====================
+
+// CalculateCombatRating calculates the player's combat rating based on performance.
+// Rating is based on total kills with diminishing returns for higher kill counts.
+// Rating scale: 0 (Harmless) to 100 (Elite)
+//
+// Formula: rating = sqrt(kills) * 10, capped at 100
+//
+// Returns:
+//   - Combat rating from 0-100
+func (p *Player) CalculateCombatRating() int {
+	if p.TotalKills <= 0 {
+		return 0
+	}
+
+	// Square root scaling for diminishing returns
+	// 1 kill = 10 rating, 4 kills = 20 rating, 16 kills = 40 rating, 100 kills = 100 rating
+	rating := int(math.Sqrt(float64(p.TotalKills)) * 10)
+
+	// Cap at 100
+	if rating > 100 {
+		rating = 100
+	}
+
+	return rating
+}
+
+// CalculateTradingRating calculates the player's trading rating based on performance.
+// Rating is based on total profit with volume multiplier.
+// Rating scale: 0 (Peddler) to 100 (Tycoon)
+//
+// Formula: rating = (profit / 100000) * (1 + trades/100), capped at 100
+//
+// Returns:
+//   - Trading rating from 0-100
+func (p *Player) CalculateTradingRating() int {
+	if p.TradeProfit <= 0 {
+		return 0
+	}
+
+	// Base rating from profit (100K = 1 point)
+	baseRating := float64(p.TradeProfit) / 100000.0
+
+	// Volume multiplier (more trades = higher rating)
+	volumeMultiplier := 1.0 + (float64(p.TotalTrades) / 100.0)
+
+	rating := int(baseRating * volumeMultiplier)
+
+	// Cap at 100
+	if rating > 100 {
+		rating = 100
+	}
+
+	return rating
+}
+
+// CalculateExplorationRating calculates the player's exploration rating.
+// Rating is based on systems visited and jump activity.
+// Rating scale: 0 (Tourist) to 100 (Pathfinder)
+//
+// Formula: rating = (systems * 2) + (jumps / 10), capped at 100
+//
+// Returns:
+//   - Exploration rating from 0-100
+func (p *Player) CalculateExplorationRating() int {
+	// Systems visited is weighted more heavily than jump count
+	systemPoints := p.SystemsVisited * 2
+	jumpPoints := p.TotalJumps / 10
+
+	rating := systemPoints + jumpPoints
+
+	// Cap at 100
+	if rating > 100 {
+		rating = 100
+	}
+
+	return rating
+}
+
+// GetCombatRankTitle returns the player's combat rank title based on rating.
+//
+// Rank thresholds:
+//   - 0-9: Harmless
+//   - 10-19: Mostly Harmless
+//   - 20-39: Poor
+//   - 40-59: Average
+//   - 60-79: Competent
+//   - 80-89: Dangerous
+//   - 90-99: Deadly
+//   - 100: Elite
+//
+// Returns:
+//   - Combat rank title string
+func (p *Player) GetCombatRankTitle() string {
+	rating := p.CalculateCombatRating()
+
+	switch {
+	case rating >= 100:
+		return "Elite"
+	case rating >= 90:
+		return "Deadly"
+	case rating >= 80:
+		return "Dangerous"
+	case rating >= 60:
+		return "Competent"
+	case rating >= 40:
+		return "Average"
+	case rating >= 20:
+		return "Poor"
+	case rating >= 10:
+		return "Mostly Harmless"
+	default:
+		return "Harmless"
+	}
+}
+
+// GetTradingRankTitle returns the player's trading rank title based on rating.
+//
+// Rank thresholds:
+//   - 0-9: Peddler
+//   - 10-19: Trader
+//   - 20-39: Merchant
+//   - 40-59: Dealer
+//   - 60-79: Wholesaler
+//   - 80-89: Magnate
+//   - 90-99: Mogul
+//   - 100: Tycoon
+//
+// Returns:
+//   - Trading rank title string
+func (p *Player) GetTradingRankTitle() string {
+	rating := p.CalculateTradingRating()
+
+	switch {
+	case rating >= 100:
+		return "Tycoon"
+	case rating >= 90:
+		return "Mogul"
+	case rating >= 80:
+		return "Magnate"
+	case rating >= 60:
+		return "Wholesaler"
+	case rating >= 40:
+		return "Dealer"
+	case rating >= 20:
+		return "Merchant"
+	case rating >= 10:
+		return "Trader"
+	default:
+		return "Peddler"
+	}
+}
+
+// GetExplorationRankTitle returns the player's exploration rank title based on rating.
+//
+// Rank thresholds:
+//   - 0-9: Tourist
+//   - 10-19: Traveler
+//   - 20-39: Voyager
+//   - 40-59: Surveyor
+//   - 60-79: Navigator
+//   - 80-89: Pioneer
+//   - 90-99: Trailblazer
+//   - 100: Pathfinder
+//
+// Returns:
+//   - Exploration rank title string
+func (p *Player) GetExplorationRankTitle() string {
+	rating := p.CalculateExplorationRating()
+
+	switch {
+	case rating >= 100:
+		return "Pathfinder"
+	case rating >= 90:
+		return "Trailblazer"
+	case rating >= 80:
+		return "Pioneer"
+	case rating >= 60:
+		return "Navigator"
+	case rating >= 40:
+		return "Surveyor"
+	case rating >= 20:
+		return "Voyager"
+	case rating >= 10:
+		return "Traveler"
+	default:
+		return "Tourist"
+	}
+}
+
+// RecordTrade updates trading statistics after a trade transaction.
+//
+// Parameters:
+//   - profit: The profit (or loss if negative) from the trade
+func (p *Player) RecordTrade(profit int64) {
+	p.TotalTrades++
+	p.TradeProfit += profit
+
+	// Update highest profit if this trade is a new record
+	if profit > p.HighestProfit {
+		p.HighestProfit = profit
+	}
+
+	// Recalculate trading rating
+	p.TradingRating = p.CalculateTradingRating()
+}
+
+// RecordKill updates combat statistics after defeating an enemy.
+func (p *Player) RecordKill() {
+	p.TotalKills++
+
+	// Recalculate combat rating
+	p.CombatRating = p.CalculateCombatRating()
+}
+
+// RecordSystemVisit updates exploration statistics when entering a new system.
+//
+// Parameters:
+//   - systemID: The UUID of the system being visited
+func (p *Player) RecordSystemVisit(systemID uuid.UUID) {
+	// Note: In a full implementation, we'd track which systems have been visited
+	// to avoid double-counting. For now, this increments on every system change.
+	p.SystemsVisited++
+
+	// Recalculate exploration rating
+	p.ExplorationRating = p.CalculateExplorationRating()
+}
+
+// RecordJump updates exploration statistics when making a hyperspace jump.
+func (p *Player) RecordJump() {
+	p.TotalJumps++
+
+	// Recalculate exploration rating
+	p.ExplorationRating = p.CalculateExplorationRating()
+}
+
+// RecordMissionCompletion updates mission statistics after completing a mission.
+func (p *Player) RecordMissionCompletion() {
+	p.MissionsCompleted++
+}
+
+// RecordMissionFailure updates mission statistics after failing a mission.
+func (p *Player) RecordMissionFailure() {
+	p.MissionsFailed++
+}
+
+// GetOverallRank returns a combined rank based on all progression categories.
+// The overall rank is a weighted average of all rating categories.
+//
+// Weighting:
+//   - Combat: 30%
+//   - Trading: 30%
+//   - Exploration: 20%
+//   - Missions: 20%
+//
+// Returns:
+//   - Overall rank title string
+func (p *Player) GetOverallRank() string {
+	// Calculate individual ratings
+	combatRating := float64(p.CalculateCombatRating())
+	tradingRating := float64(p.CalculateTradingRating())
+	explorationRating := float64(p.CalculateExplorationRating())
+
+	// Mission rating based on completion rate
+	missionRating := 0.0
+	totalMissions := p.MissionsCompleted + p.MissionsFailed
+	if totalMissions > 0 {
+		successRate := float64(p.MissionsCompleted) / float64(totalMissions)
+		missionRating = successRate * 100
+	}
+
+	// Weighted average
+	overall := (combatRating * 0.3) + (tradingRating * 0.3) + (explorationRating * 0.2) + (missionRating * 0.2)
+
+	switch {
+	case overall >= 90:
+		return "Legendary"
+	case overall >= 80:
+		return "Master"
+	case overall >= 70:
+		return "Expert"
+	case overall >= 60:
+		return "Veteran"
+	case overall >= 50:
+		return "Experienced"
+	case overall >= 40:
+		return "Proficient"
+	case overall >= 30:
+		return "Competent"
+	case overall >= 20:
+		return "Novice"
+	case overall >= 10:
+		return "Rookie"
+	default:
+		return "Beginner"
+	}
 }
