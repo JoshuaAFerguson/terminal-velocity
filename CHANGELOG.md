@@ -184,6 +184,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Morale system (affected by hull damage)
   - Reaction time delays (0.25s-2.0s based on level)
   - Accuracy modifiers per difficulty level
+- **Combat UI (Phase 4, Issue #17)**:
+  - Full-screen tactical display with turn-based combat
+  - Real-time ship status displays (hull/shields with percentage bars)
+  - Target selection interface with hull/shield status
+  - Weapon selection and control panel
+  - Weapon status display (damage, range, cooldown, ammo)
+  - Shield and armor indicators with visual bars
+  - ASCII tactical radar (20x20 grid)
+  - Radar zoom levels (1x-5x)
+  - Enemy position tracking on radar (P=Player, E=Enemy, T=Target)
+  - Combat log with scrolling messages (last 10 messages)
+  - Turn number tracking
+  - Player/enemy turn system
+  - Fire weapon command (F key)
+  - End turn command (E key)
+  - Shield regeneration per turn
+  - Weapon cooldown visualization
+  - Ammo tracking display for missiles
+  - Victory detection (all enemies destroyed)
+  - Weapon firing with full damage integration
+  - Target destruction and removal
+  - Three viewing modes (tactical, target_select, weapons)
 
 ### Changed
 - Module path corrected from github.com/s0v3r1gn to github.com/JoshuaAFerguson

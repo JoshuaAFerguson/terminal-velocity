@@ -21,6 +21,7 @@ const (
 	ScreenShipyard
 	ScreenOutfitter
 	ScreenShipManagement
+	ScreenCombat
 	ScreenMissions
 	ScreenSettings
 	ScreenRegistration
@@ -58,6 +59,7 @@ type Model struct {
 	shipyard       shipyardModel
 	outfitter      outfitterModel
 	shipManagement shipManagementModel
+	combat         combatModel
 
 	// Error message
 	err error
@@ -90,6 +92,7 @@ func NewModel(
 		shipyard:       newShipyardModel(),
 		outfitter:      newOutfitterModel(),
 		shipManagement: newShipManagementModel(),
+		combat:         newCombatModel(),
 	}
 }
 
@@ -171,6 +174,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateOutfitter(msg)
 	case ScreenShipManagement:
 		return m.updateShipManagement(msg)
+	case ScreenCombat:
+		return m.updateCombat(msg)
 	default:
 		return m, nil
 	}
@@ -208,6 +213,8 @@ func (m Model) View() string {
 		return m.viewOutfitter()
 	case ScreenShipManagement:
 		return m.viewShipManagement()
+	case ScreenCombat:
+		return m.viewCombat()
 	default:
 		return "Unknown screen"
 	}
