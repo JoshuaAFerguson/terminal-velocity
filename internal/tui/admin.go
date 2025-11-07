@@ -269,7 +269,7 @@ func (m Model) viewAdminMutes() string {
 
 	for i, mute := range mutes {
 		expires := "Never"
-		remaining := mute.ExpiresAt.Sub(time.Now())
+		remaining := time.Until(mute.ExpiresAt)
 		if remaining > 0 {
 			if remaining < time.Hour {
 				expires = fmt.Sprintf("%dm", int(remaining.Minutes()))

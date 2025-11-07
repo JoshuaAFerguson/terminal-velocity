@@ -411,7 +411,7 @@ func (m Model) viewMissionDetails() string {
 	}
 
 	// Deadline
-	timeRemaining := mission.Deadline.Sub(time.Now())
+	timeRemaining := time.Until(mission.Deadline)
 	deadlineText := formatDuration(timeRemaining)
 	s.WriteString(fmt.Sprintf("║ Deadline: %s%s║\n",
 		deadlineText, strings.Repeat(" ", 61-len(deadlineText))))

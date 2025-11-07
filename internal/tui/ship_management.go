@@ -286,7 +286,7 @@ func (m Model) viewShipManagementDetails() string {
 	s := ""
 
 	// Ship name and type
-	s += fmt.Sprintf("%s", titleStyle.Render(ship.Name))
+	s += titleStyle.Render(ship.Name)
 	if ship.ID == m.currentShip.ID {
 		s += statsStyle.Render(" (Active)")
 	}

@@ -174,7 +174,7 @@ func (m Model) viewLeaderboards() string {
 
 	// View mode toggle
 	if m.leaderboardsModel.viewMode == "near_player" && playerRank > 0 {
-		s += helpStyle.Render(fmt.Sprintf("📍 Showing rankings near you (Press V for global view)\n\n"))
+		s += helpStyle.Render("📍 Showing rankings near you (Press V for global view)\n\n")
 	} else {
 		s += helpStyle.Render("🌍 Showing global top rankings (Press V for near-you view)\n\n")
 	}
