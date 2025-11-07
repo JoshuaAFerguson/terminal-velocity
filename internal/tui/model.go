@@ -60,6 +60,7 @@ type Model struct {
 	outfitter      outfitterModel
 	shipManagement shipManagementModel
 	combat         combatModel
+	missions       missionsModel
 
 	// Error message
 	err error
@@ -93,6 +94,7 @@ func NewModel(
 		outfitter:      newOutfitterModel(),
 		shipManagement: newShipManagementModel(),
 		combat:         newCombatModel(),
+		missions:       newMissionsModel(),
 	}
 }
 
@@ -176,6 +178,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateShipManagement(msg)
 	case ScreenCombat:
 		return m.updateCombat(msg)
+	case ScreenMissions:
+		return m.updateMissions(msg)
 	default:
 		return m, nil
 	}
@@ -215,6 +219,8 @@ func (m Model) View() string {
 		return m.viewShipManagement()
 	case ScreenCombat:
 		return m.viewCombat()
+	case ScreenMissions:
+		return m.viewMissions()
 	default:
 		return "Unknown screen"
 	}

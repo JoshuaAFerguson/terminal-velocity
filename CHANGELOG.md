@@ -246,6 +246,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Total loot value tracking
   - Formatted loot summaries with credit shorthand (K/M)
   - SalvageSpecificItem() for targeted salvage attempts
+- **Mission Framework (Phase 5, Issue #20)**:
+  - Mission data structures with comprehensive fields
+  - 6 mission types: delivery, combat, escort, bounty, exploration, trading
+  - Mission status state machine (available, active, completed, failed)
+  - Mission Manager for lifecycle management
+  - GenerateMissions() with random mission generation
+  - Mission generation for delivery, combat, bounty, and trading missions
+  - AcceptMission() with requirements validation
+  - DeclineMission() to remove unwanted missions
+  - CompleteMission() to mark missions as finished
+  - FailMission() for abandoned or expired missions
+  - Active mission limit (5 concurrent missions max)
+  - Mission requirements system:
+    - Minimum combat rating checks
+    - Faction reputation requirements
+  - Deadline tracking with automatic expiration
+  - Mission progress tracking with UpdateProgress()
+  - IsExpired() and IsCompleted() status checks
+  - Mission rewards system:
+    - Credit rewards scaled by difficulty
+    - Reputation changes with multiple factions
+  - Mission Board UI with tab-based navigation:
+    - Available missions tab
+    - Active missions tab
+    - Detailed mission view
+  - Mission details display:
+    - Type icon indicators (📦 delivery, ⚔️ combat, etc.)
+    - Status indicators with color/symbols
+    - Objectives and progress tracking
+    - Rewards preview (credits and reputation)
+    - Requirements validation display (✓/✗ indicators)
+    - Deadline countdown (days/hours remaining)
+  - Accept/decline mechanics with validation
+  - Mission abandonment for active missions
+  - UpdateMissions() for automatic expiration checks
+  - CheckMissionProgress() for auto-completion
+  - 10 mission display limit with scrolling
+  - Word-wrap for long descriptions
+  - Credit formatting (K/M shorthand)
 
 ### Changed
 - Module path corrected from github.com/s0v3r1gn to github.com/JoshuaAFerguson
