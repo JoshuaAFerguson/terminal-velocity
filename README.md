@@ -4,6 +4,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/JoshuaAFerguson/terminal-velocity)](https://goreportcard.com/report/github.com/JoshuaAFerguson/terminal-velocity)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/JoshuaAFerguson/terminal-velocity)](https://go.dev/)
+[![Sponsor](https://img.shields.io/badge/Sponsor-Terminal%20Velocity-ff69b4?logo=github-sponsors)](https://github.com/sponsors/JoshuaAFerguson)
 
 A feature-rich multiplayer space trading and combat game inspired by Escape Velocity, playable entirely through SSH.
 
@@ -308,6 +309,12 @@ terminal-velocity/
   - [Show and Tell](https://github.com/JoshuaAFerguson/terminal-velocity/discussions/categories/show-and-tell) - Share achievements
   - [Ideas](https://github.com/JoshuaAFerguson/terminal-velocity/discussions/categories/ideas) - Suggest features
 - **[🐛 Issues](https://github.com/JoshuaAFerguson/terminal-velocity/issues)** - Report bugs and track progress
+
+### Support Development
+- **[💝 Sponsor](https://github.com/sponsors/JoshuaAFerguson)** - Support Terminal Velocity development
+  - See [SPONSORS.md](SPONSORS.md) for our amazing sponsors
+  - Tiers from $5/month to custom partnerships
+  - Exclusive benefits including early access, in-game recognition, and direct input on features
 
 ## Contributing
 
