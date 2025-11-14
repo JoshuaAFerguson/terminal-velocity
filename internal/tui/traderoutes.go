@@ -1,7 +1,7 @@
 // File: internal/tui/traderoutes.go
 // Project: Terminal Velocity
 // Description: Trade routes and navigation planning screen
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/traderoutes"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -70,11 +71,9 @@ func (m *Model) updateTradeRoutes(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter":
-			// Set destination to selected route's target system
+			// Navigate to navigation screen with selected route's target system
 			if len(m.tradeRoutes.routes) > 0 && m.tradeRoutes.selectedIndex < len(m.tradeRoutes.routes) {
-				route := m.tradeRoutes.routes[m.tradeRoutes.selectedIndex]
-				m.targetSystemID = route.ToSystem.ID
-				m.statusMessage = fmt.Sprintf("Destination set: %s", route.ToSystem.Name)
+				// Switch to navigation screen - user can set destination there
 				m.screen = ScreenNavigation
 				return m, nil
 			}
@@ -297,7 +296,13 @@ func (m *Model) loadBestRoutes() tea.Cmd {
 		calculator := traderoutes.NewCalculator(m.systemRepo, m.marketRepo)
 
 		opts := traderoutes.DefaultRouteOptions()
-		opts.CargoCapacity = m.currentShip.ShipType.CargoSpace
+		// Get cargo capacity from ship type
+		if m.currentShip != nil {
+			shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+			if shipType != nil {
+				opts.CargoCapacity = shipType.CargoSpace
+			}
+		}
 
 		routes, err := calculator.FindBestRoutes(ctx, opts)
 
@@ -320,9 +325,15 @@ func (m *Model) loadRoutesFromHere() tea.Cmd {
 		calculator := traderoutes.NewCalculator(m.systemRepo, m.marketRepo)
 
 		opts := traderoutes.DefaultRouteOptions()
-		opts.CargoCapacity = m.currentShip.ShipType.CargoSpace
+		// Get cargo capacity from ship type
+		if m.currentShip != nil {
+			shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+			if shipType != nil {
+				opts.CargoCapacity = shipType.CargoSpace
+			}
+		}
 
-		routes, err := calculator.FindRoutesFromSystem(ctx, m.player.CurrentSystemID, opts)
+		routes, err := calculator.FindRoutesFromSystem(ctx, m.player.CurrentSystem, opts)
 
 		errStr := ""
 		if err != nil {
@@ -342,7 +353,7 @@ func (m *Model) planNavigation(targetID uuid.UUID) tea.Cmd {
 
 		calculator := traderoutes.NewCalculator(m.systemRepo, m.marketRepo)
 
-		path, err := calculator.PlanRoute(ctx, m.player.CurrentSystemID, targetID)
+		path, err := calculator.PlanRoute(ctx, m.player.CurrentSystem, targetID)
 
 		errStr := ""
 		if err != nil {
@@ -366,11 +377,4 @@ type tradeRoutesLoadedMsg struct {
 type navigationPlanLoadedMsg struct {
 	path *traderoutes.NavigationPath
 	err  string
-}
-
-func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max-2] + ".."
 }

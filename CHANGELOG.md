@@ -1088,6 +1088,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Manual ban/unban commands for admins
     - Integrated into SSH authentication flow
     - Failed login tracking across password and public key auth
+  - **Trade Route Calculator & Navigation Planner** (`internal/traderoutes/`, `internal/tui/traderoutes.go`):
+    - Advanced route optimization using Dijkstra's algorithm for pathfinding
+    - Profit calculations: per unit, per jump, ROI percentage, and total profit
+    - Three operation modes:
+      - Best Routes Globally: Find most profitable routes across all systems
+      - From Current System: Find routes starting from player's current location
+      - Navigation Plan: Plot multi-jump route to selected destination
+    - Interactive TUI screen with keyboard navigation (up/down, 1/2/3 mode switch)
+    - Route comparison with sortable columns (From, To, Commodity, Prices, Profit, Jumps, ROI)
+    - Detailed route information display with full statistics
+    - Navigation waypoint display with jump-by-jump breakdown
+    - Fuel requirement calculation for planned routes
+    - Integration with player ship cargo capacity for profit estimation
+    - Tech level-based price estimation using existing pricing modifiers
+    - Government legality checking (filters illegal commodities per faction)
+    - Accessible from game screen via [R] key
+    - Top 50 route limit for performance
   - **Server Integration**:
     - Metrics server starts on port 8080 by default
     - Rate limiter enabled by default with sensible defaults

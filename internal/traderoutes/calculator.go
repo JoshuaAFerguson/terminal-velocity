@@ -1,7 +1,7 @@
 // File: internal/traderoutes/calculator.go
 // Project: Terminal Velocity
 // Description: Trade route calculator and optimization
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -13,7 +13,6 @@ import (
 	"sort"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/game/trading"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
@@ -110,16 +109,19 @@ func (c *Calculator) FindBestRoutes(ctx context.Context, opts *RouteOptions) ([]
 			}
 
 			// Check all commodities
-			commodities := trading.GetAllCommodities()
-			for _, commodity := range commodities {
+			for _, commodity := range models.StandardCommodities {
 				// Skip illegal goods if not included
-				if !opts.IncludeIllegal && commodity.IsIllegal {
+				if !opts.IncludeIllegal && commodity.IsIllegal(fromSystem.GovernmentID) {
 					continue
 				}
 
-				// Calculate prices
-				buyPrice := trading.CalculatePrice(commodity.BasePrice, fromSystem.TechLevel, commodity)
-				sellPrice := trading.CalculatePrice(commodity.BasePrice, toSystem.TechLevel, commodity)
+				// Calculate estimated prices (without market data)
+				// Buy at fromSystem, sell at toSystem
+				buyModifier := models.GetPriceModifier(commodity.TechLevel, fromSystem.TechLevel, false)
+				sellModifier := models.GetPriceModifier(commodity.TechLevel, toSystem.TechLevel, false)
+
+				buyPrice := float64(commodity.BasePrice) * buyModifier
+				sellPrice := float64(commodity.BasePrice) * sellModifier
 
 				profit := sellPrice - buyPrice
 
@@ -195,12 +197,12 @@ func (c *Calculator) FindRoutesBetween(ctx context.Context, fromID, toID uuid.UU
 	log.Debug("Finding routes between %s and %s", fromID, toID)
 
 	// Get systems
-	fromSystem, err := c.systemRepo.GetSystem(ctx, fromID)
+	fromSystem, err := c.systemRepo.GetSystemByID(ctx, fromID)
 	if err != nil {
 		return nil, err
 	}
 
-	toSystem, err := c.systemRepo.GetSystem(ctx, toID)
+	toSystem, err := c.systemRepo.GetSystemByID(ctx, toID)
 	if err != nil {
 		return nil, err
 	}
@@ -223,10 +225,13 @@ func (c *Calculator) FindRoutesBetween(ctx context.Context, fromID, toID uuid.UU
 	routes := make([]*TradeRoute, 0)
 
 	// Check all commodities
-	commodities := trading.GetAllCommodities()
-	for _, commodity := range commodities {
-		buyPrice := trading.CalculatePrice(commodity.BasePrice, fromSystem.TechLevel, commodity)
-		sellPrice := trading.CalculatePrice(commodity.BasePrice, toSystem.TechLevel, commodity)
+	for _, commodity := range models.StandardCommodities {
+		// Calculate estimated prices (without market data)
+		buyModifier := models.GetPriceModifier(commodity.TechLevel, fromSystem.TechLevel, false)
+		sellModifier := models.GetPriceModifier(commodity.TechLevel, toSystem.TechLevel, false)
+
+		buyPrice := float64(commodity.BasePrice) * buyModifier
+		sellPrice := float64(commodity.BasePrice) * sellModifier
 
 		profit := sellPrice - buyPrice
 
