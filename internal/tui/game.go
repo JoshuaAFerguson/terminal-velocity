@@ -23,6 +23,13 @@ func (m Model) updateGame(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			m.screen = ScreenTradeRoutes
 			return m, nil
+		case "M":
+			// Load inbox on entering mail screen
+			m.mail.mode = mailModeInbox
+			m.mail.selectedIndex = 0
+			m.mail.loading = true
+			m.screen = ScreenMail
+			return m, m.loadInbox()
 		}
 	}
 
@@ -43,12 +50,13 @@ Commands:
   r - Trade Routes & Nav Planner
   s - Shipyard
   m - Missions
+  M - Mail
 
 Press ESC to return to main menu.`
 
 	s += boxStyle.Render(content)
 
-	s += renderFooter("ESC: Main Menu  •  n/t/r/s/m: Quick Access")
+	s += renderFooter("ESC: Main Menu  •  n/t/r/s/m/M: Quick Access")
 
 	return s
 }

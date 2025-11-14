@@ -1105,6 +1105,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Government legality checking (filters illegal commodities per faction)
     - Accessible from game screen via [R] key
     - Top 50 route limit for performance
+  - **Player Mail System** (`internal/mail/`, `internal/tui/mail.go`, `internal/database/mail_repository.go`):
+    - Complete player-to-player mail system with asynchronous messaging
+    - Four operation modes:
+      - Inbox: View received messages with unread count
+      - Sent: View sent messages
+      - Compose: Create new messages with recipient, subject, and body
+      - Read: View message details with reply support
+    - Interactive TUI with keyboard navigation:
+      - [1/2] Switch between Inbox and Sent folders
+      - [C] Compose new message
+      - [↑/↓] Navigate message list
+      - [Enter] Read selected message
+      - [D] Delete message (soft delete)
+      - [R] Reply to message (inbox only) or Refresh list
+      - [Tab] Cycle through compose fields
+      - [Ctrl+S] Send composed message
+    - Unread message tracking with badge display
+    - Soft delete system (persists until both parties delete)
+    - Authorization checks (sender/recipient only)
+    - Username lookup for addressing (no need to know UUIDs)
+    - Message list pagination (50 messages per page)
+    - Accessible from game screen via [M] key
+    - Backend features:
+      - Thread-safe mail manager with RWMutex
+      - Unread count caching for performance
+      - Automatic cleanup of old messages
+      - Database indexes for inbox/sent/unread queries
+      - Migration script (004_add_player_mail.sql)
   - **Server Integration**:
     - Metrics server starts on port 8080 by default
     - Rate limiter enabled by default with sensible defaults
