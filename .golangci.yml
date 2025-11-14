@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -5,13 +7,9 @@ run:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
-    - typecheck
-    - gofmt
-    - goimports
     - misspell
     - dupl
   disable:
@@ -21,31 +19,26 @@ linters:
     - gocritic
     - unconvert
     - gocyclo
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: false
-
-  govet:
-    enable-all: true
-    disable:
-      - shadow
-      - fieldalignment
-
-  gocyclo:
-    min-complexity: 40
-
-  dupl:
-    threshold: 150
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+    govet:
+      enable-all: true
+      disable:
+        - shadow
+        - fieldalignment
+    gocyclo:
+      min-complexity: 40
+    dupl:
+      threshold: 150
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
 
 issues:
   exclude-rules:
@@ -132,6 +125,5 @@ issues:
     - linters:
         - misspell
       text: "Virginis"
-
   max-issues-per-linter: 0
   max-same-issues: 0
