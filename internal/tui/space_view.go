@@ -65,10 +65,12 @@ func (m Model) viewSpaceView() string {
 	var sb strings.Builder
 
 	// Calculate shield percentage
+	// TODO: Get max values from ShipType when API integration is complete
+	maxShields := 100
 	shieldPercent := 80
 	if m.currentShip != nil {
-		if m.currentShip.MaxShields > 0 {
-			shieldPercent = (m.currentShip.Shields * 100) / m.currentShip.MaxShields
+		if maxShields > 0 {
+			shieldPercent = (m.currentShip.Shields * 100) / maxShields
 		}
 	}
 
@@ -88,7 +90,7 @@ func (m Model) viewSpaceView() string {
 
 	// Main content area
 	contentHeight := height - 6 // Header + footer + chat
-	if m.gameView.chatExpanded {
+	if m.spaceView.chatExpanded {
 		contentHeight -= 8 // More space for expanded chat
 	}
 
@@ -100,17 +102,17 @@ func (m Model) viewSpaceView() string {
 	sb.WriteString(m.drawSpaceViewport(viewportWidth, viewportHeight))
 
 	// Right sidebar: Radar + Status
-	rightSidebar := m.drawRightSidebar(15, viewportHeight)
+	// TODO: Implement proper side-by-side rendering
+	// rightSidebar := m.drawRightSidebar(15, viewportHeight)
 
-	// Combine viewport and sidebar (this is simplified - actual implementation
-	// would need to render side-by-side properly)
+	// For now, the sidebar is rendered inline below the viewport
 	sb.WriteString("\n")
 
 	// Bottom panels: Target info + Cargo
 	sb.WriteString(m.drawBottomPanels(viewportWidth, 6))
 
 	// Chat window
-	if m.gameView.chatExpanded {
+	if m.spaceView.chatExpanded {
 		sb.WriteString(m.drawChatExpanded(width))
 	} else {
 		sb.WriteString(m.drawChatCollapsed(width))
@@ -200,14 +202,17 @@ func (m Model) drawRightSidebar(width, height int) string {
 
 	// Status panel
 	var statusContent strings.Builder
+	// TODO: Get max values from ShipType when API integration is complete
+	maxHull := 100
+	maxFuel := 100
 	hullPercent := 100
 	fuelPercent := 67
 	if m.currentShip != nil {
-		if m.currentShip.MaxHull > 0 {
-			hullPercent = (m.currentShip.Hull * 100) / m.currentShip.MaxHull
+		if maxHull > 0 {
+			hullPercent = (m.currentShip.Hull * 100) / maxHull
 		}
-		if m.currentShip.MaxFuel > 0 {
-			fuelPercent = (m.currentShip.Fuel * 100) / m.currentShip.MaxFuel
+		if maxFuel > 0 {
+			fuelPercent = (m.currentShip.Fuel * 100) / maxFuel
 		}
 	}
 
@@ -306,7 +311,7 @@ func (m Model) drawChatExpanded(width int) string {
 	channels := []string{"Global", "System", "Faction", "DM"}
 	channelText := " CHAT: "
 	for i, ch := range channels {
-		if i == m.gameView.chatChannel {
+		if i == m.spaceView.chatChannel {
 			channelText += "[" + ch + " " + IconArrow + "] "
 		} else {
 			channelText += "[" + ch + "] "
@@ -355,7 +360,7 @@ func (m Model) drawChatExpanded(width int) string {
 	// Message input
 	sb.WriteString(BoxVertical + " ")
 	sb.WriteString(BoxVertical)
-	sb.WriteString(" Message: [" + PadRight(m.gameView.chatInput+"_", width-16) + "]")
+	sb.WriteString(" Message: [" + PadRight(m.spaceView.chatInput+"_", width-16) + "]")
 	sb.WriteString(BoxVertical + " ")
 	sb.WriteString(BoxVertical + "\n")
 
@@ -375,7 +380,7 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "c", "C":
 			// Toggle chat
-			m.gameView.chatExpanded = !m.gameView.chatExpanded
+			m.spaceView.chatExpanded = !m.spaceView.chatExpanded
 			return m, nil
 
 		case "l", "L":
@@ -400,7 +405,8 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "i", "I":
 			// Player info
-			m.screen = ScreenPlayerInfo
+			// TODO: Implement ScreenPlayerInfo
+			// m.screen = ScreenPlayerInfo
 			return m, nil
 
 		case "esc":
@@ -410,20 +416,20 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		default:
 			// Handle chat input if expanded
-			if m.gameView.chatExpanded {
+			if m.spaceView.chatExpanded {
 				if msg.String() == "enter" {
 					// Send chat message
 					// TODO: Send to chat manager
-					m.gameView.chatInput = ""
+					m.spaceView.chatInput = ""
 					return m, nil
 				} else if msg.String() == "backspace" {
-					if len(m.gameView.chatInput) > 0 {
-						m.gameView.chatInput = m.gameView.chatInput[:len(m.gameView.chatInput)-1]
+					if len(m.spaceView.chatInput) > 0 {
+						m.spaceView.chatInput = m.spaceView.chatInput[:len(m.spaceView.chatInput)-1]
 					}
 					return m, nil
 				} else if len(msg.String()) == 1 {
 					// Add character to chat input
-					m.gameView.chatInput += msg.String()
+					m.spaceView.chatInput += msg.String()
 					return m, nil
 				}
 			}

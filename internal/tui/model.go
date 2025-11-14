@@ -63,6 +63,10 @@ const (
 	ScreenTutorial
 	ScreenQuests
 	ScreenRegistration
+	ScreenLogin
+	ScreenSpaceView
+	ScreenLanding
+	ScreenTradingEnhanced
 )
 
 // Model is the main TUI model
@@ -114,6 +118,10 @@ type Model struct {
 	adminModel        adminModel
 	tutorialModel     tutorialModel
 	questsModel       questsModel
+	loginModel        loginModel
+	spaceView         spaceViewModel
+	landing           landingModel
+	tradingEnhanced   tradingEnhancedModel
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -225,6 +233,10 @@ func NewModel(
 		tutorialManager:     tutorial.NewManager(),
 		questsModel:         newQuestsModel(),
 		questManager:        quests.NewManager(),
+		loginModel:          newLoginModel(),
+		spaceView:           spaceViewModel{},
+		landing:             landingModel{},
+		tradingEnhanced:     newTradingEnhancedModel(),
 	}
 }
 
@@ -383,6 +395,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTutorial(msg)
 	case ScreenQuests:
 		return m.updateQuests(msg)
+	case ScreenLogin:
+		return m.updateLogin(msg)
+	case ScreenSpaceView:
+		return m.updateSpaceView(msg)
+	case ScreenLanding:
+		return m.updateLanding(msg)
+	case ScreenTradingEnhanced:
+		return m.updateTradingEnhanced(msg)
 	default:
 		return m, nil
 	}
@@ -454,6 +474,14 @@ func (m Model) View() string {
 		return m.viewTutorial()
 	case ScreenQuests:
 		return m.viewQuests()
+	case ScreenLogin:
+		return m.viewLogin()
+	case ScreenSpaceView:
+		return m.viewSpaceView()
+	case ScreenLanding:
+		return m.viewLanding()
+	case ScreenTradingEnhanced:
+		return m.viewTradingEnhanced()
 	default:
 		return "Unknown screen"
 	}

@@ -305,4 +305,59 @@ func (m Model) viewLogin() string {
 	return sb.String()
 }
 
+func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			return m, tea.Quit
+
+		case "tab":
+			// Cycle through fields
+			m.mainMenu.cursor = (m.mainMenu.cursor + 1) % 5
+			return m, nil
+
+		case "enter":
+			// Handle login attempt
+			// TODO: Implement actual login logic
+			if m.mainMenu.cursor == 2 {
+				// Password login button
+				m.screen = ScreenSpaceView
+			} else if m.mainMenu.cursor == 3 {
+				// SSH login button
+				m.screen = ScreenSpaceView
+			} else if m.mainMenu.cursor == 4 {
+				// Register button
+				m.screen = ScreenRegistration
+			}
+			return m, nil
+
+		default:
+			// Handle text input for username/password fields
+			if m.mainMenu.cursor == 0 {
+				// Username field
+				if msg.String() == "backspace" {
+					if len(m.registration.email) > 0 {
+						m.registration.email = m.registration.email[:len(m.registration.email)-1]
+					}
+				} else if len(msg.String()) == 1 {
+					m.registration.email += msg.String()
+				}
+			} else if m.mainMenu.cursor == 1 {
+				// Password field
+				if msg.String() == "backspace" {
+					if len(m.registration.password) > 0 {
+						m.registration.password = m.registration.password[:len(m.registration.password)-1]
+					}
+				} else if len(msg.String()) == 1 {
+					m.registration.password += msg.String()
+				}
+			}
+			return m, nil
+		}
+	}
+
+	return m, nil
+}
+
 // Add a ScreenLogin constant to the Screen enum in model.go when integrating

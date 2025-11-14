@@ -81,21 +81,19 @@ func (m Model) viewTradingEnhanced() string {
 	tableContent.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
 	// Initialize commodities if not set
-	if m.trading.commodities == nil || len(m.trading.commodities) == 0 {
-		tm := newTradingEnhancedModel()
-		m.trading.commodities = tm.commodities
-		m.trading.selectedCommodity = 0
+	if m.tradingEnhanced.commodities == nil || len(m.tradingEnhanced.commodities) == 0 {
+		m.tradingEnhanced = newTradingEnhancedModel()
 	}
 
 	// Commodity rows
 	for i := 0; i < 10; i++ {
 		prefix := "   "
-		if i == m.trading.selectedCommodity {
+		if i == m.tradingEnhanced.selectedCommodity {
 			prefix = " " + IconArrow + " "
 		}
 
-		if i < len(m.trading.commodities) {
-			comm := m.trading.commodities[i]
+		if i < len(m.tradingEnhanced.commodities) {
+			comm := m.tradingEnhanced.commodities[i]
 			line := fmt.Sprintf("%s%-18s %5d cr    %5d cr   %-7s %5d tons       ",
 				prefix,
 				comm.name,
@@ -126,8 +124,8 @@ func (m Model) viewTradingEnhanced() string {
 	detailsWidth := width - 4
 	var detailsContent strings.Builder
 
-	if m.trading.selectedCommodity < len(m.trading.commodities) {
-		comm := m.trading.commodities[m.trading.selectedCommodity]
+	if m.tradingEnhanced.selectedCommodity < len(m.tradingEnhanced.commodities) {
+		comm := m.tradingEnhanced.commodities[m.tradingEnhanced.selectedCommodity]
 
 		detailsContent.WriteString(fmt.Sprintf(" SELECTED: %-58s\n", comm.name))
 		detailsContent.WriteString("                                                                      \n")
@@ -186,14 +184,14 @@ func (m Model) updateTradingEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
-			if m.trading.selectedCommodity > 0 {
-				m.trading.selectedCommodity--
+			if m.tradingEnhanced.selectedCommodity > 0 {
+				m.tradingEnhanced.selectedCommodity--
 			}
 			return m, nil
 
 		case "down", "j":
-			if m.trading.selectedCommodity < len(m.trading.commodities)-1 {
-				m.trading.selectedCommodity++
+			if m.tradingEnhanced.selectedCommodity < len(m.tradingEnhanced.commodities)-1 {
+				m.tradingEnhanced.selectedCommodity++
 			}
 			return m, nil
 
