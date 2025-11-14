@@ -1,18 +1,20 @@
 // File: cmd/genmap/main.go
 // Project: Terminal Velocity
-// Description: Universe generation and preview tool
-// Version: 1.0.0
+// Description: Universe generation and database population tool
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"sort"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/game/universe"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
@@ -27,6 +29,12 @@ func main() {
 		showStats     = flag.Bool("stats", false, "Show detailed statistics")
 		showSystems   = flag.Bool("systems-list", false, "List all systems")
 		factionFilter = flag.String("faction", "", "Filter systems by faction")
+		save          = flag.Bool("save", false, "Save universe to database")
+		dbHost        = flag.String("db-host", "localhost", "Database host")
+		dbPort        = flag.Int("db-port", 5432, "Database port")
+		dbUser        = flag.String("db-user", "terminal_velocity", "Database user")
+		dbPassword    = flag.String("db-password", "", "Database password")
+		dbName        = flag.String("db-name", "terminal_velocity", "Database name")
 	)
 	flag.Parse()
 
@@ -68,6 +76,23 @@ func main() {
 	if *showSystems {
 		fmt.Println()
 		showSystemsList(univ, *factionFilter)
+	}
+
+	// Save to database if requested
+	if *save {
+		fmt.Println()
+		fmt.Println("═══════════════════════════════════════════════════════════")
+		fmt.Println("               SAVING TO DATABASE")
+		fmt.Println("═══════════════════════════════════════════════════════════")
+		fmt.Println()
+
+		if err := saveToDatabase(univ, *dbHost, *dbPort, *dbUser, *dbPassword, *dbName); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving universe to database: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println()
+		fmt.Println("✓ Universe saved to database successfully!")
 	}
 }
 
@@ -283,4 +308,121 @@ func showSystemsList(univ *universe.Universe, factionFilter string) {
 		fmt.Printf(" (filtered by: %s)", factionFilter)
 	}
 	fmt.Println()
+}
+
+func saveToDatabase(univ *universe.Universe, host string, port int, user, password, dbName string) error {
+	ctx := context.Background()
+
+	// Connect to database
+	fmt.Printf("Connecting to database %s@%s:%d/%s...\n", user, host, port, dbName)
+	cfg := &database.Config{
+		Host:     host,
+		Port:     port,
+		User:     user,
+		Password: password,
+		Database: dbName,
+		SSLMode:  "disable",
+	}
+	db, err := database.NewDB(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer db.Close()
+
+	// Create repository
+	systemRepo := database.NewSystemRepository(db)
+
+	fmt.Println("✓ Connected to database")
+	fmt.Println()
+
+	// Check if universe already exists
+	existingSystems, err := systemRepo.ListSystems(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check existing systems: %w", err)
+	}
+
+	if len(existingSystems) > 0 {
+		fmt.Printf("⚠️  WARNING: Database already contains %d systems.\n", len(existingSystems))
+		fmt.Print("Continue and replace all systems? [y/N]: ")
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			fmt.Println("Aborted.")
+			return nil
+		}
+		fmt.Println()
+
+		// Clear existing universe data
+		fmt.Println("Clearing existing universe data...")
+		if err := clearUniverse(ctx, db); err != nil {
+			return fmt.Errorf("failed to clear universe: %w", err)
+		}
+		fmt.Println("✓ Cleared existing data")
+		fmt.Println()
+	}
+
+	// Insert star systems
+	fmt.Printf("Inserting %d star systems...\n", len(univ.Systems))
+	systemCount := 0
+	for _, system := range univ.Systems {
+		if err := systemRepo.CreateSystem(ctx, system); err != nil {
+			return fmt.Errorf("failed to insert system %s: %w", system.Name, err)
+		}
+		systemCount++
+		if systemCount%20 == 0 {
+			fmt.Printf("  %d/%d systems inserted...\n", systemCount, len(univ.Systems))
+		}
+	}
+	fmt.Printf("✓ Inserted %d systems\n", systemCount)
+	fmt.Println()
+
+	// Insert planets
+	fmt.Printf("Inserting %d planets...\n", len(univ.Planets))
+	planetCount := 0
+	for _, planet := range univ.Planets {
+		if err := systemRepo.CreatePlanet(ctx, planet); err != nil {
+			return fmt.Errorf("failed to insert planet %s: %w", planet.Name, err)
+		}
+		planetCount++
+		if planetCount%50 == 0 {
+			fmt.Printf("  %d/%d planets inserted...\n", planetCount, len(univ.Planets))
+		}
+	}
+	fmt.Printf("✓ Inserted %d planets\n", planetCount)
+	fmt.Println()
+
+	// Insert system connections
+	fmt.Println("Inserting system connections...")
+	connectionCount := 0
+	for _, system := range univ.Systems {
+		for _, connectedID := range system.ConnectedSystems {
+			// Only insert one direction to avoid duplicates
+			if system.ID.String() < connectedID.String() {
+				if err := systemRepo.CreateJumpRoute(ctx, system.ID, connectedID); err != nil {
+					return fmt.Errorf("failed to insert connection: %w", err)
+				}
+				connectionCount++
+			}
+		}
+	}
+	fmt.Printf("✓ Inserted %d connections\n", connectionCount)
+
+	return nil
+}
+
+func clearUniverse(ctx context.Context, db *database.DB) error {
+	// Delete in correct order due to foreign keys
+	queries := []string{
+		"DELETE FROM system_connections",
+		"DELETE FROM planets",
+		"DELETE FROM star_systems",
+	}
+
+	for _, query := range queries {
+		if _, err := db.Exec(query); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

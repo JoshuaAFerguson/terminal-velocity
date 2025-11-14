@@ -45,8 +45,69 @@ make release        # Build cross-platform release binaries
 # Tools
 make genmap         # Generate and preview universe (100 systems)
 ./genmap -systems 50 -stats              # Custom universe generation
+./genmap -systems 100 -save              # Generate and save to database
 ./accounts create <username> <email>     # Create player account
 ./accounts add-key <username> <key-file> # Add SSH key to account
+```
+
+### First-Time Server Setup
+
+**Quick Start** (recommended):
+```bash
+# 1. Build tools
+make build-tools
+
+# 2. Run initialization script (sets up database + universe)
+./scripts/init-server.sh
+
+# 3. The script will:
+#    - Create database and user
+#    - Initialize schema
+#    - Generate and populate universe (100 systems)
+#    - Display connection instructions
+
+# 4. Create your player account
+./accounts create <username> <email>
+
+# 5. Start the server
+make run
+```
+
+**Manual Setup**:
+```bash
+# 1. Create database
+psql -U postgres -c "CREATE DATABASE terminal_velocity;"
+psql -U postgres -c "CREATE USER terminal_velocity WITH PASSWORD 'your_password';"
+psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE terminal_velocity TO terminal_velocity;"
+
+# 2. Initialize schema
+psql -U terminal_velocity -d terminal_velocity -f scripts/schema.sql
+
+# 3. Generate and save universe
+./genmap -systems 100 -save \
+  -db-host localhost \
+  -db-port 5432 \
+  -db-user terminal_velocity \
+  -db-password your_password \
+  -db-name terminal_velocity
+
+# 4. Create player account
+./accounts create <username> <email>
+
+# 5. Start server
+./server -config configs/config.yaml
+```
+
+**Database Migrations**:
+```bash
+# Check migration status
+./scripts/migrate.sh status
+
+# Apply pending migrations
+./scripts/migrate.sh up
+
+# Reset all migrations (DANGEROUS)
+./scripts/migrate.sh reset
 ```
 
 ### Docker Development
@@ -227,6 +288,12 @@ PostgreSQL with UUID primary keys. Key tables:
 - `system_connections` - Jump routes (bidirectional)
 - `planets` - Planets with services array
 - `ships` - Player ships with hull, shields, fuel, cargo
+- `admin_users` - Server administrators with RBAC (NEW)
+- `player_bans` - Banned players with expiration tracking (NEW)
+- `player_mutes` - Muted players with expiration tracking (NEW)
+- `admin_actions` - Audit log of all admin actions (NEW)
+- `server_settings` - Server configuration persistence (NEW)
+- `schema_migrations` - Migration tracking (NEW)
 
 See `scripts/schema.sql` for full schema.
 
@@ -239,7 +306,20 @@ The `internal/game/universe/` package generates procedural universes:
 - 6 NPC factions (governments) assigned to systems
 - Planets generated per system with randomized services
 
-Use `cmd/genmap/` to preview generated universes before importing to database.
+Use `cmd/genmap/` to preview and generate universes:
+```bash
+# Preview universe statistics
+./genmap -systems 1000 -stats
+
+# Generate and save to database
+./genmap -systems 1000 -save \
+  -db-host localhost \
+  -db-port 5432 \
+  -db-user terminal_velocity \
+  -db-password your_password
+```
+
+**NEW**: The `-save` flag populates the database directly with generated universe data.
 
 ## Common Development Tasks
 
@@ -645,5 +725,5 @@ case ScreenDesired:
 ---
 
 **Last Updated**: 2025-01-14
-**Document Version**: 2.2.0
-**Project Version**: 0.8.0 (Phase 8 Complete)
+**Document Version**: 2.3.0
+**Project Version**: 0.8.0 (Phase 8 Complete, Production-Ready Infrastructure)
