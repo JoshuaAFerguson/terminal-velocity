@@ -40,7 +40,8 @@ type spaceObject struct {
 	x, y     float64
 	distance float64
 	hostile  bool
-	objType  string // "planet", "ship", "enemy", "player"
+	objType  string    // "planet", "ship", "enemy", "player"
+	playerID uuid.UUID // Player ID for DM chat (only for player ships)
 }
 
 type playerPosition struct {
@@ -79,6 +80,7 @@ func convertShipsToSpaceObjects(ships []*models.Ship, playerPos playerPosition) 
 			distance: distance,
 			hostile:  hostile,
 			objType:  "player", // All nearby ships are players in this context
+			playerID: ship.OwnerID, // Store player ID for DM chat
 		})
 	}
 
@@ -322,13 +324,16 @@ func (m Model) viewSpaceView() string {
 	var sb strings.Builder
 
 	// Calculate shield percentage
-	// TODO: Get max values from ShipType when API integration is complete
-	maxShields := 100
-	shieldPercent := 80
+	maxShields := 100 // Default
 	if m.currentShip != nil {
-		if maxShields > 0 {
-			shieldPercent = (m.currentShip.Shields * 100) / maxShields
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			maxShields = shipType.MaxShields
 		}
+	}
+	shieldPercent := 80
+	if m.currentShip != nil && maxShields > 0 {
+		shieldPercent = (m.currentShip.Shields * 100) / maxShields
 	}
 
 	// Header
@@ -459,9 +464,16 @@ func (m Model) drawRightSidebar(width, height int) string {
 
 	// Status panel
 	var statusContent strings.Builder
-	// TODO: Get max values from ShipType when API integration is complete
-	maxHull := 100
-	maxFuel := 100
+	// Get max values from ShipType
+	maxHull := 100  // Default
+	maxFuel := 100  // Default
+	if m.currentShip != nil {
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			maxHull = shipType.MaxHull
+			maxFuel = shipType.MaxFuel
+		}
+	}
 	hullPercent := 100
 	fuelPercent := 67
 	if m.currentShip != nil {
@@ -740,23 +752,31 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 
 						case 3: // DM
-							// Get recipient from targeted ship
-							// Note: This requires the space view to have actual player ship data
-							// For now, this is a placeholder that checks if we have a valid target
+							// Send DM to targeted player
 							if m.spaceView.hasTarget && m.spaceView.targetIndex < len(m.spaceView.ships) {
 								targetShip := m.spaceView.ships[m.spaceView.targetIndex]
 
-								// In production, the spaceObject would need a playerID field
-								// loaded from presenceManager. For now, we log that DM requires
-								// proper target selection with player IDs
-								_ = targetShip // Avoid unused variable warning
+								// Only allow DMs to player ships (not planets or NPCs)
+								if targetShip.objType == "player" && targetShip.playerID != uuid.Nil {
+									recipientID := targetShip.playerID
+									recipientName := targetShip.name
 
-								// TODO: When space view data loading is implemented, this will use:
-								// - targetShip.playerID for recipientID
-								// - targetShip.playerName for recipient name
-								// m.chatManager.SendDirectMessage(m.playerID, username, recipientID, recipientName, m.spaceView.chatInput)
-
-								// For now, could show a message that DM requires target selection
+									m.chatManager.SendDirectMessage(
+										m.playerID,
+										username,
+										recipientID,
+										recipientName,
+										m.spaceView.chatInput,
+									)
+								} else {
+									// Show error - can only DM players
+									m.errorMessage = "Can only send DMs to other players. Target a player ship first."
+									m.showErrorDialog = true
+								}
+							} else {
+								// Show error - no target selected
+								m.errorMessage = "No target selected. Press T to target a player ship for DM."
+								m.showErrorDialog = true
 							}
 						}
 
