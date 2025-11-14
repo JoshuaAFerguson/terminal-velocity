@@ -1,7 +1,7 @@
 // File: internal/tui/model.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for model with all enhanced screens integrated
-// Version: 1.1.0
+// Description: Terminal UI component for model with login screen and unauthenticated state support
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -313,6 +313,81 @@ func (m *Model) UpdatePresenceLocation(systemID uuid.UUID, planetID *uuid.UUID) 
 	}
 }
 
+// NewLoginModel creates a new TUI model starting with the login screen
+func NewLoginModel(
+	playerRepo *database.PlayerRepository,
+	systemRepo *database.SystemRepository,
+	sshKeyRepo *database.SSHKeyRepository,
+	shipRepo *database.ShipRepository,
+	marketRepo *database.MarketRepository,
+	mailRepo *database.MailRepository,
+) Model {
+	return Model{
+		screen:              ScreenLogin,
+		playerID:            uuid.Nil,
+		username:            "",
+		playerRepo:          playerRepo,
+		systemRepo:          systemRepo,
+		sshKeyRepo:          sshKeyRepo,
+		shipRepo:            shipRepo,
+		marketRepo:          marketRepo,
+		mailRepo:            mailRepo,
+		width:               80,
+		height:              24,
+		loginModel:          newLoginModel(),
+		mainMenu:            newMainMenuModel(),
+		trading:             newTradingModel(),
+		cargo:               newCargoModel(),
+		shipyard:            newShipyardModel(),
+		outfitter:           newOutfitterModel(),
+		shipManagement:      newShipManagementModel(),
+		combat:              newCombatModel(),
+		missions:            newMissionsModel(),
+		achievementsUI:      newAchievementsModel(),
+		achievementManager:  achievements.NewManager(),
+		pendingAchievements: []*models.Achievement{},
+		encounterModel:      newEncounterModel(),
+		newsModel:           newNewsModel(),
+		newsManager:         news.NewManager(),
+		leaderboardsModel:   newLeaderboardsModel(),
+		leaderboardManager:  leaderboards.NewManager(),
+		playersModel:        newPlayersModel(),
+		presenceManager:     presence.NewManager(),
+		chatModel:           newChatModel(),
+		chatManager:         chat.NewManager(),
+		mailManager:         mail.NewManager(mailRepo),
+		factionsModel:       newFactionsModel(),
+		factionManager:      factions.NewManager(),
+		territoryManager:    territory.NewManager(),
+		tradeModel:          newTradeModel(),
+		tradeManager:        trade.NewManager(),
+		pvpModel:            newPvPModel(),
+		pvpManager:          pvp.NewManager(),
+		helpModel:           newHelpModel(),
+		encounterManager:    encounters.NewManager(),
+		outfitterEnhanced:   newOutfitterEnhancedModel(),
+		outfittingManager:   outfitting.NewManager(),
+		settingsModel:       newSettingsModel(),
+		settingsManager:     settings.NewManager(".config/terminal-velocity"),
+		adminModel:          newAdminModel(),
+		adminManager:        admin.NewManager(playerRepo),
+		tutorialModel:       newTutorialModel(),
+		tutorialManager:     tutorial.NewManager(),
+		questsModel:         newQuestsModel(),
+		questManager:        quests.NewManager(),
+		missionManager:      missions.NewManager(),
+		registration:        newRegistrationModel(false, nil),
+		spaceView:           newSpaceViewModel(),
+		landing:             newLandingModel(),
+		tradingEnhanced:     newTradingEnhancedModel(),
+		shipyardEnhanced:    newShipyardEnhancedModel(),
+		missionBoardEnhanced: newMissionBoardEnhancedModel(),
+		navigationEnhanced:  newNavigationEnhancedModel(),
+		combatEnhanced:      newCombatEnhancedModel(),
+		questBoardEnhanced:  newQuestBoardEnhancedModel(),
+	}
+}
+
 // NewRegistrationModel creates a new TUI model for registration
 func NewRegistrationModel(
 	username string,
@@ -341,6 +416,10 @@ func NewRegistrationModel(
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
+	// If we're on the login screen, don't load player data yet
+	if m.screen == ScreenLogin || m.screen == ScreenRegistration {
+		return nil
+	}
 	return m.loadPlayer()
 }
 
@@ -460,13 +539,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the model
 func (m Model) View() string {
-	// Show error if present
-	if m.err != nil {
+	// Show error if present (but not on login screen)
+	if m.err != nil && m.screen != ScreenLogin && m.screen != ScreenRegistration {
 		return errorView(m.err.Error())
 	}
 
-	// Loading state
-	if m.player == nil {
+	// Loading state (but not on login or registration screen)
+	if m.player == nil && m.screen != ScreenLogin && m.screen != ScreenRegistration {
 		return loadingView()
 	}
 

@@ -1,7 +1,7 @@
 // File: internal/server/server.go
 // Project: Terminal Velocity
-// Description: SSH server implementation and server
-// Version: 1.1.0
+// Description: SSH server implementation with anonymous login and application-layer authentication
+// Version: 2.0.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -295,8 +295,8 @@ func (s *Server) handleSession(username string, perms *ssh.Permissions, channel 
 			req.Reply(true, nil)
 		case "shell":
 			req.Reply(true, nil)
-			// Start game session
-			s.startGameSession(username, perms, channel)
+			// Start anonymous session (login screen)
+			s.startAnonymousSession(channel)
 			return
 		default:
 			req.Reply(false, nil)
@@ -368,6 +368,28 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 	}
 }
 
+// startAnonymousSession starts an anonymous session (login screen)
+func (s *Server) startAnonymousSession(channel ssh.Channel) {
+	log.Debug("startAnonymousSession called")
+
+	// Initialize TUI model with login screen
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo)
+
+	// Create BubbleTea program with SSH channel as input/output
+	p := tea.NewProgram(
+		model,
+		tea.WithInput(channel),
+		tea.WithOutput(channel),
+	)
+
+	// Run the program
+	if _, err := p.Run(); err != nil {
+		log.Info("Error running login TUI: %v", err)
+	}
+
+	log.Info("Anonymous session ended")
+}
+
 // startRegistrationSession starts a registration session for a new player
 func (s *Server) startRegistrationSession(username string, channel ssh.Channel) {
 	// Initialize TUI model for registration
@@ -392,17 +414,9 @@ func (s *Server) startRegistrationSession(username string, channel ssh.Channel) 
 func (s *Server) initSSHConfig() error {
 	s.sshConfig = &ssh.ServerConfig{}
 
-	// Password authentication callback (required)
-	if s.config.AllowPasswordAuth {
-		s.sshConfig.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
-			return s.handlePasswordAuth(conn, password)
-		}
-	} else {
-		return fmt.Errorf("password authentication must be enabled (SSH key auth has been removed)")
-	}
-
-	// Public key authentication removed - password only
-	// SSH key authentication has been removed for simplicity and security
+	// Anonymous authentication - accept all connections
+	// Authentication is handled at the application layer (login screen)
+	s.sshConfig.NoClientAuth = true
 
 	// Load or generate persistent SSH host key
 	log.Debug("Loading SSH host key from: %s", s.config.HostKeyPath)
@@ -412,7 +426,7 @@ func (s *Server) initSSHConfig() error {
 	}
 
 	s.sshConfig.AddHostKey(privateKey)
-	log.Info("SSH authentication: password-only (publickey disabled)")
+	log.Info("SSH authentication: anonymous (authentication via login screen)")
 	log.Info("SSH host key fingerprint: %s", ssh.FingerprintSHA256(privateKey.PublicKey()))
 	return nil
 }
