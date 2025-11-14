@@ -14,7 +14,9 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/api"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/missions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/quests"
 	"github.com/google/uuid"
 )
 
@@ -30,8 +32,11 @@ type GameServer struct {
 	sshKeyRepo *database.SSHKeyRepository
 
 	// Manager packages (existing game logic)
-	// These will be gradually refactored as we implement API handlers
-	// For now, we'll keep them as placeholders
+	// NOTE: These are in-memory managers designed for single-user TUI sessions.
+	// In Phase 2, mission/quest state should be persisted to database.
+	// For Phase 1, we use these managers to integrate with existing systems.
+	missionMgr *missions.Manager
+	questMgr   *quests.Manager
 
 	// Session management
 	sessions *SessionManager
@@ -45,6 +50,8 @@ func NewGameServer(config *Config) (*GameServer, error) {
 		shipRepo:   config.ShipRepo,
 		marketRepo: config.MarketRepo,
 		sshKeyRepo: config.SSHKeyRepo,
+		missionMgr: config.MissionMgr,
+		questMgr:   config.QuestMgr,
 		sessions:   NewSessionManager(),
 	}
 
@@ -60,7 +67,10 @@ type Config struct {
 	MarketRepo *database.MarketRepository
 	SSHKeyRepo *database.SSHKeyRepository
 
-	// TODO: Add manager configuration as we implement handlers
+	// Manager packages
+	// NOTE: In Phase 2, these should be replaced with database-backed state
+	MissionMgr *missions.Manager
+	QuestMgr   *quests.Manager
 }
 
 // Compile-time check that GameServer implements api.Server
@@ -1348,57 +1358,90 @@ func (s *GameServer) SellOutfit(ctx context.Context, req *api.OutfitSaleRequest)
 
 // GetAvailableMissions retrieves missions available to player
 func (s *GameServer) GetAvailableMissions(ctx context.Context, playerID uuid.UUID) (*api.MissionList, error) {
-	// Load player to check current location and stats
+	if playerID == uuid.Nil {
+		return nil, api.ErrInvalidRequest
+	}
+
+	// Load player to check current location
 	player, err := s.playerRepo.GetByID(ctx, playerID)
 	if err != nil {
 		return nil, err
 	}
-	_ = player
 
-	// TODO: Integrate with missions manager
-	// For now, return empty list as missions system needs manager integration
-	// When implemented, this should:
-	// 1. Query available missions at current planet/system
-	// 2. Filter by player level/reputation
-	// 3. Convert to API format using convertMissionToAPI
-
-	missions := &api.MissionList{
-		Missions:   make([]*api.Mission, 0),
-		TotalCount: 0,
+	// Must be docked to access missions
+	if !player.IsDocked() {
+		return &api.MissionList{
+			Missions:   make([]*api.Mission, 0),
+			TotalCount: 0,
+		}, nil
 	}
 
-	// Placeholder: In production, query from missions manager
-	// missions := s.missionsManager.GetAvailableMissions(player.CurrentSystem, player.Level, player.FactionReputation)
+	// Get available missions from manager
+	// NOTE: In Phase 2, this should query from database per-player
+	// Current implementation uses in-memory manager shared across all players
+	availableMissions := s.missionMgr.GetAvailableMissions()
 
-	return missions, nil
+	// Convert to API format
+	apiMissions := make([]*api.Mission, 0, len(availableMissions))
+	for _, mission := range availableMissions {
+		apiMissions = append(apiMissions, convertMissionToAPI(mission))
+	}
+
+	return &api.MissionList{
+		Missions:   apiMissions,
+		TotalCount: int32(len(apiMissions)),
+	}, nil
 }
 
 // AcceptMission accepts a mission
 func (s *GameServer) AcceptMission(ctx context.Context, req *api.MissionAcceptRequest) (*api.Mission, error) {
+	if req.PlayerID == uuid.Nil || req.MissionID == uuid.Nil {
+		return nil, api.ErrInvalidRequest
+	}
+
 	// Load player
 	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Integrate with missions manager
-	// For now, return error as missions system needs manager integration
-	// When implemented, this should:
-	// 1. Verify mission exists and is available
-	// 2. Check if player meets requirements
-	// 3. Add mission to player's active missions
-	// 4. Update mission status to "active"
-	// 5. Return updated mission
+	// Must be docked to accept missions
+	if !player.IsDocked() {
+		return nil, fmt.Errorf("must be docked to accept missions")
+	}
 
-	// Placeholder: In production, use missions manager
-	// mission, err := s.missionsManager.AcceptMission(req.PlayerID, req.MissionID)
-	// if err != nil {
-	//     return nil, err
-	// }
-	// return convertMissionToAPI(mission), nil
+	// Load player's ship
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return nil, err
+	}
 
-	_ = player // Use player to avoid unused variable error
-	return nil, api.ErrNotFound
+	// Get ship type for cargo capacity checks
+	shipType := models.GetShipTypeByID(ship.TypeID)
+	if shipType == nil {
+		return nil, fmt.Errorf("ship type not found")
+	}
+
+	// Accept mission through manager
+	// NOTE: Manager modifies ship cargo for delivery missions
+	err = s.missionMgr.AcceptMission(req.MissionID, player, ship, shipType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to accept mission: %w", err)
+	}
+
+	// Persist ship changes (delivery missions add cargo)
+	err = s.shipRepo.Update(ctx, ship)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update ship: %w", err)
+	}
+
+	// Get the accepted mission
+	mission := s.missionMgr.GetMissionByID(req.MissionID)
+	if mission == nil {
+		return nil, api.ErrNotFound
+	}
+
+	return convertMissionToAPI(mission), nil
 }
 
 // AbandonMission abandons an active mission
@@ -1420,112 +1463,128 @@ func (s *GameServer) AbandonMission(ctx context.Context, missionID uuid.UUID) er
 
 // GetActiveMissions retrieves player's active missions
 func (s *GameServer) GetActiveMissions(ctx context.Context, playerID uuid.UUID) (*api.MissionList, error) {
+	if playerID == uuid.Nil {
+		return nil, api.ErrInvalidRequest
+	}
+
 	// Load player
-	player, err := s.playerRepo.GetByID(ctx, playerID)
+	_, err := s.playerRepo.GetByID(ctx, playerID)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Integrate with missions manager
-	// For now, return empty list as missions system needs manager integration
-	// When implemented, this should:
-	// 1. Query player's active missions
-	// 2. Include progress information
-	// 3. Convert to API format using convertMissionToAPI
+	// Get active missions from manager
+	// NOTE: Current manager doesn't track per-player missions.
+	// In Phase 2, need database table for player_missions
+	activeMissions := s.missionMgr.GetActiveMissions()
 
-	missions := &api.MissionList{
-		Missions:   make([]*api.Mission, 0),
-		TotalCount: 0,
+	// Convert to API format
+	apiMissions := make([]*api.Mission, 0, len(activeMissions))
+	for _, mission := range activeMissions {
+		apiMissions = append(apiMissions, convertMissionToAPI(mission))
 	}
 
-	// Placeholder: In production, query from missions manager
-	// activeMissions := s.missionsManager.GetActiveMissions(player.ID)
-
-	_ = player // Use player to avoid unused variable error
-	return missions, nil
+	return &api.MissionList{
+		Missions:   apiMissions,
+		TotalCount: int32(len(apiMissions)),
+	}, nil
 }
 
 // GetAvailableQuests retrieves quests available to player
 func (s *GameServer) GetAvailableQuests(ctx context.Context, playerID uuid.UUID) (*api.QuestList, error) {
+	if playerID == uuid.Nil {
+		return nil, api.ErrInvalidRequest
+	}
+
 	// Load player
-	player, err := s.playerRepo.GetByID(ctx, playerID)
+	_, err := s.playerRepo.GetByID(ctx, playerID)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Integrate with quests manager
-	// For now, return empty list as quests system needs manager integration
-	// When implemented, this should:
-	// 1. Query available quests at current location
-	// 2. Filter by player level and quest prerequisites
-	// 3. Exclude locked/completed quests
-	// 4. Convert to API format using convertQuestToAPI
+	// Get available quests from manager
+	// Manager filters by prerequisites and player progress
+	availableQuests := s.questMgr.GetAvailableQuests(playerID)
 
-	quests := &api.QuestList{
-		Quests:     make([]*api.Quest, 0),
-		TotalCount: 0,
+	// Convert to API format
+	apiQuests := make([]*api.Quest, 0, len(availableQuests))
+	for _, quest := range availableQuests {
+		apiQuests = append(apiQuests, convertQuestToAPI(quest))
 	}
 
-	// Placeholder: In production, query from quests manager
-	// availableQuests := s.questsManager.GetAvailableQuests(player.ID, player.CurrentSystem, player.Level)
-
-	_ = player // Use player to avoid unused variable error
-	return quests, nil
+	return &api.QuestList{
+		Quests:     apiQuests,
+		TotalCount: int32(len(apiQuests)),
+	}, nil
 }
 
 // AcceptQuest accepts a quest
 func (s *GameServer) AcceptQuest(ctx context.Context, req *api.QuestAcceptRequest) (*api.Quest, error) {
+	if req.PlayerID == uuid.Nil || req.QuestID == uuid.Nil {
+		return nil, api.ErrInvalidRequest
+	}
+
 	// Load player
-	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	_, err := s.playerRepo.GetByID(ctx, req.PlayerID)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Integrate with quests manager
-	// For now, return error as quests system needs manager integration
-	// When implemented, this should:
-	// 1. Verify quest exists and is available
-	// 2. Check if player meets prerequisites
-	// 3. Add quest to player's active quests
-	// 4. Initialize quest objectives
-	// 5. Update quest status to "active"
-	// 6. Return updated quest with objectives
+	// Convert QuestID from UUID to string (Quest model uses string IDs)
+	questID := req.QuestID.String()
 
-	// Placeholder: In production, use quests manager
-	// quest, err := s.questsManager.AcceptQuest(req.PlayerID, req.QuestID)
-	// if err != nil {
-	//     return nil, err
-	// }
-	// return convertQuestToAPI(quest), nil
+	// Start quest through manager
+	// Manager handles prerequisites validation and objective initialization
+	playerQuest, err := s.questMgr.StartQuest(req.PlayerID, questID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start quest: %w", err)
+	}
 
-	_ = player // Use player to avoid unused variable error
-	return nil, api.ErrNotFound
+	// Get the quest definition for full info
+	quest := s.questMgr.GetQuest(questID)
+	if quest == nil {
+		return nil, api.ErrNotFound
+	}
+
+	// NOTE: playerQuest has progress info, but API Quest doesn't include progress
+	// In Phase 2, consider adding progress fields to API Quest
+	_ = playerQuest
+
+	return convertQuestToAPI(quest), nil
 }
 
 // GetActiveQuests retrieves player's active quests
 func (s *GameServer) GetActiveQuests(ctx context.Context, playerID uuid.UUID) (*api.QuestList, error) {
+	if playerID == uuid.Nil {
+		return nil, api.ErrInvalidRequest
+	}
+
 	// Load player
-	player, err := s.playerRepo.GetByID(ctx, playerID)
+	_, err := s.playerRepo.GetByID(ctx, playerID)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Integrate with quests manager
-	// For now, return empty list as quests system needs manager integration
-	// When implemented, this should:
-	// 1. Query player's active quests
-	// 2. Include all objectives and progress
-	// 3. Include rewards information
-	// 4. Convert to API format using convertQuestToAPI
+	// Get active quests from manager
+	// Returns PlayerQuest objects with progress info
+	activePlayerQuests := s.questMgr.GetActiveQuests(playerID)
 
-	quests := &api.QuestList{
-		Quests:     make([]*api.Quest, 0),
-		TotalCount: 0,
+	// Convert to API format
+	// NOTE: Need to fetch Quest definitions to get full info
+	apiQuests := make([]*api.Quest, 0, len(activePlayerQuests))
+	for _, playerQuest := range activePlayerQuests {
+		// Get quest definition
+		quest := s.questMgr.GetQuest(playerQuest.QuestID)
+		if quest != nil {
+			apiQuest := convertQuestToAPI(quest)
+			// TODO: In Phase 2, add progress info from playerQuest to apiQuest
+			_ = playerQuest // Has ObjectiveProgress, CurrentObjective, etc.
+			apiQuests = append(apiQuests, apiQuest)
+		}
 	}
 
-	// Placeholder: In production, query from quests manager
-	// activeQuests := s.questsManager.GetActiveQuests(player.ID)
-
-	_ = player // Use player to avoid unused variable error
-	return quests, nil
+	return &api.QuestList{
+		Quests:     apiQuests,
+		TotalCount: int32(len(apiQuests)),
+	}, nil
 }
