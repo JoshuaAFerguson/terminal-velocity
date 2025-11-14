@@ -12,13 +12,10 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 // PricingEngine handles dynamic price calculation
-
-var log = logger.WithComponent("Trading")
 
 type PricingEngine struct {
 	rand *rand.Rand

@@ -20,14 +20,11 @@ package encounters
 import (
 	"math/rand"
 
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Generator handles encounter generation
-
-var log = logger.WithComponent("Encounters")
 
 type Generator struct {
 	baseEncounterChance float64 // Base 10% chance per jump
