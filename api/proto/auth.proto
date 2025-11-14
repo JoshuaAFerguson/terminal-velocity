@@ -1,0 +1,129 @@
+// File: api/proto/auth.proto
+// Project: Terminal Velocity
+// Description: Authentication and session management service
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-14
+
+syntax = "proto3";
+
+package terminalvelocity.v1;
+
+option go_package = "github.com/JoshuaAFerguson/terminal-velocity/api/gen/go/v1";
+
+import "api/proto/common.proto";
+
+// AuthService handles player authentication and session management
+service AuthService {
+  // Authenticate a player with username and password
+  rpc Authenticate(AuthRequest) returns (AuthResponse);
+
+  // Authenticate with SSH public key
+  rpc AuthenticateSSH(SSHAuthRequest) returns (AuthResponse);
+
+  // Create a new game session for an authenticated player
+  rpc CreateSession(CreateSessionRequest) returns (Session);
+
+  // Validate an existing session token
+  rpc ValidateSession(ValidateSessionRequest) returns (Session);
+
+  // End a game session
+  rpc EndSession(EndSessionRequest) returns (Empty);
+
+  // Refresh a session token
+  rpc RefreshSession(RefreshSessionRequest) returns (AuthResponse);
+
+  // Register a new player account
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+}
+
+// AuthRequest for password-based authentication
+message AuthRequest {
+  string username = 1;
+  string password = 2;
+  string client_info = 3; // Optional client identification
+}
+
+// SSHAuthRequest for SSH public key authentication
+message SSHAuthRequest {
+  string username = 1;
+  string public_key_fingerprint = 2; // SHA256 fingerprint
+  bytes public_key = 3;              // Full public key
+}
+
+// AuthResponse returned after successful authentication
+message AuthResponse {
+  UUID player_id = 1;
+  string token = 2;           // Session token (JWT or similar)
+  Timestamp issued_at = 3;
+  Timestamp expires_at = 4;
+  PlayerInfo player_info = 5; // Basic player information
+}
+
+// PlayerInfo contains basic player details
+message PlayerInfo {
+  UUID player_id = 1;
+  string username = 2;
+  string email = 3;
+  Timestamp created_at = 4;
+  Timestamp last_login = 5;
+  bool is_admin = 6;
+  string role = 7; // "player", "moderator", "admin", "superadmin"
+}
+
+// CreateSessionRequest to start a new game session
+message CreateSessionRequest {
+  UUID player_id = 1;
+  string token = 2;
+}
+
+// Session represents an active game session
+message Session {
+  UUID session_id = 1;
+  UUID player_id = 2;
+  Timestamp created_at = 3;
+  Timestamp last_activity = 4;
+  Timestamp expires_at = 5;
+  SessionState state = 6;
+}
+
+// SessionState represents the current state of a session
+enum SessionState {
+  SESSION_STATE_UNSPECIFIED = 0;
+  SESSION_STATE_ACTIVE = 1;
+  SESSION_STATE_IDLE = 2;
+  SESSION_STATE_EXPIRED = 3;
+  SESSION_STATE_TERMINATED = 4;
+}
+
+// ValidateSessionRequest to check if a session is still valid
+message ValidateSessionRequest {
+  UUID session_id = 1;
+  string token = 2;
+}
+
+// EndSessionRequest to terminate a session
+message EndSessionRequest {
+  UUID session_id = 1;
+}
+
+// RefreshSessionRequest to extend a session
+message RefreshSessionRequest {
+  UUID session_id = 1;
+  string token = 2;
+}
+
+// RegisterRequest for new player registration
+message RegisterRequest {
+  string username = 1;
+  string password = 2; // Optional for SSH-only accounts
+  string email = 3;
+  bytes ssh_public_key = 4; // Optional
+}
+
+// RegisterResponse after successful registration
+message RegisterResponse {
+  UUID player_id = 1;
+  string username = 2;
+  string message = 3;
+}

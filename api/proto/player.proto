@@ -1,0 +1,250 @@
+// File: api/proto/player.proto
+// Project: Terminal Velocity
+// Description: Player state management service
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-14
+
+syntax = "proto3";
+
+package terminalvelocity.v1;
+
+option go_package = "github.com/JoshuaAFerguson/terminal-velocity/api/gen/go/v1";
+
+import "api/proto/common.proto";
+
+// PlayerService manages player state and information
+service PlayerService {
+  // Get complete player state
+  rpc GetPlayerState(PlayerID) returns (PlayerState);
+
+  // Update player location
+  rpc UpdatePlayerLocation(LocationUpdate) returns (PlayerState);
+
+  // Get player's current ship
+  rpc GetPlayerShip(PlayerID) returns (Ship);
+
+  // Get player's inventory/cargo
+  rpc GetPlayerInventory(PlayerID) returns (Inventory);
+
+  // Get player statistics
+  rpc GetPlayerStats(PlayerID) returns (PlayerStats);
+
+  // Get player reputation with factions
+  rpc GetPlayerReputation(PlayerID) returns (ReputationInfo);
+
+  // Stream real-time player updates
+  rpc StreamPlayerUpdates(PlayerID) returns (stream PlayerUpdate);
+}
+
+// PlayerState represents complete player state
+message PlayerState {
+  UUID player_id = 1;
+  string username = 2;
+
+  // Location
+  UUID current_system_id = 3;
+  UUID current_planet_id = 4; // nil if in space
+  Coordinates position = 5;
+
+  // Resources
+  int64 credits = 6;
+  int32 fuel = 7;
+
+  // Ship
+  UUID current_ship_id = 8;
+  Ship ship = 9;
+
+  // Inventory
+  Inventory inventory = 10;
+
+  // Stats
+  PlayerStats stats = 11;
+
+  // Reputation
+  ReputationInfo reputation = 12;
+
+  // Status
+  PlayerStatus status = 13;
+
+  Timestamp last_save = 14;
+}
+
+// Ship represents a player's ship
+message Ship {
+  UUID ship_id = 1;
+  string ship_type = 2; // "shuttle", "freighter", "corvette", etc.
+  string custom_name = 3;
+
+  // Stats
+  int32 hull = 4;
+  int32 max_hull = 5;
+  int32 shields = 6;
+  int32 max_shields = 7;
+  int32 fuel = 8;
+  int32 max_fuel = 9;
+  int32 cargo_space = 10;
+  int32 cargo_used = 11;
+
+  // Equipment
+  repeated Weapon weapons = 12;
+  repeated Outfit outfits = 13;
+
+  // Performance
+  double speed = 14;
+  double acceleration = 15;
+  double turn_rate = 16;
+
+  // Value
+  int64 purchase_price = 17;
+  int64 current_value = 18;
+}
+
+// Weapon represents a ship weapon
+message Weapon {
+  string weapon_id = 1;
+  string weapon_type = 2;
+  int32 damage = 3;
+  int32 range = 4;
+  double accuracy = 5;
+  int32 ammo = 6;       // -1 for energy weapons
+  int32 max_ammo = 7;
+  int32 cooldown = 8;   // Turns between shots
+}
+
+// Outfit represents ship equipment
+message Outfit {
+  string outfit_id = 1;
+  string outfit_type = 2;
+  string name = 3;
+  string description = 4;
+
+  // Effects (depending on type)
+  map<string, int32> modifiers = 5; // e.g., "shield_regen": 10
+}
+
+// Inventory represents cargo and items
+message Inventory {
+  map<string, int32> cargo = 1;      // commodity_id -> quantity
+  repeated Item items = 2;           // Special items
+  int32 total_cargo_space = 3;
+  int32 cargo_used = 4;
+}
+
+// Item represents a special inventory item
+message Item {
+  string item_id = 1;
+  string name = 2;
+  string description = 3;
+  Rarity rarity = 4;
+  bool is_quest_item = 5;
+}
+
+// Rarity levels for items
+enum Rarity {
+  RARITY_UNSPECIFIED = 0;
+  RARITY_COMMON = 1;
+  RARITY_UNCOMMON = 2;
+  RARITY_RARE = 3;
+  RARITY_LEGENDARY = 4;
+}
+
+// PlayerStats contains player statistics
+message PlayerStats {
+  int32 level = 1;
+  int64 experience = 2;
+  int64 total_credits_earned = 3;
+  int32 combat_rating = 4;
+  int32 trade_rating = 5;
+  int32 exploration_rating = 6;
+
+  // Counters
+  int32 ships_destroyed = 7;
+  int32 missions_completed = 8;
+  int32 quests_completed = 9;
+  int32 systems_visited = 10;
+  int32 jumps_made = 11;
+
+  Timestamp account_created = 12;
+  int64 playtime_seconds = 13;
+}
+
+// ReputationInfo contains faction reputation
+message ReputationInfo {
+  map<string, int32> faction_reputation = 1; // faction_id -> reputation (-100 to +100)
+  string legal_status = 2;                    // "clean", "offender", "wanted", "fugitive"
+  int64 bounty = 3;                          // Current bounty on player
+}
+
+// PlayerStatus represents current player status
+enum PlayerStatus {
+  PLAYER_STATUS_UNSPECIFIED = 0;
+  PLAYER_STATUS_DOCKED = 1;
+  PLAYER_STATUS_IN_SPACE = 2;
+  PLAYER_STATUS_IN_COMBAT = 3;
+  PLAYER_STATUS_JUMPING = 4;
+  PLAYER_STATUS_TRADING = 5;
+}
+
+// LocationUpdate to change player location
+message LocationUpdate {
+  UUID player_id = 1;
+  UUID system_id = 2;
+  UUID planet_id = 3; // Optional
+  Coordinates position = 4;
+}
+
+// PlayerUpdate for real-time streaming updates
+message PlayerUpdate {
+  UUID player_id = 1;
+  UpdateType type = 2;
+  oneof update {
+    CreditsUpdate credits_update = 3;
+    LocationUpdate location_update = 4;
+    ShipUpdate ship_update = 5;
+    InventoryUpdate inventory_update = 6;
+    StatusUpdate status_update = 7;
+    ReputationUpdate reputation_update = 8;
+  }
+  Timestamp timestamp = 9;
+}
+
+// Update types for streaming
+enum UpdateType {
+  UPDATE_TYPE_UNSPECIFIED = 0;
+  UPDATE_TYPE_CREDITS = 1;
+  UPDATE_TYPE_LOCATION = 2;
+  UPDATE_TYPE_SHIP = 3;
+  UPDATE_TYPE_INVENTORY = 4;
+  UPDATE_TYPE_STATUS = 5;
+  UPDATE_TYPE_REPUTATION = 6;
+}
+
+// Specific update types
+message CreditsUpdate {
+  int64 old_credits = 1;
+  int64 new_credits = 2;
+  int64 delta = 3;
+  string reason = 4;
+}
+
+message ShipUpdate {
+  Ship ship = 1;
+}
+
+message InventoryUpdate {
+  Inventory inventory = 1;
+}
+
+message StatusUpdate {
+  PlayerStatus old_status = 1;
+  PlayerStatus new_status = 2;
+}
+
+message ReputationUpdate {
+  string faction_id = 1;
+  int32 old_reputation = 2;
+  int32 new_reputation = 3;
+  int32 delta = 4;
+  string reason = 5;
+}

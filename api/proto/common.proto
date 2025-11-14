@@ -1,0 +1,73 @@
+// File: api/proto/common.proto
+// Project: Terminal Velocity
+// Description: Common message types shared across all services
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-14
+
+syntax = "proto3";
+
+package terminalvelocity.v1;
+
+option go_package = "github.com/JoshuaAFerguson/terminal-velocity/api/gen/go/v1";
+
+// Empty represents an empty message
+message Empty {}
+
+// UUID represents a universally unique identifier
+message UUID {
+  string value = 1; // UUID as string (e.g., "550e8400-e29b-41d4-a716-446655440000")
+}
+
+// Timestamp represents a point in time
+message Timestamp {
+  int64 seconds = 1;      // Seconds since Unix epoch
+  int32 nanos = 2;        // Nanoseconds within the second
+}
+
+// Coordinates represents a 2D or 3D position
+message Coordinates {
+  double x = 1;
+  double y = 2;
+  double z = 3; // Optional, for 3D space
+}
+
+// Error represents a detailed error message
+message Error {
+  string code = 1;        // Error code (e.g., "PLAYER_NOT_FOUND")
+  string message = 2;     // Human-readable message
+  map<string, string> details = 3; // Additional context
+}
+
+// PageInfo for pagination
+message PageInfo {
+  int32 page = 1;         // Current page (1-indexed)
+  int32 page_size = 2;    // Number of items per page
+  int32 total_items = 3;  // Total number of items
+  int32 total_pages = 4;  // Total number of pages
+}
+
+// PlayerID represents a player identifier
+message PlayerID {
+  UUID id = 1;
+}
+
+// SystemID represents a star system identifier
+message SystemID {
+  UUID id = 1;
+}
+
+// PlanetID represents a planet identifier
+message PlanetID {
+  UUID id = 1;
+}
+
+// ShipID represents a ship identifier
+message ShipID {
+  UUID id = 1;
+}
+
+// SessionID represents a game session identifier
+message SessionID {
+  UUID id = 1;
+}

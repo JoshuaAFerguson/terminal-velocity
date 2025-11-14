@@ -1,0 +1,315 @@
+// File: api/proto/game.proto
+// Project: Terminal Velocity
+// Description: Core game actions and commands
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-14
+
+syntax = "proto3";
+
+package terminalvelocity.v1;
+
+option go_package = "github.com/JoshuaAFerguson/terminal-velocity/api/gen/go/v1";
+
+import "api/proto/common.proto";
+import "api/proto/player.proto";
+
+// GameService handles core game actions
+service GameService {
+  // Navigation
+  rpc Jump(JumpRequest) returns (JumpResponse);
+  rpc Land(LandRequest) returns (LandResponse);
+  rpc Takeoff(TakeoffRequest) returns (TakeoffResponse);
+
+  // Trading
+  rpc GetMarket(SystemID) returns (Market);
+  rpc BuyCommodity(TradeRequest) returns (TradeResponse);
+  rpc SellCommodity(TradeRequest) returns (TradeResponse);
+
+  // Ship Management
+  rpc BuyShip(ShipPurchaseRequest) returns (ShipPurchaseResponse);
+  rpc SellShip(ShipSaleRequest) returns (ShipSaleResponse);
+  rpc BuyOutfit(OutfitPurchaseRequest) returns (OutfitPurchaseResponse);
+  rpc SellOutfit(OutfitSaleRequest) returns (OutfitSaleResponse);
+
+  // Missions & Quests
+  rpc GetAvailableMissions(PlayerID) returns (MissionList);
+  rpc AcceptMission(MissionAcceptRequest) returns (Mission);
+  rpc AbandonMission(MissionID) returns (Empty);
+  rpc GetActiveMissions(PlayerID) returns (MissionList);
+
+  rpc GetAvailableQuests(PlayerID) returns (QuestList);
+  rpc AcceptQuest(QuestAcceptRequest) returns (Quest);
+  rpc GetActiveQuests(PlayerID) returns (QuestList);
+}
+
+// Navigation Messages
+message JumpRequest {
+  UUID player_id = 1;
+  UUID target_system_id = 2;
+}
+
+message JumpResponse {
+  bool success = 1;
+  string message = 2;
+  PlayerState new_state = 3;
+  int32 fuel_consumed = 4;
+}
+
+message LandRequest {
+  UUID player_id = 1;
+  UUID planet_id = 2;
+}
+
+message LandResponse {
+  bool success = 1;
+  string message = 2;
+  Planet planet = 3;
+  PlayerState new_state = 4;
+}
+
+message TakeoffRequest {
+  UUID player_id = 1;
+}
+
+message TakeoffResponse {
+  bool success = 1;
+  string message = 2;
+  PlayerState new_state = 3;
+}
+
+// Planet information
+message Planet {
+  UUID planet_id = 1;
+  string name = 2;
+  string description = 3;
+  UUID system_id = 4;
+
+  repeated string services = 5; // "shipyard", "outfitter", "missions", etc.
+  int32 tech_level = 6;
+  string government = 7;
+  int64 population = 8;
+}
+
+// Trading Messages
+message Market {
+  UUID system_id = 1;
+  repeated CommodityListing commodities = 2;
+  Timestamp last_updated = 3;
+}
+
+message CommodityListing {
+  string commodity_id = 1;
+  string name = 2;
+  int32 buy_price = 3;
+  int32 sell_price = 4;
+  int32 stock = 5;
+  bool is_illegal = 6;
+}
+
+message TradeRequest {
+  UUID player_id = 1;
+  string commodity_id = 2;
+  int32 quantity = 3;
+}
+
+message TradeResponse {
+  bool success = 1;
+  string message = 2;
+  int32 quantity_traded = 3;
+  int64 total_cost = 4;
+  int32 price_per_unit = 5;
+  PlayerState new_state = 6;
+}
+
+// Ship Management Messages
+message ShipPurchaseRequest {
+  UUID player_id = 1;
+  string ship_type = 2;
+  UUID trade_in_ship_id = 3; // Optional
+}
+
+message ShipPurchaseResponse {
+  bool success = 1;
+  string message = 2;
+  Ship new_ship = 3;
+  int64 total_cost = 4;
+  int64 trade_in_value = 5;
+  PlayerState new_state = 6;
+}
+
+message ShipSaleRequest {
+  UUID player_id = 1;
+  UUID ship_id = 2;
+}
+
+message ShipSaleResponse {
+  bool success = 1;
+  string message = 2;
+  int64 sale_value = 3;
+  PlayerState new_state = 4;
+}
+
+message OutfitPurchaseRequest {
+  UUID player_id = 1;
+  string outfit_id = 2;
+  int32 quantity = 3;
+}
+
+message OutfitPurchaseResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Outfit outfits = 3;
+  int64 total_cost = 4;
+  Ship updated_ship = 5;
+}
+
+message OutfitSaleRequest {
+  UUID player_id = 1;
+  string outfit_id = 2;
+  int32 quantity = 3;
+}
+
+message OutfitSaleResponse {
+  bool success = 1;
+  string message = 2;
+  int64 sale_value = 3;
+  Ship updated_ship = 4;
+}
+
+// Mission Messages
+message MissionList {
+  repeated Mission missions = 1;
+  int32 total_count = 2;
+}
+
+message Mission {
+  UUID mission_id = 1;
+  string title = 2;
+  string description = 3;
+  MissionType type = 4;
+
+  int64 reward_credits = 5;
+  int32 reward_reputation = 6;
+
+  UUID origin_system_id = 7;
+  UUID destination_system_id = 8;
+
+  Timestamp deadline = 9;
+  MissionStatus status = 10;
+
+  // Progress tracking
+  int32 progress_current = 11;
+  int32 progress_required = 12;
+}
+
+enum MissionType {
+  MISSION_TYPE_UNSPECIFIED = 0;
+  MISSION_TYPE_DELIVERY = 1;
+  MISSION_TYPE_COMBAT = 2;
+  MISSION_TYPE_BOUNTY = 3;
+  MISSION_TYPE_TRADING = 4;
+}
+
+enum MissionStatus {
+  MISSION_STATUS_UNSPECIFIED = 0;
+  MISSION_STATUS_AVAILABLE = 1;
+  MISSION_STATUS_ACTIVE = 2;
+  MISSION_STATUS_COMPLETED = 3;
+  MISSION_STATUS_FAILED = 4;
+}
+
+message MissionID {
+  UUID id = 1;
+}
+
+message MissionAcceptRequest {
+  UUID player_id = 1;
+  UUID mission_id = 2;
+}
+
+// Quest Messages
+message QuestList {
+  repeated Quest quests = 1;
+  int32 total_count = 2;
+}
+
+message Quest {
+  UUID quest_id = 1;
+  string title = 2;
+  string description = 3;
+  QuestType type = 4;
+
+  repeated QuestObjective objectives = 5;
+  repeated QuestReward rewards = 6;
+
+  QuestStatus status = 7;
+  bool is_main_quest = 8;
+  int32 recommended_level = 9;
+}
+
+enum QuestType {
+  QUEST_TYPE_UNSPECIFIED = 0;
+  QUEST_TYPE_MAIN = 1;
+  QUEST_TYPE_SIDE = 2;
+  QUEST_TYPE_FACTION = 3;
+  QUEST_TYPE_DAILY = 4;
+  QUEST_TYPE_CHAIN = 5;
+  QUEST_TYPE_HIDDEN = 6;
+  QUEST_TYPE_EVENT = 7;
+}
+
+enum QuestStatus {
+  QUEST_STATUS_UNSPECIFIED = 0;
+  QUEST_STATUS_LOCKED = 1;
+  QUEST_STATUS_AVAILABLE = 2;
+  QUEST_STATUS_ACTIVE = 3;
+  QUEST_STATUS_COMPLETED = 4;
+  QUEST_STATUS_FAILED = 5;
+}
+
+message QuestObjective {
+  string objective_id = 1;
+  string description = 2;
+  ObjectiveType type = 3;
+  int32 progress_current = 4;
+  int32 progress_required = 5;
+  bool completed = 6;
+}
+
+enum ObjectiveType {
+  OBJECTIVE_TYPE_UNSPECIFIED = 0;
+  OBJECTIVE_TYPE_DELIVER = 1;
+  OBJECTIVE_TYPE_DESTROY = 2;
+  OBJECTIVE_TYPE_TRAVEL = 3;
+  OBJECTIVE_TYPE_COLLECT = 4;
+  OBJECTIVE_TYPE_ESCORT = 5;
+  OBJECTIVE_TYPE_DEFEND = 6;
+  OBJECTIVE_TYPE_INVESTIGATE = 7;
+  OBJECTIVE_TYPE_TALK = 8;
+  OBJECTIVE_TYPE_SCAN = 9;
+  OBJECTIVE_TYPE_DISCOVER = 10;
+  OBJECTIVE_TYPE_HACK = 11;
+  OBJECTIVE_TYPE_SURVIVE = 12;
+}
+
+message QuestReward {
+  RewardType type = 1;
+  int64 value = 2;
+  string item_id = 3; // For item rewards
+}
+
+enum RewardType {
+  REWARD_TYPE_UNSPECIFIED = 0;
+  REWARD_TYPE_CREDITS = 1;
+  REWARD_TYPE_EXPERIENCE = 2;
+  REWARD_TYPE_ITEM = 3;
+  REWARD_TYPE_REPUTATION = 4;
+  REWARD_TYPE_SHIP = 5;
+  REWARD_TYPE_UNLOCK = 6;
+}
+
+message QuestAcceptRequest {
+  UUID player_id = 1;
+  UUID quest_id = 2;
+}
