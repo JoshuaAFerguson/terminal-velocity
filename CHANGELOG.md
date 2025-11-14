@@ -8,6 +8,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Enhanced TUI Screens Integration (Phase 8, Polish & Testing)**:
+  - **Combat Loot System Integration**:
+    - Post-victory loot generation using combat.GenerateLoot()
+    - Cargo space validation before loot collection
+    - Loot UI overlay showing credits, cargo, weapons, and rare items
+    - Interactive loot collection with [C]ollect or [L]eave options
+    - Async loot generation and collection commands
+    - Automatic credit updates after loot collection
+    - combatLootGeneratedMsg and combatLootCollectedMsg message types
+  - **Multi-Channel Chat System Integration**:
+    - Global chat: Broadcast to all online players
+    - System chat: Players in current system using presenceManager.GetPlayersInSystem()
+    - Faction chat: Faction members using factionManager.GetFaction()
+    - DM chat: Direct messages to targeted player ships with player ID mapping
+    - Complete recipient ID extraction for each channel type
+    - Error handling for invalid DM targets (planets, NPCs)
+  - **Mission Board Enhancements**:
+    - Ship type validation before mission acceptance
+    - Proper ShipType loading using models.GetShipTypeByID()
+    - Cargo space and combat rating validation
+    - Error messages for missing ship types
+  - **Space View Data Loading**:
+    - Real system, planet, and ship data from repositories
+    - loadSpaceViewDataCmd() for async data loading
+    - convertShipsToSpaceObjects() helper for positioning
+    - convertPlanetsToSpaceObjects() helper for planet display
+    - Integration with presenceManager for nearby ships
+    - Player ship tracking with owner IDs for DM chat
+  - **Hailing and Dialogue System**:
+    - Multi-target hailing system (planets, players, NPCs)
+    - Context-sensitive responses based on target type
+    - Attitude-based NPC responses (hostile, neutral, friendly)
+    - Random dialogue generation for immersion
+  - **Enhanced Screens with Real Data**:
+    - Navigation screen: Real fuel data from currentShip.Fuel
+    - Trading screen: Cargo space from ShipType.CargoSpace
+    - Shipyard screen: Trade-in value calculation (70% of original price)
+    - All screens use models.GetShipTypeByID() for specifications
+  - **Trading Screen Critical Features**:
+    - Cargo space validation before buying commodities
+    - getCommodityID() helper for commodity name mapping
+    - Max Buy functionality (M key): Calculate and buy maximum affordable quantity
+    - Sell All functionality (A key): Sell entire commodity inventory
+    - Pre-validation for cargo ownership before selling
+    - Transaction rollback on database errors
+    - Real-time cargo space calculation using Ship.GetCargoUsed()
+  - **Progress Bar Enhancements**:
+    - ShipType max values for accurate progress bars
+    - Dynamic shield/hull/fuel max values from ship specifications
+    - Percentage calculations using actual ShipType data
+  - **Screen Navigation Improvements**:
+    - Added 'o' key in SpaceView to open OutfitterEnhanced
+    - Fixed OutfitterEnhanced ESC to return to SpaceView (was MainMenu)
+    - Complete navigation flow: SpaceView ↔ OutfitterEnhanced
+  - **Target Cycling Fixes**:
+    - Added targetIndex field to targetSelectedMsg
+    - Fixed cycleTargetCmd() to avoid model mutation in tea.Cmd
+    - Proper target index calculation and wrapping
+    - Update handler now sets targetIndex from message
+
+### Fixed
+- **Integration Test Failures**:
+  - Fixed screen navigation tests (SpaceView ↔ OutfitterEnhanced)
+  - Fixed space view targeting tests (target cycling and wrapping)
+  - Fixed combat transition test (requires hasTarget=true)
+  - All 17 integration tests now passing
+  - All 56 TUI tests passing with 0 failures
+- **Combat Screen Issues**:
+  - Removed duplicate formatCredits() function
+  - Combat loot now properly validates cargo space
+  - Loot UI properly shows all loot types and controls
+- **Trading Screen Issues**:
+  - Added missing models import for ShipType loading
+  - Fixed cargo space overflow when buying commodities
+  - Fixed commodity ID mapping for database queries
+  - Added pre-validation to prevent selling non-owned cargo
+- **Navigation Screen Issues**:
+  - Added missing models import for ShipType loading
+  - Fixed fuel display to use actual ship fuel data
+- **Message Flow Issues**:
+  - Fixed target cycling to return targetIndex in message
+  - Removed model mutation in tea.Cmd functions (pass by value)
+
 - **Dynamic Events & Server Events System (Phase 7, Content)**:
   - Comprehensive server-wide event system with time-based scheduling
   - 10 event types:
