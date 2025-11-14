@@ -90,17 +90,71 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository (full history)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for secret scanning
+          fetch-depth: 0
 
-      - name: TruffleHog Secret Scan
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
+      - name: Determine BASE and HEAD commits
+        id: commits
+        run: |
+          set -euo pipefail
+          echo "GITHUB_EVENT_NAME=${{ github.event_name }}"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Ensure the base branch ref is available so we can resolve its commit
+            BASE_REF=${{ github.event.pull_request.base.ref }}
+            echo "Fetching base branch: $BASE_REF"
+            git fetch origin +refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF || true
+            if git rev-parse --verify origin/$BASE_REF >/dev/null 2>&1; then
+              BASE=$(git rev-parse origin/$BASE_REF)
+            else
+              echo "Warning: could not resolve origin/$BASE_REF. Leaving BASE empty."
+              BASE=""
+            fi
+            HEAD=$(git rev-parse HEAD)
+          else
+            # push or other events: try to use the previous commit
+            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              BASE=$(git rev-parse HEAD~1)
+              HEAD=$(git rev-parse HEAD)
+            else
+              echo "No previous commit found (initial commit). Nothing to scan."
+              echo "BASE=" >> $GITHUB_ENV
+              echo "HEAD=" >> $GITHUB_ENV
+              exit 0
+            fi
+          fi
+
+          echo "BASE=$BASE" >> $GITHUB_ENV
+          echo "HEAD=$HEAD" >> $GITHUB_ENV
+          echo "BASE=$BASE"
+          echo "HEAD=$HEAD"
+
+      - name: Run TruffleHog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BASE=${{ env.BASE }}
+          HEAD=${{ env.HEAD }}
+
+          if [ -z "$BASE" ]; then
+            echo "No BASE commit available; skipping TruffleHog scan."
+            exit 0
+          fi
+
+          if [ "$BASE" = "$HEAD" ]; then
+            echo "BASE and HEAD commits are the same. Nothing to scan."
+            exit 0
+          fi
+
+          echo "Running trufflehog between $BASE and $HEAD"
+          docker run --rm -v "$PWD:/repo" \
+            -e GITHUB_TOKEN="$GITHUB_TOKEN" \
+            trufflesecurity/trufflehog:latest \
+            git file:///repo --since-commit "$BASE" --branch "$HEAD" \
+            --fail --no-update --github-actions
 
       - name: Gitleaks Secret Scan
         uses: gitleaks/gitleaks-action@v2
