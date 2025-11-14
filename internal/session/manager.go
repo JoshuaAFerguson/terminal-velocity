@@ -317,7 +317,10 @@ func (m *Manager) cleanupInactiveSessions() {
 	}
 
 	for _, playerID := range toRemove {
-		session := m.sessions[playerID]
+		session, exists := m.sessions[playerID]
+		if !exists {
+			continue // Session was already cleaned up
+		}
 		session.IsActive = false
 		// Note: In production, we would trigger a final save here
 	}
