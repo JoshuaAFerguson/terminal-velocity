@@ -130,6 +130,82 @@ ssh -p 2222 username@localhost
 - Session permissions pass player_id from auth to game session
 - Each SSH connection gets its own BubbleTea program instance
 
+### Current Architecture: Monolithic Design
+
+**Note**: The current architecture is monolithic, with SSH server, TUI, and game logic tightly coupled in a single binary. See [Planned Refactoring](#planned-architecture-refactoring) below for future architectural direction.
+
+**Current Structure**:
+```
+SSH Server (Port 2222)
+  ├─ Authentication & Session Management
+  ├─ TUI Layer (BubbleTea)
+  │   └─ Direct access to managers
+  ├─ Game Logic Layer (Managers)
+  │   └─ Direct database access
+  └─ Database Layer (Repositories)
+      └─ PostgreSQL connection pool
+```
+
+**Limitations**:
+- Cannot scale SSH gateways independently from game logic
+- TUI tightly coupled to game logic managers
+- Each SSH connection runs full game logic in-process
+- Limited to vertical scaling
+- Difficult to support alternative clients
+
+### Planned Architecture Refactoring
+
+**Status**: Design phase (Phase 9, post-launch)
+**Document**: See [docs/ARCHITECTURE_REFACTORING.md](../docs/ARCHITECTURE_REFACTORING.md) for complete design
+
+**Goal**: Split into client-server architecture to enable:
+- Horizontal scaling (scale gateways vs game servers independently)
+- Multiple client types (SSH, native terminal, web)
+- Better separation of concerns (presentation vs business logic)
+- Future fat-client support
+
+**Proposed Architecture**:
+```
+SSH Gateway Servers          Game Logic Servers
+(Frontend - Stateless)  ←───→ (Backend - Stateful)
+                        gRPC
+├─ SSH Server                  ├─ Game State Manager
+├─ TUI Rendering               ├─ Game Logic Engines
+└─ API Client                  │   ├─ Combat
+                               │   ├─ Trading
+                               │   └─ Quests
+                               ├─ All Managers
+                               └─ Database Layer
+                                   └─ PostgreSQL
+```
+
+**Migration Strategy**:
+1. **Phase 1**: Extract internal API (keep single binary)
+2. **Phase 2**: Split into separate services (gateway + gameserver)
+3. **Phase 3**: Optimize state synchronization
+4. **Phase 4**: Production scalability (K8s, monitoring)
+
+**API Protocol**: gRPC with protobuf
+- Bidirectional streaming for real-time updates
+- Server-authoritative state management
+- Optimistic UI updates with rollback
+- Session affinity via consistent hashing
+
+**When Implementing**:
+- Start with protobuf schema definitions in `api/proto/`
+- Create API client interface for TUI to consume
+- Game server implements all business logic
+- Gateway only handles SSH, rendering, and API calls
+- Maintain backward compatibility during migration
+
+See the full design document for complete details on:
+- API surface design
+- State synchronization strategy
+- Authentication flow
+- Data ownership boundaries
+- Performance considerations
+- Migration checklist
+
 ### Authentication Flow
 
 1. SSH connection → `handlePasswordAuth` or `handlePublicKeyAuth`
@@ -463,6 +539,14 @@ Phases 0-7 are complete! Current priorities:
 4. **Community Testing**: Gather feedback from players
 5. **Launch Preparation**: Deployment, monitoring, community management
 
+## Future Direction (Phase 9+)
+
+**Phase 9: Architecture Refactoring** (Post-Launch)
+- Client-server split using gRPC
+- Horizontal scalability
+- Support for multiple client types
+- See [docs/ARCHITECTURE_REFACTORING.md](../docs/ARCHITECTURE_REFACTORING.md) for complete design
+
 ## Troubleshooting
 
 ### Common Issues
@@ -555,4 +639,4 @@ case ScreenDesired:
 ---
 
 **Last Updated**: 2025-01-14
-**Document Version**: 2.0.0
+**Document Version**: 2.1.0
