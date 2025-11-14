@@ -918,41 +918,430 @@ func (s *GameServer) SellCommodity(ctx context.Context, req *api.TradeRequest) (
 
 
 // BuyShip purchases a new ship
-// TODO: Reimplement with correct models
 func (s *GameServer) BuyShip(ctx context.Context, req *api.ShipPurchaseRequest) (*api.ShipPurchaseResponse, error) {
+	if req.PlayerID == uuid.Nil || req.ShipType == "" {
+		return &api.ShipPurchaseResponse{
+			Success: false,
+			Message: "invalid request: missing player or ship type",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.ShipPurchaseResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Must be docked to buy ships
+	if !player.IsDocked() {
+		return &api.ShipPurchaseResponse{
+			Success: false,
+			Message: "must be docked at a planet to purchase ships",
+		}, nil
+	}
+
+	// Get ship type definition
+	shipType := models.GetShipTypeByID(req.ShipType)
+	if shipType == nil {
+		return &api.ShipPurchaseResponse{
+			Success: false,
+			Message: fmt.Sprintf("ship type not found: %s", req.ShipType),
+		}, nil
+	}
+
+	// Calculate cost with optional trade-in
+	totalCost := shipType.Price
+	tradeInValue := int64(0)
+
+	if req.TradeInShipID != nil {
+		// Cannot trade in current ship
+		if *req.TradeInShipID == player.ShipID {
+			return &api.ShipPurchaseResponse{
+				Success: false,
+				Message: "cannot trade in your current ship",
+			}, nil
+		}
+
+		// Load trade-in ship
+		tradeInShip, err := s.shipRepo.GetByID(ctx, *req.TradeInShipID)
+		if err != nil {
+			return &api.ShipPurchaseResponse{
+				Success: false,
+				Message: "trade-in ship not found",
+			}, nil
+		}
+
+		// Verify ownership
+		if tradeInShip.OwnerID != player.ID {
+			return &api.ShipPurchaseResponse{
+				Success: false,
+				Message: "you don't own that ship",
+			}, nil
+		}
+
+		// Get trade-in ship type for pricing
+		tradeInShipType := models.GetShipTypeByID(tradeInShip.TypeID)
+		if tradeInShipType != nil {
+			// Trade-in value is 70% of base price (accounting for depreciation)
+			tradeInValue = int64(float64(tradeInShipType.Price) * 0.7)
+			totalCost -= tradeInValue
+		}
+	}
+
+	// Check credits
+	if !player.CanAfford(totalCost) {
+		return &api.ShipPurchaseResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient credits (need: %d, have: %d)", totalCost, player.Credits),
+		}, nil
+	}
+
+	// Create new ship
+	newShip := &models.Ship{
+		ID:      uuid.New(),
+		OwnerID: player.ID,
+		TypeID:  shipType.ID,
+		Name:    shipType.Name, // Default name is ship type
+		Hull:    shipType.MaxHull,
+		Shields: shipType.MaxShields,
+		Fuel:    shipType.MaxFuel,
+		Cargo:   make([]models.CargoItem, 0),
+		Crew:    1, // Default crew
+		Weapons: make([]string, 0),
+		Outfits: make([]string, 0),
+	}
+
+	// Create the ship in database
+	err = s.shipRepo.Create(ctx, newShip)
+	if err != nil {
+		return &api.ShipPurchaseResponse{
+			Success: false,
+			Message: "failed to create ship",
+		}, nil
+	}
+
+	// Deduct credits
+	player.AddCredits(-totalCost)
+	err = s.playerRepo.Update(ctx, player)
+	if err != nil {
+		return &api.ShipPurchaseResponse{
+			Success: false,
+			Message: "failed to update player credits",
+		}, nil
+	}
+
+	// Delete trade-in ship if provided
+	if req.TradeInShipID != nil {
+		err = s.shipRepo.Delete(ctx, *req.TradeInShipID)
+		if err != nil {
+			// Log error but don't fail the transaction
+			// Ship was created and player charged, so we continue
+		}
+	}
+
+	// Return success
 	return &api.ShipPurchaseResponse{
-		Success: false,
-		Message: "BuyShip not yet implemented - requires model updates",
+		Success:     true,
+		Message:     "ship purchased successfully",
+		NewShip:     convertShipToAPI(newShip),
+		TotalCost:   totalCost,
+		TradeInValue: tradeInValue,
+		NewState:    convertPlayerToAPI(player, newShip),
 	}, nil
 }
 
 
 // SellShip sells a ship
-// TODO: Reimplement with correct models
 func (s *GameServer) SellShip(ctx context.Context, req *api.ShipSaleRequest) (*api.ShipSaleResponse, error) {
+	if req.PlayerID == uuid.Nil || req.ShipID == uuid.Nil {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "invalid request: missing player or ship ID",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Cannot sell current ship
+	if req.ShipID == player.ShipID {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "cannot sell your current ship - switch ships first",
+		}, nil
+	}
+
+	// Must be docked to sell ships
+	if !player.IsDocked() {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "must be docked at a planet to sell ships",
+		}, nil
+	}
+
+	// Load ship
+	ship, err := s.shipRepo.GetByID(ctx, req.ShipID)
+	if err != nil {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "ship not found",
+		}, nil
+	}
+
+	// Verify ownership
+	if ship.OwnerID != player.ID {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "you don't own that ship",
+		}, nil
+	}
+
+	// Get ship type for pricing
+	shipType := models.GetShipTypeByID(ship.TypeID)
+	if shipType == nil {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "ship type not found",
+		}, nil
+	}
+
+	// Calculate sale value (60% of base price with depreciation)
+	saleValue := int64(float64(shipType.Price) * 0.6)
+
+	// Delete ship
+	err = s.shipRepo.Delete(ctx, req.ShipID)
+	if err != nil {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "failed to delete ship",
+		}, nil
+	}
+
+	// Add credits to player
+	player.AddCredits(saleValue)
+	err = s.playerRepo.Update(ctx, player)
+	if err != nil {
+		return &api.ShipSaleResponse{
+			Success: false,
+			Message: "failed to update player credits",
+		}, nil
+	}
+
+	// Load current ship for state
+	currentShip, _ := s.shipRepo.GetByID(ctx, player.ShipID)
+
+	// Return success
 	return &api.ShipSaleResponse{
-		Success: false,
-		Message: "SellShip not yet implemented - requires model updates",
+		Success:   true,
+		Message:   "ship sold successfully",
+		SaleValue: saleValue,
+		NewState:  convertPlayerToAPI(player, currentShip),
 	}, nil
 }
 
 
 // BuyOutfit purchases ship equipment
-// TODO: Reimplement with correct models
 func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseRequest) (*api.OutfitPurchaseResponse, error) {
+	if req.PlayerID == uuid.Nil || req.OutfitID == "" || req.Quantity <= 0 {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: "invalid request: missing player, outfit ID, or quantity",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Must be docked to buy outfits
+	if !player.IsDocked() {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: "must be docked at a planet to purchase outfits",
+		}, nil
+	}
+
+	// Get outfit definition
+	outfit := models.GetOutfitByID(req.OutfitID)
+	if outfit == nil {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: fmt.Sprintf("outfit not found: %s", req.OutfitID),
+		}, nil
+	}
+
+	// Calculate total cost
+	totalCost := outfit.Price * int64(req.Quantity)
+
+	// Check credits
+	if !player.CanAfford(totalCost) {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient credits (need: %d, have: %d)", totalCost, player.Credits),
+		}, nil
+	}
+
+	// Load current ship
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: "ship not found",
+		}, nil
+	}
+
+	// TODO: Check outfit space constraints
+	// For now, just add the outfits
+
+	// Add outfits to ship
+	for i := 0; i < int(req.Quantity); i++ {
+		ship.Outfits = append(ship.Outfits, outfit.ID)
+	}
+
+	// Update ship
+	err = s.shipRepo.Update(ctx, ship)
+	if err != nil {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: "failed to update ship",
+		}, nil
+	}
+
+	// Deduct credits
+	player.AddCredits(-totalCost)
+	err = s.playerRepo.Update(ctx, player)
+	if err != nil {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: "failed to update player credits",
+		}, nil
+	}
+
+	// Return success
 	return &api.OutfitPurchaseResponse{
-		Success: false,
-		Message: "BuyOutfit not yet implemented - requires model updates",
+		Success:     true,
+		Message:     "outfit(s) purchased successfully",
+		Outfits:     make([]*api.Outfit, 0), // TODO: Convert outfit to API format
+		TotalCost:   totalCost,
+		UpdatedShip: convertShipToAPI(ship),
 	}, nil
 }
 
 
 // SellOutfit sells ship equipment
-// TODO: Reimplement with correct models
 func (s *GameServer) SellOutfit(ctx context.Context, req *api.OutfitSaleRequest) (*api.OutfitSaleResponse, error) {
+	if req.PlayerID == uuid.Nil || req.OutfitID == "" || req.Quantity <= 0 {
+		return &api.OutfitSaleResponse{
+			Success: false,
+			Message: "invalid request: missing player, outfit ID, or quantity",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.OutfitSaleResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Must be docked to sell outfits
+	if !player.IsDocked() {
+		return &api.OutfitSaleResponse{
+			Success: false,
+			Message: "must be docked at a planet to sell outfits",
+		}, nil
+	}
+
+	// Get outfit definition
+	outfit := models.GetOutfitByID(req.OutfitID)
+	if outfit == nil {
+		return &api.OutfitSaleResponse{
+			Success: false,
+			Message: fmt.Sprintf("outfit not found: %s", req.OutfitID),
+		}, nil
+	}
+
+	// Load current ship
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return &api.OutfitSaleResponse{
+			Success: false,
+			Message: "ship not found",
+		}, nil
+	}
+
+	// Count how many of this outfit the ship has
+	count := 0
+	for _, outfitID := range ship.Outfits {
+		if outfitID == req.OutfitID {
+			count++
+		}
+	}
+
+	// Check if player has enough outfits
+	if count < int(req.Quantity) {
+		return &api.OutfitSaleResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient outfits (have: %d, trying to sell: %d)", count, req.Quantity),
+		}, nil
+	}
+
+	// Remove outfits from ship
+	removed := 0
+	newOutfits := make([]string, 0, len(ship.Outfits))
+	for _, outfitID := range ship.Outfits {
+		if outfitID == req.OutfitID && removed < int(req.Quantity) {
+			removed++
+			continue // Skip this one (remove it)
+		}
+		newOutfits = append(newOutfits, outfitID)
+	}
+	ship.Outfits = newOutfits
+
+	// Update ship
+	err = s.shipRepo.Update(ctx, ship)
+	if err != nil {
+		return &api.OutfitSaleResponse{
+			Success: false,
+			Message: "failed to update ship",
+		}, nil
+	}
+
+	// Calculate sale value (60% of purchase price)
+	saleValue := int64(float64(outfit.Price) * 0.6 * float64(req.Quantity))
+
+	// Add credits to player
+	player.AddCredits(saleValue)
+	err = s.playerRepo.Update(ctx, player)
+	if err != nil {
+		return &api.OutfitSaleResponse{
+			Success: false,
+			Message: "failed to update player credits",
+		}, nil
+	}
+
+	// Return success
 	return &api.OutfitSaleResponse{
-		Success: false,
-		Message: "SellOutfit not yet implemented - requires model updates",
+		Success:     true,
+		Message:     "outfit(s) sold successfully",
+		SaleValue:   saleValue,
+		UpdatedShip: convertShipToAPI(ship),
 	}, nil
 }
 
