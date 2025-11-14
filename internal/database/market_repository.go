@@ -258,5 +258,81 @@ func (r *MarketRepository) GetStaleMarkets(ctx context.Context, olderThanSeconds
 	return prices, nil
 }
 
+// GetCommoditiesBySystemID retrieves all market prices for all planets in a system
+func (r *MarketRepository) GetCommoditiesBySystemID(ctx context.Context, systemID uuid.UUID) ([]models.MarketPrice, error) {
+	query := `
+		SELECT mp.planet_id, mp.commodity_id, mp.buy_price, mp.sell_price, mp.stock, mp.demand, mp.last_update
+		FROM market_prices mp
+		INNER JOIN planets p ON mp.planet_id = p.id
+		WHERE p.system_id = $1
+		ORDER BY mp.commodity_id, mp.planet_id
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, systemID)
+	if err != nil {
+		errors.RecordGlobalError("market_repository", "query_system_prices", err)
+		log.Error("Failed to query market prices for system: system_id=%s, error=%v", systemID, err)
+		return nil, fmt.Errorf("failed to query market prices: %w", err)
+	}
+	defer rows.Close()
+
+	var prices []models.MarketPrice
+	for rows.Next() {
+		var price models.MarketPrice
+		err := rows.Scan(
+			&price.PlanetID,
+			&price.CommodityID,
+			&price.BuyPrice,
+			&price.SellPrice,
+			&price.Stock,
+			&price.Demand,
+			&price.LastUpdate,
+		)
+		if err != nil {
+			log.Error("Failed to scan market price row: system_id=%s, error=%v", systemID, err)
+			return nil, fmt.Errorf("failed to scan market price: %w", err)
+		}
+		prices = append(prices, price)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Error("Error iterating market prices: system_id=%s, error=%v", systemID, err)
+		return nil, fmt.Errorf("error iterating market prices: %w", err)
+	}
+
+	log.Debug("Retrieved %d market prices for system: system_id=%s", len(prices), systemID)
+	return prices, nil
+}
+
+// UpdateStock updates the stock of a commodity at a planet
+func (r *MarketRepository) UpdateStock(ctx context.Context, planetID uuid.UUID, commodityID string, delta int) error {
+	query := `
+		UPDATE market_prices
+		SET stock = stock + $1, last_update = $2
+		WHERE planet_id = $3 AND commodity_id = $4
+	`
+
+	result, err := r.db.ExecContext(ctx, query, delta, sql.NullInt64{Int64: 0, Valid: true}, planetID, commodityID)
+	if err != nil {
+		errors.RecordGlobalError("market_repository", "update_stock", err)
+		log.Error("Failed to update stock: planet_id=%s, commodity_id=%s, delta=%d, error=%v", planetID, commodityID, delta, err)
+		return fmt.Errorf("failed to update stock: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Error("Failed to get rows affected: planet_id=%s, commodity_id=%s, error=%v", planetID, commodityID, err)
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		log.Debug("Market price not found for stock update: planet_id=%s, commodity_id=%s", planetID, commodityID)
+		return ErrMarketPriceNotFound
+	}
+
+	log.Debug("Updated stock: planet_id=%s, commodity_id=%s, delta=%d", planetID, commodityID, delta)
+	return nil
+}
+
 // ErrMarketPriceNotFound is returned when a market price is not found
 var ErrMarketPriceNotFound = fmt.Errorf("market price not found")

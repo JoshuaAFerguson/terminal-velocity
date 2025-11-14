@@ -43,6 +43,10 @@ type Player struct {
 	CurrentPlanet *uuid.UUID `json:"current_planet,omitempty"` // nil if in space
 	ShipID        uuid.UUID  `json:"ship_id"`
 
+	// Position (coordinates within system)
+	X float64 `json:"x"` // X coordinate in current system
+	Y float64 `json:"y"` // Y coordinate in current system
+
 	// Progression - Combat
 	CombatRating int   `json:"combat_rating"`
 	TotalKills   int   `json:"total_kills"`
@@ -106,6 +110,10 @@ func NewPlayer(username, passwordHash string) *Player {
 		CreatedAt:    now,
 		LastLogin:    now,
 		Credits:      10000, // Starting credits
+
+		// Position
+		X: 0,
+		Y: 0,
 
 		// Combat progression
 		CombatRating: 0,

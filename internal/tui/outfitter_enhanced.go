@@ -1,7 +1,7 @@
 // File: internal/tui/outfitter_enhanced.go
 // Project: Terminal Velocity
-// Description: Enhanced outfitter UI with loadout management
-// Version: 1.0.0
+// Description: Enhanced outfitter UI with loadout management and async operations
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -13,6 +13,7 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 )
 
 // Views for enhanced outfitter
@@ -44,6 +45,177 @@ func newOutfitterEnhancedModel() outfitterEnhancedModel {
 	}
 }
 
+// Command functions for async equipment operations
+
+// purchaseEquipmentCmd purchases equipment and adds to player inventory
+func (m Model) purchaseEquipmentCmd(equipmentID string, quantity int, price int64) tea.Cmd {
+	return func() tea.Msg {
+		if m.outfittingManager == nil {
+			return equipmentActionMsg{
+				action:      "buy",
+				equipmentID: uuid.MustParse(equipmentID),
+				err:         fmt.Errorf("outfitting manager not available"),
+			}
+		}
+
+		// Check if player can afford
+		totalCost := price * int64(quantity)
+		if m.player.Credits < totalCost {
+			return equipmentActionMsg{
+				action:      "buy",
+				equipmentID: uuid.MustParse(equipmentID),
+				err:         fmt.Errorf("insufficient credits (need %d, have %d)", totalCost, m.player.Credits),
+			}
+		}
+
+		// Purchase equipment
+		err := m.outfittingManager.PurchaseEquipment(m.playerID, equipmentID, quantity, m.player.Credits)
+		if err != nil {
+			return equipmentActionMsg{
+				action:      "buy",
+				equipmentID: uuid.MustParse(equipmentID),
+				err:         err,
+			}
+		}
+
+		// Deduct credits from player
+		m.player.Credits -= totalCost
+
+		return equipmentActionMsg{
+			action:      "buy",
+			equipmentID: uuid.MustParse(equipmentID),
+		}
+	}
+}
+
+// sellEquipmentCmd sells equipment from player inventory
+func (m Model) sellEquipmentCmd(equipmentID string, quantity int) tea.Cmd {
+	return func() tea.Msg {
+		if m.outfittingManager == nil {
+			return equipmentActionMsg{
+				action:      "sell",
+				equipmentID: uuid.MustParse(equipmentID),
+				err:         fmt.Errorf("outfitting manager not available"),
+			}
+		}
+
+		// Sell equipment
+		credits, err := m.outfittingManager.SellEquipment(m.playerID, equipmentID, quantity)
+		if err != nil {
+			return equipmentActionMsg{
+				action:      "sell",
+				equipmentID: uuid.MustParse(equipmentID),
+				err:         err,
+			}
+		}
+
+		// Add credits to player
+		m.player.Credits += credits
+
+		return equipmentActionMsg{
+			action:      "sell",
+			equipmentID: uuid.MustParse(equipmentID),
+		}
+	}
+}
+
+// installEquipmentCmd installs equipment in a loadout slot
+func (m Model) installEquipmentCmd(loadoutID, slotID uuid.UUID, equipmentID string) tea.Cmd {
+	return func() tea.Msg {
+		if m.outfittingManager == nil {
+			return equipmentActionMsg{
+				action:      "install",
+				equipmentID: uuid.MustParse(equipmentID),
+				err:         fmt.Errorf("outfitting manager not available"),
+			}
+		}
+
+		// Install equipment
+		err := m.outfittingManager.InstallEquipment(m.playerID, loadoutID, slotID, equipmentID)
+		if err != nil {
+			return equipmentActionMsg{
+				action:      "install",
+				equipmentID: uuid.MustParse(equipmentID),
+				slotIndex:   0,
+				err:         err,
+			}
+		}
+
+		return equipmentActionMsg{
+			action:      "install",
+			equipmentID: uuid.MustParse(equipmentID),
+			slotIndex:   0,
+		}
+	}
+}
+
+// uninstallEquipmentCmd uninstalls equipment from a loadout slot
+func (m Model) uninstallEquipmentCmd(loadoutID, slotID uuid.UUID) tea.Cmd {
+	return func() tea.Msg {
+		if m.outfittingManager == nil {
+			return equipmentActionMsg{
+				action: "uninstall",
+				err:    fmt.Errorf("outfitting manager not available"),
+			}
+		}
+
+		// Uninstall equipment
+		err := m.outfittingManager.UninstallEquipment(m.playerID, loadoutID, slotID)
+		if err != nil {
+			return equipmentActionMsg{
+				action: "uninstall",
+				err:    err,
+			}
+		}
+
+		return equipmentActionMsg{
+			action: "uninstall",
+		}
+	}
+}
+
+// createLoadoutCmd creates a new loadout for the current ship
+func (m Model) createLoadoutCmd(shipTypeID string, name string) tea.Cmd {
+	return func() tea.Msg {
+		if m.outfittingManager == nil {
+			return loadoutActionMsg{
+				action: "save",
+				err:    fmt.Errorf("outfitting manager not available"),
+			}
+		}
+
+		if m.currentShip == nil {
+			return loadoutActionMsg{
+				action: "save",
+				err:    fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Get ship type
+		shipType := models.GetShipTypeByID(shipTypeID)
+		if shipType == nil {
+			return loadoutActionMsg{
+				action: "save",
+				err:    fmt.Errorf("ship type not found"),
+			}
+		}
+
+		// Create loadout
+		loadout, err := m.outfittingManager.CreateLoadout(m.playerID, shipType, name)
+		if err != nil {
+			return loadoutActionMsg{
+				action: "save",
+				err:    err,
+			}
+		}
+
+		return loadoutActionMsg{
+			action:    "save",
+			loadoutID: loadout.ID,
+		}
+	}
+}
+
 func (m Model) updateOutfitterEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -57,6 +229,70 @@ func (m Model) updateOutfitterEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case outfitterViewInventory:
 			return m.updateOutfitterInventory(msg)
 		}
+
+	case equipmentActionMsg:
+		// Handle equipment action result
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Success - refresh data
+			switch msg.action {
+			case "buy":
+				// Refresh inventory after purchase
+				m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
+			case "sell":
+				// Refresh inventory after sell
+				m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
+			case "install":
+				// Refresh loadout and inventory after install
+				if m.outfitterEnhanced.currentLoadout != nil {
+					loadout, err := m.outfittingManager.GetLoadout(m.outfitterEnhanced.currentLoadout.ID)
+					if err == nil {
+						m.outfitterEnhanced.currentLoadout = loadout
+					}
+				}
+				m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
+				m.outfitterEnhanced.selectedSlot = nil
+				m.outfitterEnhanced.viewMode = outfitterViewSlots
+			case "uninstall":
+				// Refresh loadout and inventory after uninstall
+				if m.outfitterEnhanced.currentLoadout != nil {
+					loadout, err := m.outfittingManager.GetLoadout(m.outfitterEnhanced.currentLoadout.ID)
+					if err == nil {
+						m.outfitterEnhanced.currentLoadout = loadout
+					}
+				}
+				m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
+			}
+		}
+		return m, nil
+
+	case loadoutActionMsg:
+		// Handle loadout action result
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Success - refresh loadouts
+			switch msg.action {
+			case "save":
+				// Loadout created successfully
+				m.outfitterEnhanced.loadouts = m.outfittingManager.GetPlayerLoadouts(m.playerID)
+				// Load the new loadout by ID
+				if msg.loadoutID != uuid.Nil {
+					loadout, err := m.outfittingManager.GetLoadout(msg.loadoutID)
+					if err == nil {
+						m.outfitterEnhanced.currentLoadout = loadout
+						m.outfitterEnhanced.viewMode = outfitterViewSlots
+					}
+				}
+			case "load":
+				// Loadout loaded successfully
+				m.outfitterEnhanced.viewMode = outfitterViewSlots
+			}
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -65,7 +301,7 @@ func (m Model) updateOutfitterEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateOutfitterBrowser(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "backspace":
-		m.screen = ScreenMainMenu
+		m.screen = ScreenSpaceView
 		return m, nil
 
 	case "1":
@@ -124,11 +360,7 @@ func (m Model) updateOutfitterBrowser(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		equipment := m.outfittingManager.GetEquipmentByCategory(m.outfitterEnhanced.category)
 		if m.outfitterEnhanced.cursor < len(equipment) {
 			selected := equipment[m.outfitterEnhanced.cursor]
-			err := m.outfittingManager.PurchaseEquipment(m.playerID, selected.ID, 1, m.player.Credits)
-			if err == nil {
-				m.player.Credits -= selected.Price
-				m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
-			}
+			return m, m.purchaseEquipmentCmd(selected.ID, 1, selected.Price)
 		}
 		return m, nil
 	}
@@ -165,13 +397,10 @@ func (m Model) updateOutfitterSlots(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				// Switch to inventory to select equipment
 				m.outfitterEnhanced.selectedSlot = slot
 				m.outfitterEnhanced.viewMode = outfitterViewInventory
+				return m, nil
 			} else {
 				// Uninstall
-				err := m.outfittingManager.UninstallEquipment(m.playerID, m.outfitterEnhanced.currentLoadout.ID, slot.ID)
-				if err == nil {
-					m.outfitterEnhanced.currentLoadout, _ = m.outfittingManager.GetLoadout(m.outfitterEnhanced.currentLoadout.ID)
-					m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
-				}
+				return m, m.uninstallEquipmentCmd(m.outfitterEnhanced.currentLoadout.ID, slot.ID)
 			}
 		}
 		return m, nil
@@ -209,15 +438,7 @@ func (m Model) updateOutfitterLoadouts(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "n":
 		// Create new loadout
 		if m.currentShip != nil {
-			shipType := models.GetShipTypeByID(m.currentShip.TypeID)
-			if shipType != nil {
-				loadout, err := m.outfittingManager.CreateLoadout(m.playerID, shipType, "New Loadout")
-				if err == nil {
-					m.outfitterEnhanced.loadouts = m.outfittingManager.GetPlayerLoadouts(m.playerID)
-					m.outfitterEnhanced.currentLoadout = loadout
-					m.outfitterEnhanced.viewMode = outfitterViewSlots
-				}
-			}
+			return m, m.createLoadoutCmd(m.currentShip.TypeID, "New Loadout")
 		}
 		return m, nil
 	}
@@ -259,18 +480,11 @@ func (m Model) updateOutfitterInventory(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 			if m.outfitterEnhanced.cursor < len(equipmentIDs) {
 				equipmentID := equipmentIDs[m.outfitterEnhanced.cursor]
-				err := m.outfittingManager.InstallEquipment(
-					m.playerID,
+				return m, m.installEquipmentCmd(
 					m.outfitterEnhanced.currentLoadout.ID,
 					m.outfitterEnhanced.selectedSlot.ID,
 					equipmentID,
 				)
-				if err == nil {
-					m.outfitterEnhanced.currentLoadout, _ = m.outfittingManager.GetLoadout(m.outfitterEnhanced.currentLoadout.ID)
-					m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
-					m.outfitterEnhanced.selectedSlot = nil
-					m.outfitterEnhanced.viewMode = outfitterViewSlots
-				}
 			}
 		}
 		return m, nil
@@ -284,11 +498,7 @@ func (m Model) updateOutfitterInventory(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		if m.outfitterEnhanced.cursor < len(equipmentIDs) {
 			equipmentID := equipmentIDs[m.outfitterEnhanced.cursor]
-			credits, err := m.outfittingManager.SellEquipment(m.playerID, equipmentID, 1)
-			if err == nil {
-				m.player.Credits += credits
-				m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
-			}
+			return m, m.sellEquipmentCmd(equipmentID, 1)
 		}
 		return m, nil
 	}

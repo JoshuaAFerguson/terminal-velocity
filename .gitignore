@@ -48,6 +48,7 @@ Thumbs.db
 # Build
 build/
 dist/
+bin/
 
 # Environment
 .env

@@ -1,4 +1,4 @@
-.PHONY: help build run test clean install-deps setup-db docker-build docker-run
+.PHONY: help build run test clean install-deps install-proto-tools proto proto-clean setup-db docker-build docker-run
 
 # Variables
 BINARY_NAME=terminal-velocity
@@ -8,6 +8,11 @@ VERSION?=dev
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
+
+# Protobuf variables
+PROTO_DIR=api/proto
+PROTO_OUT_DIR=api/gen/go/v1
+PROTO_FILES=$(shell find $(PROTO_DIR) -name '*.proto')
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -19,7 +24,29 @@ install-deps: ## Install Go dependencies
 	$(GO) mod download
 	$(GO) mod tidy
 
-build: ## Build the server binary
+install-proto-tools: ## Install protobuf tools
+	@echo "Installing protobuf tools..."
+	$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	$(GO) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@command -v protoc >/dev/null 2>&1 || { echo "protoc not found. Please install Protocol Buffers compiler."; exit 1; }
+	@echo "Protobuf tools installed successfully"
+
+proto: ## Generate Go code from protobuf schemas
+	@echo "Generating protobuf code..."
+	@mkdir -p $(PROTO_OUT_DIR)
+	protoc \
+		--proto_path=$(PROTO_DIR) \
+		--go_out=$(PROTO_OUT_DIR) \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=$(PROTO_OUT_DIR) \
+		--go-grpc_opt=paths=source_relative \
+		$(PROTO_FILES)
+	@echo "Protobuf code generated in $(PROTO_OUT_DIR)"
+
+proto-clean: ## Remove generated protobuf code
+	rm -rf $(PROTO_OUT_DIR)
+
+build: proto ## Build the server binary
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_NAME) cmd/server/main.go
 
 build-tools: ## Build utility tools
@@ -65,6 +92,7 @@ clean: ## Clean build artifacts
 	rm -f $(BINARY_NAME)
 	rm -f coverage.out
 	rm -rf build/
+	rm -rf $(PROTO_OUT_DIR)
 	rm -f configs/ssh_host_key*
 
 setup-db: ## Set up PostgreSQL database

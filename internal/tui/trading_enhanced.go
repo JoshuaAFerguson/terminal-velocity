@@ -1,0 +1,691 @@
+// File: internal/tui/trading_enhanced.go
+// Project: Terminal Velocity
+// Description: Enhanced trading screen with market listings
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2025-01-14
+
+package tui
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+type tradingEnhancedModel struct {
+	selectedCommodity int
+	quantity          int
+	commodities       []commodityListing
+	mode              string // "view", "buy", "sell"
+}
+
+type commodityListing struct {
+	name      string
+	buyPrice  int
+	sellPrice int
+	stock     string // "High", "Med", "Low"
+	inCargo   int
+}
+
+func newTradingEnhancedModel() tradingEnhancedModel {
+	// Sample commodities
+	commodities := []commodityListing{
+		{"Food", 45, 52, "High", 10},
+		{"Water", 28, 35, "Med", 0},
+		{"Textiles", 110, 125, "Low", 0},
+		{"Electronics", 380, 425, "Med", 5},
+		{"Computers", 890, 950, "Low", 0},
+		{"Weapons", 1200, 1350, "Med", 0},
+		{"Medical Sup.", 450, 490, "High", 0},
+		{"Luxury Goods", 2100, 2300, "Low", 0},
+		{"Industrial", 180, 205, "High", 0},
+		{"Minerals", 95, 110, "High", 0},
+	}
+
+	return tradingEnhancedModel{
+		selectedCommodity: 0,
+		quantity:          0,
+		commodities:       commodities,
+		mode:              "view",
+	}
+}
+
+func (m Model) viewTradingEnhanced() string {
+	width := 80
+	if m.width > 80 {
+		width = m.width
+	}
+
+	var sb strings.Builder
+
+	// Header
+	credits := int64(52400)
+	if m.player != nil {
+		credits = m.player.Credits
+	}
+	header := DrawHeader("COMMODITY EXCHANGE - Earth Station", "", credits, -1, width)
+	sb.WriteString(header + "\n")
+
+	sb.WriteString(BoxVertical)
+	sb.WriteString(strings.Repeat(" ", width-2))
+	sb.WriteString(BoxVertical + "\n")
+
+	// Commodity list table
+	tableWidth := width - 4
+	var tableContent strings.Builder
+
+	// Table header
+	tableContent.WriteString(" COMMODITY          BUY PRICE   SELL PRICE   STOCK   YOUR CARGO       \n")
+	tableContent.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	// Initialize commodities if not set
+	if m.tradingEnhanced.commodities == nil || len(m.tradingEnhanced.commodities) == 0 {
+		m.tradingEnhanced = newTradingEnhancedModel()
+	}
+
+	// Commodity rows
+	for i := 0; i < 10; i++ {
+		prefix := "   "
+		if i == m.tradingEnhanced.selectedCommodity {
+			prefix = " " + IconArrow + " "
+		}
+
+		if i < len(m.tradingEnhanced.commodities) {
+			comm := m.tradingEnhanced.commodities[i]
+			line := fmt.Sprintf("%s%-18s %5d cr    %5d cr   %-7s %5d tons       ",
+				prefix,
+				comm.name,
+				comm.buyPrice,
+				comm.sellPrice,
+				comm.stock,
+				comm.inCargo,
+			)
+			tableContent.WriteString(PadRight(line, tableWidth-2) + "\n")
+		}
+	}
+
+	// Draw table panel
+	table := DrawPanel("", tableContent.String(), tableWidth, 14, false)
+	tableLines := strings.Split(table, "\n")
+	for _, line := range tableLines {
+		sb.WriteString(BoxVertical + "  ")
+		sb.WriteString(line)
+		sb.WriteString("  ")
+		sb.WriteString(BoxVertical + "\n")
+	}
+
+	sb.WriteString(BoxVertical)
+	sb.WriteString(strings.Repeat(" ", width-2))
+	sb.WriteString(BoxVertical + "\n")
+
+	// Selected commodity details
+	detailsWidth := width - 4
+	var detailsContent strings.Builder
+
+	if m.tradingEnhanced.selectedCommodity < len(m.tradingEnhanced.commodities) {
+		comm := m.tradingEnhanced.commodities[m.tradingEnhanced.selectedCommodity]
+
+		detailsContent.WriteString(fmt.Sprintf(" SELECTED: %-58s\n", comm.name))
+		detailsContent.WriteString("                                                                      \n")
+		detailsContent.WriteString(fmt.Sprintf(" Buy Price:  %d cr/ton             Sell Price: %d cr/ton             \n",
+			comm.sellPrice, comm.buyPrice))
+
+		// Get actual cargo space from ship
+		cargoSpace := 0
+		cargoUsed := 0
+		if m.currentShip != nil {
+			// Get cargo space from ship type
+			shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+			if shipType != nil {
+				totalSpace := shipType.CargoSpace
+				cargoUsed = m.currentShip.GetCargoUsed()
+				cargoSpace = totalSpace - cargoUsed
+			}
+		}
+		detailsContent.WriteString(fmt.Sprintf(" In Cargo:   %d tons               Available Space: %d tons          \n",
+			comm.inCargo, cargoSpace))
+		detailsContent.WriteString("                                                                      \n")
+		detailsContent.WriteString(" Quantity: [____] tons                                                \n")
+		detailsContent.WriteString("                                                                      \n")
+		detailsContent.WriteString(" [ Buy ]  [ Sell ]  [ Max Buy ]  [ Sell All ]                        \n")
+	}
+
+	details := DrawPanel("", detailsContent.String(), detailsWidth, 10, false)
+	detailLines := strings.Split(details, "\n")
+	for _, line := range detailLines {
+		sb.WriteString(BoxVertical + "  ")
+		sb.WriteString(line)
+		sb.WriteString("  ")
+		sb.WriteString(BoxVertical + "\n")
+	}
+
+	sb.WriteString(BoxVertical)
+	sb.WriteString(strings.Repeat(" ", width-2))
+	sb.WriteString(BoxVertical + "\n")
+
+	// Trading tip
+	tipWidth := width - 4
+	var tipContent strings.Builder
+	tipContent.WriteString(" TIP: Food is cheap here! Best profit selling at mining colonies.    ")
+
+	tip := DrawPanel("", tipContent.String(), tipWidth, 3, false)
+	tipLines := strings.Split(tip, "\n")
+	for _, line := range tipLines {
+		sb.WriteString(BoxVertical + "  ")
+		sb.WriteString(line)
+		sb.WriteString("  ")
+		sb.WriteString(BoxVertical + "\n")
+	}
+
+	sb.WriteString(BoxVertical)
+	sb.WriteString(strings.Repeat(" ", width-2))
+	sb.WriteString(BoxVertical + "\n")
+
+	// Footer
+	footer := DrawFooter("[↑↓] Select  [B]uy  [S]ell  [M]ax Buy  [A]ll Sell  [ESC] Back", width)
+	sb.WriteString(footer)
+
+	return sb.String()
+}
+
+// buyCommodityCmd purchases a commodity from the market
+func (m Model) buyCommodityCmd(commodityName string, quantity int) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Validate inputs
+		if quantity <= 0 {
+			quantity = 1 // Default to 1
+		}
+
+		// Check if player has a ship
+		if m.currentShip == nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Check if player is on a planet
+		if m.player.CurrentPlanet == nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("not landed on a planet"),
+			}
+		}
+
+		// Get market price for this commodity
+		// Map commodity name to standardized commodity ID
+		commodityID := getCommodityID(commodityName)
+		marketPrice, err := m.marketRepo.GetMarketPrice(ctx, *m.player.CurrentPlanet, commodityID)
+		if err != nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("commodity not available: %w", err),
+			}
+		}
+
+		// Calculate total cost
+		totalCost := marketPrice.BuyPrice * int64(quantity)
+
+		// Check if player has enough credits
+		if m.player.Credits < totalCost {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("insufficient credits (need %d, have %d)", totalCost, m.player.Credits),
+			}
+		}
+
+		// Check cargo space
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType == nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("ship type not found"),
+			}
+		}
+
+		cargoUsed := m.currentShip.GetCargoUsed()
+		cargoAvailable := shipType.CargoSpace - cargoUsed
+
+		if quantity > cargoAvailable {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("insufficient cargo space (need %d tons, have %d tons available)", quantity, cargoAvailable),
+			}
+		}
+
+		// Add cargo to ship
+		err = m.shipRepo.AddCargo(ctx, m.currentShip.ID, commodityID, quantity)
+		if err != nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("failed to add cargo: %w", err),
+			}
+		}
+
+		// Deduct credits
+		m.player.Credits -= totalCost
+		err = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+		if err != nil {
+			// Rollback cargo addition
+			_ = m.shipRepo.RemoveCargo(ctx, m.currentShip.ID, commodityID, quantity)
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("failed to deduct credits: %w", err),
+			}
+		}
+
+		// Update market stock (decrease)
+		_ = m.marketRepo.UpdateStock(ctx, *m.player.CurrentPlanet, commodityID, -quantity)
+
+		return transactionCompleteMsg{
+			action:      "buy",
+			commodityID: commodityName,
+			quantity:    quantity,
+			newBalance:  m.player.Credits,
+			err:         nil,
+		}
+	}
+}
+
+// sellCommodityCmd sells a commodity to the market
+func (m Model) sellCommodityCmd(commodityName string, quantity int) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Validate inputs
+		if quantity <= 0 {
+			quantity = 1 // Default to 1
+		}
+
+		// Check if player has a ship
+		if m.currentShip == nil {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Check if player is on a planet
+		if m.player.CurrentPlanet == nil {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("not landed on a planet"),
+			}
+		}
+
+		// Get commodity ID
+		commodityID := getCommodityID(commodityName)
+
+		// Check if player actually has this commodity in cargo
+		hasQuantity := false
+		quantityInCargo := 0
+		for _, item := range m.currentShip.Cargo {
+			if item.CommodityID == commodityID {
+				hasQuantity = item.Quantity >= quantity
+				quantityInCargo = item.Quantity
+				break
+			}
+		}
+
+		if !hasQuantity {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("insufficient cargo (need %d tons, have %d tons)", quantity, quantityInCargo),
+			}
+		}
+
+		// Get market price for this commodity
+		marketPrice, err := m.marketRepo.GetMarketPrice(ctx, *m.player.CurrentPlanet, commodityID)
+		if err != nil {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("commodity not available: %w", err),
+			}
+		}
+
+		// Calculate total earnings
+		totalEarnings := marketPrice.SellPrice * int64(quantity)
+
+		// Remove cargo from ship
+		err = m.shipRepo.RemoveCargo(ctx, m.currentShip.ID, commodityID, quantity)
+		if err != nil {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("failed to remove cargo (not enough in cargo?): %w", err),
+			}
+		}
+
+		// Add credits
+		m.player.Credits += totalEarnings
+		err = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+		if err != nil {
+			// Rollback cargo removal
+			_ = m.shipRepo.AddCargo(ctx, m.currentShip.ID, commodityID, quantity)
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("failed to add credits: %w", err),
+			}
+		}
+
+		// Update market stock (increase)
+		_ = m.marketRepo.UpdateStock(ctx, *m.player.CurrentPlanet, commodityID, quantity)
+
+		return transactionCompleteMsg{
+			action:      "sell",
+			commodityID: commodityName,
+			quantity:    quantity,
+			newBalance:  m.player.Credits,
+			err:         nil,
+		}
+	}
+}
+
+func (m Model) updateTradingEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "up", "k":
+			if m.tradingEnhanced.selectedCommodity > 0 {
+				m.tradingEnhanced.selectedCommodity--
+			}
+			return m, nil
+
+		case "down", "j":
+			if m.tradingEnhanced.selectedCommodity < len(m.tradingEnhanced.commodities)-1 {
+				m.tradingEnhanced.selectedCommodity++
+			}
+			return m, nil
+
+		case "b", "B":
+			// Buy commodity
+			if m.tradingEnhanced.selectedCommodity < len(m.tradingEnhanced.commodities) {
+				commodity := m.tradingEnhanced.commodities[m.tradingEnhanced.selectedCommodity]
+				return m, m.buyCommodityCmd(commodity.name, 1)
+			}
+			return m, nil
+
+		case "s", "S":
+			// Sell commodity
+			if m.tradingEnhanced.selectedCommodity < len(m.tradingEnhanced.commodities) {
+				commodity := m.tradingEnhanced.commodities[m.tradingEnhanced.selectedCommodity]
+				return m, m.sellCommodityCmd(commodity.name, 1)
+			}
+			return m, nil
+
+		case "m", "M":
+			// Max buy - calculate maximum affordable quantity
+			if m.tradingEnhanced.selectedCommodity < len(m.tradingEnhanced.commodities) {
+				commodity := m.tradingEnhanced.commodities[m.tradingEnhanced.selectedCommodity]
+				return m, m.maxBuyCommodityCmd(commodity.name, commodity.buyPrice)
+			}
+			return m, nil
+
+		case "a", "A":
+			// Sell all of selected commodity
+			if m.tradingEnhanced.selectedCommodity < len(m.tradingEnhanced.commodities) {
+				commodity := m.tradingEnhanced.commodities[m.tradingEnhanced.selectedCommodity]
+				return m, m.sellAllCommodityCmd(commodity.name)
+			}
+			return m, nil
+
+		case "esc":
+			// Back to landing
+			m.screen = ScreenLanding
+			return m, nil
+		}
+
+	case transactionCompleteMsg:
+		// Handle buy/sell completion
+		if msg.err != nil {
+			// Show error message
+			m.errorMessage = fmt.Sprintf("%s failed: %v", msg.action, msg.err)
+			m.showErrorDialog = true
+		} else {
+			// Show success message
+			var actionText string
+			if msg.action == "buy" {
+				actionText = "Purchased"
+			} else {
+				actionText = "Sold"
+			}
+			m.errorMessage = fmt.Sprintf("%s %d %s. Balance: %d credits",
+				actionText, msg.quantity, msg.commodityID, msg.newBalance)
+			m.showErrorDialog = true
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// getCommodityID maps commodity display names to standardized database IDs
+func getCommodityID(commodityName string) string {
+	// Map display names to database IDs
+	commodityMap := map[string]string{
+		"Food":         "food",
+		"Water":        "water",
+		"Textiles":     "textiles",
+		"Electronics":  "electronics",
+		"Computers":    "computers",
+		"Weapons":      "weapons",
+		"Medical Sup.": "medical_supplies",
+		"Luxury Goods": "luxury_goods",
+		"Industrial":   "industrial_parts",
+		"Minerals":     "minerals",
+	}
+
+	if id, ok := commodityMap[commodityName]; ok {
+		return id
+	}
+
+	// Fallback to lowercase with underscores
+	return strings.ToLower(strings.ReplaceAll(commodityName, " ", "_"))
+}
+
+// maxBuyCommodityCmd calculates and purchases maximum affordable quantity
+func (m Model) maxBuyCommodityCmd(commodityName string, pricePerTon int) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Check if player has a ship
+		if m.currentShip == nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Check if player is on a planet
+		if m.player.CurrentPlanet == nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("not landed on a planet"),
+			}
+		}
+
+		// Get ship type for cargo capacity
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType == nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("ship type not found"),
+			}
+		}
+
+		// Calculate available cargo space
+		cargoUsed := m.currentShip.GetCargoUsed()
+		cargoAvailable := shipType.CargoSpace - cargoUsed
+
+		if cargoAvailable <= 0 {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("no cargo space available"),
+			}
+		}
+
+		// Calculate maximum affordable based on credits
+		maxAffordable := int(m.player.Credits / int64(pricePerTon))
+
+		// Take minimum of cargo space and affordable quantity
+		maxQuantity := cargoAvailable
+		if maxAffordable < maxQuantity {
+			maxQuantity = maxAffordable
+		}
+
+		if maxQuantity <= 0 {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("insufficient credits or cargo space"),
+			}
+		}
+
+		// Get commodity ID
+		commodityID := getCommodityID(commodityName)
+
+		// Get market price for validation
+		marketPrice, err := m.marketRepo.GetMarketPrice(ctx, *m.player.CurrentPlanet, commodityID)
+		if err != nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("commodity not available: %w", err),
+			}
+		}
+
+		// Calculate total cost
+		totalCost := marketPrice.BuyPrice * int64(maxQuantity)
+
+		// Double-check credits
+		if m.player.Credits < totalCost {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("insufficient credits"),
+			}
+		}
+
+		// Add cargo to ship
+		err = m.shipRepo.AddCargo(ctx, m.currentShip.ID, commodityID, maxQuantity)
+		if err != nil {
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("failed to add cargo: %w", err),
+			}
+		}
+
+		// Deduct credits
+		m.player.Credits -= totalCost
+		err = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+		if err != nil {
+			// Rollback cargo addition
+			_ = m.shipRepo.RemoveCargo(ctx, m.currentShip.ID, commodityID, maxQuantity)
+			return transactionCompleteMsg{
+				action: "buy",
+				err:    fmt.Errorf("failed to deduct credits: %w", err),
+			}
+		}
+
+		// Update market stock (decrease)
+		_ = m.marketRepo.UpdateStock(ctx, *m.player.CurrentPlanet, commodityID, -maxQuantity)
+
+		return transactionCompleteMsg{
+			action:      "buy",
+			commodityID: commodityName,
+			quantity:    maxQuantity,
+			newBalance:  m.player.Credits,
+			err:         nil,
+		}
+	}
+}
+
+// sellAllCommodityCmd sells all of a commodity in cargo
+func (m Model) sellAllCommodityCmd(commodityName string) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Check if player has a ship
+		if m.currentShip == nil {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Check if player is on a planet
+		if m.player.CurrentPlanet == nil {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("not landed on a planet"),
+			}
+		}
+
+		// Get commodity ID
+		commodityID := getCommodityID(commodityName)
+
+		// Find quantity in cargo
+		quantityInCargo := 0
+		for _, item := range m.currentShip.Cargo {
+			if item.CommodityID == commodityID {
+				quantityInCargo = item.Quantity
+				break
+			}
+		}
+
+		if quantityInCargo <= 0 {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("no %s in cargo", commodityName),
+			}
+		}
+
+		// Get market price for this commodity
+		marketPrice, err := m.marketRepo.GetMarketPrice(ctx, *m.player.CurrentPlanet, commodityID)
+		if err != nil {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("commodity not available: %w", err),
+			}
+		}
+
+		// Calculate total earnings
+		totalEarnings := marketPrice.SellPrice * int64(quantityInCargo)
+
+		// Remove cargo from ship
+		err = m.shipRepo.RemoveCargo(ctx, m.currentShip.ID, commodityID, quantityInCargo)
+		if err != nil {
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("failed to remove cargo: %w", err),
+			}
+		}
+
+		// Add credits
+		m.player.Credits += totalEarnings
+		err = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+		if err != nil {
+			// Rollback cargo removal
+			_ = m.shipRepo.AddCargo(ctx, m.currentShip.ID, commodityID, quantityInCargo)
+			return transactionCompleteMsg{
+				action: "sell",
+				err:    fmt.Errorf("failed to add credits: %w", err),
+			}
+		}
+
+		// Update market stock (increase)
+		_ = m.marketRepo.UpdateStock(ctx, *m.player.CurrentPlanet, commodityID, quantityInCargo)
+
+		return transactionCompleteMsg{
+			action:      "sell",
+			commodityID: commodityName,
+			quantity:    quantityInCargo,
+			newBalance:  m.player.Credits,
+			err:         nil,
+		}
+	}
+}
+
+// Add ScreenTradingEnhanced constant to Screen enum when integrating

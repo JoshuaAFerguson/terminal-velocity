@@ -1,7 +1,7 @@
 // File: internal/tui/model.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for model
-// Version: 1.0.0
+// Description: Terminal UI component for model with all enhanced screens integrated
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -18,6 +18,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/missions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/outfitting"
@@ -63,6 +64,15 @@ const (
 	ScreenTutorial
 	ScreenQuests
 	ScreenRegistration
+	ScreenLogin
+	ScreenSpaceView
+	ScreenLanding
+	ScreenTradingEnhanced
+	ScreenShipyardEnhanced
+	ScreenMissionBoardEnhanced
+	ScreenNavigationEnhanced
+	ScreenCombatEnhanced
+	ScreenQuestBoardEnhanced
 )
 
 // Model is the main TUI model
@@ -114,6 +124,15 @@ type Model struct {
 	adminModel        adminModel
 	tutorialModel     tutorialModel
 	questsModel       questsModel
+	loginModel        loginModel
+	spaceView         spaceViewModel
+	landing               landingModel
+	tradingEnhanced       tradingEnhancedModel
+	shipyardEnhanced      shipyardEnhancedModel
+	missionBoardEnhanced  missionBoardEnhancedModel
+	navigationEnhanced    navigationEnhancedModel
+	combatEnhanced        combatEnhancedModel
+	questBoardEnhanced    questBoardEnhancedModel
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -161,8 +180,15 @@ type Model struct {
 	// Quest system
 	questManager *quests.Manager
 
-	// Error message
-	err error
+	// Mission system
+	missionManager *missions.Manager
+
+	// Error handling
+	err               error
+	errorMessage      string
+	showErrorDialog   bool
+	loadingOperation  string
+	isLoading         bool
 }
 
 // NewModel creates a new TUI model
@@ -225,6 +251,16 @@ func NewModel(
 		tutorialManager:     tutorial.NewManager(),
 		questsModel:         newQuestsModel(),
 		questManager:        quests.NewManager(),
+		missionManager:      missions.NewManager(),
+		loginModel:          newLoginModel(),
+		spaceView:           newSpaceViewModel(),
+		landing:             newLandingModel(),
+		tradingEnhanced:      newTradingEnhancedModel(),
+		shipyardEnhanced:     newShipyardEnhancedModel(),
+		missionBoardEnhanced: newMissionBoardEnhancedModel(),
+		navigationEnhanced:   newNavigationEnhancedModel(),
+		combatEnhanced:       newCombatEnhancedModel(),
+		questBoardEnhanced:   newQuestBoardEnhancedModel(),
 	}
 }
 
@@ -383,6 +419,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTutorial(msg)
 	case ScreenQuests:
 		return m.updateQuests(msg)
+	case ScreenLogin:
+		return m.updateLogin(msg)
+	case ScreenSpaceView:
+		return m.updateSpaceView(msg)
+	case ScreenLanding:
+		return m.updateLanding(msg)
+	case ScreenTradingEnhanced:
+		return m.updateTradingEnhanced(msg)
+	case ScreenShipyardEnhanced:
+		return m.updateShipyardEnhanced(msg)
+	case ScreenMissionBoardEnhanced:
+		return m.updateMissionBoardEnhanced(msg)
+	case ScreenNavigationEnhanced:
+		return m.updateNavigationEnhanced(msg)
+	case ScreenCombatEnhanced:
+		return m.updateCombatEnhanced(msg)
+	case ScreenQuestBoardEnhanced:
+		return m.updateQuestBoardEnhanced(msg)
 	default:
 		return m, nil
 	}
@@ -454,6 +508,24 @@ func (m Model) View() string {
 		return m.viewTutorial()
 	case ScreenQuests:
 		return m.viewQuests()
+	case ScreenLogin:
+		return m.viewLogin()
+	case ScreenSpaceView:
+		return m.viewSpaceView()
+	case ScreenLanding:
+		return m.viewLanding()
+	case ScreenTradingEnhanced:
+		return m.viewTradingEnhanced()
+	case ScreenShipyardEnhanced:
+		return m.viewShipyardEnhanced()
+	case ScreenMissionBoardEnhanced:
+		return m.viewMissionBoardEnhanced()
+	case ScreenNavigationEnhanced:
+		return m.viewNavigationEnhanced()
+	case ScreenCombatEnhanced:
+		return m.viewCombatEnhanced()
+	case ScreenQuestBoardEnhanced:
+		return m.viewQuestBoardEnhanced()
 	default:
 		return "Unknown screen"
 	}
