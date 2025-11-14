@@ -373,16 +373,16 @@ func (m *Manager) calculateLoadoutStats(shipType *models.ShipType, weapons, outf
 		if outfit != nil {
 			// Apply outfit bonuses based on type
 			switch outfit.Type {
-			case models.OutfitTypeArmor:
-				stats.TotalArmor += outfit.ArmorBonus
-			case models.OutfitTypeShield:
+			case "hull_reinforcement":
+				stats.TotalArmor += outfit.HullBonus
+			case "shield_booster":
 				stats.TotalShield += outfit.ShieldBonus
-			case models.OutfitTypeEngine:
+			case "engine_upgrade":
 				stats.TotalSpeed += outfit.SpeedBonus
-			case models.OutfitTypeCargo:
+			case "cargo_pod":
 				stats.TotalCargo += outfit.CargoBonus
 			}
-			stats.MassUsage += outfit.Mass
+			// Note: Mass tracking not yet implemented in Outfit model
 		}
 	}
 

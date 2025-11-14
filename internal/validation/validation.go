@@ -106,10 +106,9 @@ func ValidatePassword(password string) error {
 
 	// Count character types
 	var (
-		hasUpper   bool
-		hasLower   bool
-		hasDigit   bool
-		hasSpecial bool
+		hasUpper bool
+		hasLower bool
+		hasDigit bool
 	)
 
 	for _, char := range password {
@@ -120,8 +119,6 @@ func ValidatePassword(password string) error {
 			hasLower = true
 		case unicode.IsDigit(char):
 			hasDigit = true
-		case unicode.IsPunct(char) || unicode.IsSymbol(char):
-			hasSpecial = true
 		}
 	}
 
