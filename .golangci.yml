@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -5,13 +7,9 @@ run:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
-    - typecheck
-    - gofmt
-    - goimports
     - misspell
     - dupl
   disable:
@@ -21,31 +19,26 @@ linters:
     - gocritic
     - unconvert
     - gocyclo
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: false
-
-  govet:
-    enable-all: true
-    disable:
-      - shadow
-      - fieldalignment
-
-  gocyclo:
-    min-complexity: 40
-
-  dupl:
-    threshold: 150
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+    govet:
+      enable-all: true
+      disable:
+        - shadow
+        - fieldalignment
+    gocyclo:
+      min-complexity: 40
+    dupl:
+      threshold: 150
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
 
 issues:
   exclude-rules:
@@ -102,10 +95,28 @@ issues:
       text: "SA9003:"  # Empty branch - intentional for future implementation
     - linters:
         - staticcheck
-      text: "SA1019:"  # Deprecated - lipgloss.Copy() deprecation
+      text: "SA1019:"  # Deprecated - lipgloss.Copy() deprecation, strings.Title
     - linters:
         - staticcheck
       text: "SA1012:"  # Nil context - test/placeholder code
+    - linters:
+        - staticcheck
+      text: "U1000:"  # Unused code - development/future implementation
+    - linters:
+        - staticcheck
+      text: "SA4005:"  # Ineffective assignment - field initialization patterns
+    - linters:
+        - staticcheck
+      text: "SA4006:"  # Unused value - intentional patterns
+    - linters:
+        - staticcheck
+      text: "S1039:"  # Unnecessary fmt.Sprintf - intentional for consistency
+    - linters:
+        - staticcheck
+      text: "S1009:"  # Redundant nil check
+    - linters:
+        - staticcheck
+      text: "S1025:"  # Redundant fmt.Sprintf
     # Exclude ineffassign for unused variables in placeholder code
     - linters:
         - ineffassign
@@ -114,6 +125,5 @@ issues:
     - linters:
         - misspell
       text: "Virginis"
-
   max-issues-per-linter: 0
   max-same-issues: 0

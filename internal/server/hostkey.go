@@ -10,6 +10,7 @@ package server
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,7 +52,7 @@ func loadHostKeyFromFile(keyPath string) (ssh.Signer, error) {
 // generateAndSaveHostKey generates a new ED25519 host key and saves it to disk
 func generateAndSaveHostKey(keyPath string) (ssh.Signer, error) {
 	// Generate ED25519 key pair
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key: %w", err)
 	}
@@ -104,7 +105,8 @@ func marshalED25519PrivateKey(privateKey ed25519.PrivateKey) []byte {
 		return privateKey
 	}
 
-	return ssh.MarshalAuthorizedKey(pemBlock)
+	// Encode the PEM block to bytes
+	return pem.EncodeToMemory(pemBlock)
 }
 
 // generateHostKey generates a temporary ED25519 host key (deprecated)
