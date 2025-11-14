@@ -370,3 +370,152 @@ func GetPasswordStrength(password string) (score int, description string) {
 
 	return score, description
 }
+
+// ============================================================================
+// Terminal Injection Prevention
+// ============================================================================
+
+// SanitizeForDisplay removes potentially dangerous characters from user input
+// before displaying in the terminal to prevent ANSI escape code injection
+func SanitizeForDisplay(input string) string {
+	if input == "" {
+		return ""
+	}
+
+	var result strings.Builder
+	result.Grow(len(input))
+
+	for _, r := range input {
+		// Allow printable ASCII and common safe characters
+		if r >= 32 && r <= 126 {
+			// Skip ANSI escape sequence start
+			if r == 27 { // ESC character
+				continue
+			}
+			result.WriteRune(r)
+		} else if r == '\n' || r == '\t' {
+			// Allow newlines and tabs (but be cautious where used)
+			result.WriteRune(r)
+		}
+		// All other control characters are stripped
+	}
+
+	return result.String()
+}
+
+// StripANSI removes all ANSI escape codes from a string
+func StripANSI(input string) string {
+	// Regex to match ANSI escape codes
+	ansiRegex := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+	return ansiRegex.ReplaceAllString(input, "")
+}
+
+// SanitizeUsername sanitizes a username for safe display
+// This is more aggressive than validation and ensures safe display
+func SanitizeUsername(username string) string {
+	// First validate structure
+	if err := ValidateUsername(username); err != nil {
+		return "[invalid]"
+	}
+
+	// Then sanitize for display
+	return SanitizeForDisplay(username)
+}
+
+// SanitizeChatMessage sanitizes a chat message for safe display
+// Allows more characters than username but still prevents injection
+func SanitizeChatMessage(message string) string {
+	if len(message) == 0 {
+		return ""
+	}
+
+	// Limit message length
+	const maxMessageLength = 500
+	if len(message) > maxMessageLength {
+		message = message[:maxMessageLength]
+	}
+
+	// Strip ANSI codes first
+	message = StripANSI(message)
+
+	// Remove control characters except newline and tab
+	var result strings.Builder
+	result.Grow(len(message))
+
+	for _, r := range message {
+		if r >= 32 && r <= 126 {
+			result.WriteRune(r)
+		} else if r == '\n' {
+			// Allow newlines but limit consecutive ones
+			result.WriteRune(r)
+		} else if r == '\t' {
+			// Convert tabs to spaces
+			result.WriteRune(' ')
+		}
+		// Skip other control characters
+	}
+
+	return result.String()
+}
+
+// IsTerminalInjection checks if input contains potential terminal injection
+func IsTerminalInjection(input string) bool {
+	// Check for ANSI escape codes
+	if strings.Contains(input, "\x1b[") {
+		return true
+	}
+
+	// Check for ESC character
+	if strings.Contains(input, "\x1b") {
+		return true
+	}
+
+	// Check for other control sequences
+	controlSequences := []string{
+		"\x00", // NULL
+		"\x07", // BEL (bell)
+		"\x08", // Backspace
+		"\x0c", // Form feed
+		"\x1b]", // OSC (Operating System Command)
+		"\x9b", // CSI (Control Sequence Introducer)
+	}
+
+	for _, seq := range controlSequences {
+		if strings.Contains(input, seq) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// SanitizeFilename sanitizes a filename to prevent path traversal
+func SanitizeFilename(filename string) string {
+	// Remove path separators
+	filename = strings.ReplaceAll(filename, "/", "")
+	filename = strings.ReplaceAll(filename, "\\", "")
+	filename = strings.ReplaceAll(filename, "..", "")
+
+	// Remove control characters
+	filename = SanitizeForDisplay(filename)
+
+	// Limit length
+	const maxFilenameLength = 255
+	if len(filename) > maxFilenameLength {
+		filename = filename[:maxFilenameLength]
+	}
+
+	return filename
+}
+
+// ValidateNoInjection validates that input doesn't contain injection attempts
+func ValidateNoInjection(field, value string) error {
+	if IsTerminalInjection(value) {
+		return &ValidationError{
+			Field:   field,
+			Message: "input contains potentially dangerous characters",
+		}
+	}
+
+	return nil
+}
