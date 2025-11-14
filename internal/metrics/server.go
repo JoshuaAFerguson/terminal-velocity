@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
@@ -23,6 +24,7 @@ type Server struct {
 	addr       string
 	collector  *MetricsCollector
 	httpServer *http.Server
+	wg         sync.WaitGroup
 }
 
 // NewServer creates a new metrics server
@@ -55,7 +57,9 @@ func (s *Server) Start() error {
 	}
 
 	log.Info("Starting metrics server on %s", s.addr)
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Error("Metrics server error: %v", err)
 		}
@@ -70,7 +74,9 @@ func (s *Server) Stop(ctx context.Context) error {
 		return nil
 	}
 	log.Info("Shutting down metrics server")
-	return s.httpServer.Shutdown(ctx)
+	err := s.httpServer.Shutdown(ctx)
+	s.wg.Wait() // Wait for HTTP server goroutine to finish
+	return err
 }
 
 // handleMetrics serves Prometheus-formatted metrics

@@ -56,6 +56,7 @@ type SessionManager struct {
 	players  map[uuid.UUID][]uuid.UUID       // playerID -> []sessionIDs
 	config   *SessionConfig
 	stopChan chan struct{}
+	wg       sync.WaitGroup
 }
 
 // NewSessionManager creates a new session manager
@@ -72,6 +73,7 @@ func NewSessionManager(config *SessionConfig) *SessionManager {
 	}
 
 	// Start cleanup goroutine
+	sm.wg.Add(1)
 	go sm.cleanupLoop()
 
 	log.Info("Session manager initialized: idleTimeout=%v, maxDuration=%v, maxConcurrent=%d",
@@ -268,6 +270,7 @@ func (sm *SessionManager) GetTimeUntilTimeout(sessionID uuid.UUID) time.Duration
 
 // cleanupLoop periodically checks for expired sessions
 func (sm *SessionManager) cleanupLoop() {
+	defer sm.wg.Done()
 	ticker := time.NewTicker(sm.config.CheckInterval)
 	defer ticker.Stop()
 
@@ -349,6 +352,7 @@ func (sm *SessionManager) GetStats() map[string]interface{} {
 // Stop stops the session manager
 func (sm *SessionManager) Stop() {
 	close(sm.stopChan)
+	sm.wg.Wait() // Wait for cleanup goroutine to finish
 	log.Info("Session manager stopped")
 }
 

@@ -234,7 +234,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 			log.Warn("Connection rejected from %s: %s", remoteAddr, reason)
 			metrics.Global().IncrementFailedConnections()
 			// Send rejection message and close
-			conn.Write([]byte("Connection rejected: " + reason + "\r\n"))
+			if _, err := conn.Write([]byte("Connection rejected: " + reason + "\r\n")); err != nil {
+				log.Warn("Failed to write rejection message to %s: %v", remoteAddr, err)
+			}
 			return
 		}
 		defer s.rateLimiter.ReleaseConnection(remoteAddr)
@@ -317,7 +319,9 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 			playerID, err = uuid.Parse(playerIDStr)
 			if err != nil {
 				log.Error("Invalid player ID in permissions for %s: %v", username, err)
-				channel.Write([]byte("Error: Invalid session. Please reconnect.\r\n"))
+				if _, writeErr := channel.Write([]byte("Error: Invalid session. Please reconnect.\r\n")); writeErr != nil {
+					log.Warn("Failed to write error message to %s: %v", username, writeErr)
+				}
 				return
 			}
 			log.Debug("Player ID from permissions: %s", playerID)
@@ -336,7 +340,9 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 			return
 		} else if err != nil {
 			log.Error("Error checking for player %s: %v", username, err)
-			channel.Write([]byte("Error: Authentication failed. Please reconnect.\r\n"))
+			if _, writeErr := channel.Write([]byte("Error: Authentication failed. Please reconnect.\r\n")); writeErr != nil {
+				log.Warn("Failed to write error message to %s: %v", username, writeErr)
+			}
 			return
 		}
 		playerID = player.ID
