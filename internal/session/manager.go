@@ -198,10 +198,13 @@ func (m *Manager) SavePlayerState(
 		}
 	}
 
-	// Update session
+	// Update session - re-check existence after database operations
 	m.mu.Lock()
-	session.LastSave = time.Now()
-	session.DirtyState = false
+	session, exists = m.sessions[playerID]
+	if exists {
+		session.LastSave = time.Now()
+		session.DirtyState = false
+	}
 	m.mu.Unlock()
 
 	return nil
