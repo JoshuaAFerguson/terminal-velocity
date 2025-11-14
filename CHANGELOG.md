@@ -1133,6 +1133,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       - Automatic cleanup of old messages
       - Database indexes for inbox/sent/unread queries
       - Migration script (004_add_player_mail.sql)
+  - **Ship Loadout Sharing & Comparison** (`internal/loadouts/`, `internal/database/loadout_repository.go`):
+    - Complete system for sharing and comparing ship configurations
+    - Backend features:
+      - Share current ship loadout (public or private)
+      - Automatic stats calculation (DPS, armor, shield, speed, cargo, energy, mass)
+      - Browse public loadouts with filters (ship type, popularity)
+      - Compare two loadouts side-by-side with difference analysis
+      - Favorite/unfavorite system with counter tracking
+      - View tracking with automatic increment
+      - Apply loadout to player's ship (validates ship type match)
+      - Export/import loadouts as JSON
+    - Database schema:
+      - shared_loadouts table with JSONB for weapons/outfits/stats
+      - loadout_favorites junction table (many-to-many)
+      - Indexes for player queries, public browsing, ship type filtering, and popularity
+      - Cascade delete when player is deleted
+    - Manager operations:
+      - ShareLoadout(): Create new shared loadout from ship
+      - GetLoadout(): Retrieve with access permission checks
+      - GetPlayerLoadouts(): All loadouts by a player
+      - GetPublicLoadouts(): Browse public loadouts (paginated)
+      - GetPopularLoadouts(): Most viewed/favorited (sorted by algorithm)
+      - UpdateLoadout()/DeleteLoadout(): Modify owned loadouts
+      - FavoriteLoadout()/UnfavoriteLoadout(): Favorite management
+      - GetFavorites(): Retrieve player's favorited loadouts
+      - CompareLoadouts(): Side-by-side comparison with differences
+      - ApplyLoadout(): Copy loadout to player's ship
+      - ExportLoadout()/ImportLoadout(): JSON serialization
+    - Stats calculated:
+      - Total DPS from all weapons
+      - Total armor (base + outfit bonuses)
+      - Total shield (base + outfit bonuses)
+      - Total speed (base + engine bonuses)
+      - Total cargo (base + cargo expansion bonuses)
+      - Energy usage from weapons
+      - Mass usage from outfits
+    - Thread-safe operations with RWMutex
+    - Loadout caching for performance
+    - Migration script (005_add_shared_loadouts.sql)
   - **Server Integration**:
     - Metrics server starts on port 8080 by default
     - Rate limiter enabled by default with sensible defaults

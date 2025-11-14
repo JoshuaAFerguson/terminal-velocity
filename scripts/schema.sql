@@ -353,6 +353,32 @@ CREATE TABLE IF NOT EXISTS player_mail (
     CONSTRAINT body_not_empty CHECK (char_length(body) > 0)
 );
 
+-- Shared loadouts system
+CREATE TABLE IF NOT EXISTS shared_loadouts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    ship_type_id VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    weapons JSONB NOT NULL DEFAULT '[]',
+    outfits JSONB NOT NULL DEFAULT '[]',
+    stats JSONB NOT NULL DEFAULT '{}',
+    is_public BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    views INTEGER DEFAULT 0,
+    favorites INTEGER DEFAULT 0,
+    CONSTRAINT name_not_empty CHECK (char_length(name) > 0)
+);
+
+-- Loadout favorites (many-to-many)
+CREATE TABLE IF NOT EXISTS loadout_favorites (
+    loadout_id UUID NOT NULL REFERENCES shared_loadouts(id) ON DELETE CASCADE,
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (loadout_id, player_id)
+);
+
 -- Indexes for performance
 CREATE INDEX idx_players_username ON players(username);
 CREATE INDEX idx_players_email ON players(email) WHERE email IS NOT NULL;
@@ -378,6 +404,11 @@ CREATE INDEX idx_admin_actions_timestamp ON admin_actions(timestamp DESC);
 CREATE INDEX idx_mail_recipient ON player_mail(to_player, sent_at DESC);
 CREATE INDEX idx_mail_sender ON player_mail(from_player, sent_at DESC);
 CREATE INDEX idx_mail_unread ON player_mail(to_player, read, sent_at DESC);
+CREATE INDEX idx_loadouts_player ON shared_loadouts(player_id, updated_at DESC);
+CREATE INDEX idx_loadouts_public ON shared_loadouts(is_public, created_at DESC) WHERE is_public = true;
+CREATE INDEX idx_loadouts_ship_type ON shared_loadouts(ship_type_id, is_public, created_at DESC) WHERE is_public = true;
+CREATE INDEX idx_loadouts_popular ON shared_loadouts((favorites * 2 + views) DESC, is_public) WHERE is_public = true;
+CREATE INDEX idx_loadout_favorites_player ON loadout_favorites(player_id, created_at DESC);
 
 -- Update foreign key for controlled systems
 ALTER TABLE star_systems
@@ -407,3 +438,5 @@ COMMENT ON TABLE player_mutes IS 'Muted players with expiration tracking';
 COMMENT ON TABLE admin_actions IS 'Audit log of all admin actions';
 COMMENT ON TABLE server_settings IS 'Server configuration (single row)';
 COMMENT ON TABLE player_mail IS 'Player-to-player mail messages with soft delete';
+COMMENT ON TABLE shared_loadouts IS 'Shared ship loadout configurations with stats tracking';
+COMMENT ON TABLE loadout_favorites IS 'Player favorites for shared loadouts';
