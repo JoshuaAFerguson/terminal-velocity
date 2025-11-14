@@ -84,6 +84,29 @@ func (m *SessionManager) UpdateActivity(sessionID uuid.UUID) error {
 	return nil
 }
 
+// RefreshSession extends a session's expiration time
+func (m *SessionManager) RefreshSession(sessionID uuid.UUID) (*api.Session, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return nil, api.ErrNotFound
+	}
+
+	// Check if session is already expired
+	if time.Now().After(session.ExpiresAt) {
+		return nil, api.ErrUnauthorized
+	}
+
+	// Extend expiration by session TTL from now
+	now := time.Now()
+	session.LastActivity = now
+	session.ExpiresAt = now.Add(m.sessionTTL)
+
+	return session, nil
+}
+
 // EndSession terminates a session
 func (m *SessionManager) EndSession(sessionID uuid.UUID) error {
 	m.mu.Lock()

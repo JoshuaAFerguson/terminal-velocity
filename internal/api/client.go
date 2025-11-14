@@ -9,7 +9,6 @@ package api
 
 import (
 	"context"
-	"io"
 
 	"github.com/google/uuid"
 )
