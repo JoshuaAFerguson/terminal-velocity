@@ -9,6 +9,7 @@ package tui
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -330,71 +331,249 @@ func (m Model) viewCombatEnhanced() string {
 	return sb.String()
 }
 
+// fireWeaponCmd fires a weapon at the enemy
+func (m Model) fireWeaponCmd(weaponIndex int) tea.Cmd {
+	return func() tea.Msg {
+		if m.currentShip == nil {
+			return combatActionMsg{
+				actionType: "fire",
+				weaponSlot: weaponIndex,
+				err:        fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Simple hit calculation (would use combat.Fire() in real scenario)
+		// For now, we'll simulate combat since we don't have full Weapon models
+		weapons := m.combatEnhanced.playerShip.weapons
+		if weaponIndex >= len(weapons) {
+			return combatActionMsg{
+				actionType: "fire",
+				weaponSlot: weaponIndex,
+				err:        fmt.Errorf("weapon slot not available"),
+			}
+		}
+
+		weapon := weapons[weaponIndex]
+
+		// Check ammo for missile weapons
+		if weapon.maxAmmo > 0 && weapon.ammo <= 0 {
+			return combatActionMsg{
+				actionType:  "fire",
+				weaponSlot:  weaponIndex,
+				logMessage:  fmt.Sprintf("No ammo remaining for %s", weapon.name),
+				err:         fmt.Errorf("no ammo"),
+			}
+		}
+
+		// Check energy
+		if m.combatEnhanced.playerShip.energy < weapon.energyCost {
+			return combatActionMsg{
+				actionType:  "fire",
+				weaponSlot:  weaponIndex,
+				logMessage:  "Insufficient energy to fire weapon",
+				err:         fmt.Errorf("insufficient energy"),
+			}
+		}
+
+		// Calculate hit (simple random for now)
+		hit := rand.Float64() < 0.75 // 75% hit chance
+
+		damage := 0
+		logMsg := ""
+		if hit {
+			damage = weapon.damage
+			logMsg = fmt.Sprintf("You fire %s - HIT for %d damage!", weapon.name, damage)
+
+			// Apply damage to enemy (shields first, then hull)
+			if m.combatEnhanced.enemyShip.shields > 0 {
+				if m.combatEnhanced.enemyShip.shields >= damage {
+					m.combatEnhanced.enemyShip.shields -= damage
+				} else {
+					remainingDamage := damage - m.combatEnhanced.enemyShip.shields
+					m.combatEnhanced.enemyShip.shields = 0
+					m.combatEnhanced.enemyShip.hull -= remainingDamage
+					if m.combatEnhanced.enemyShip.hull < 0 {
+						m.combatEnhanced.enemyShip.hull = 0
+					}
+				}
+			} else {
+				m.combatEnhanced.enemyShip.hull -= damage
+				if m.combatEnhanced.enemyShip.hull < 0 {
+					m.combatEnhanced.enemyShip.hull = 0
+				}
+			}
+		} else {
+			logMsg = fmt.Sprintf("You fire %s - MISS!", weapon.name)
+		}
+
+		// Deduct energy
+		m.combatEnhanced.playerShip.energy -= weapon.energyCost
+
+		// Deduct ammo if applicable
+		if weapon.maxAmmo > 0 {
+			m.combatEnhanced.playerShip.weapons[weaponIndex].ammo--
+		}
+
+		// Check if enemy is destroyed
+		combatOver := m.combatEnhanced.enemyShip.hull <= 0
+		victory := combatOver
+
+		return combatActionMsg{
+			actionType:  "fire",
+			weaponSlot:  weaponIndex,
+			hit:         hit,
+			damage:      damage,
+			logMessage:  logMsg,
+			combatOver:  combatOver,
+			victory:     victory,
+		}
+	}
+}
+
+// performEvasionCmd performs evasive maneuvers
+func (m Model) performEvasionCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Evasion gives temporary defense bonus
+		// For now, just log the action
+		logMsg := "You perform evasive maneuvers! (Next enemy attack has reduced accuracy)"
+
+		return combatActionMsg{
+			actionType: "evade",
+			logMessage: logMsg,
+		}
+	}
+}
+
+// performDefendCmd boosts shields
+func (m Model) performDefendCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Boost shields by 10%
+		shieldBoost := 10
+		m.combatEnhanced.playerShip.shields += shieldBoost
+		if m.combatEnhanced.playerShip.shields > 100 {
+			m.combatEnhanced.playerShip.shields = 100
+		}
+
+		logMsg := fmt.Sprintf("You boost your shields! (+%d%% shields)", shieldBoost)
+
+		return combatActionMsg{
+			actionType: "defend",
+			logMessage: logMsg,
+		}
+	}
+}
+
+// processAITurnCmd processes the AI enemy's turn
+func (m Model) processAITurnCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Simple AI: randomly choose an action
+		action := rand.Intn(3) // 0=fire, 1=evade, 2=defend
+
+		var logMsg string
+		hit := false
+		damage := 0
+		combatOver := false
+
+		switch action {
+		case 0: // Fire weapon
+			if len(m.combatEnhanced.enemyShip.weapons) > 0 {
+				weapon := m.combatEnhanced.enemyShip.weapons[0]
+
+				// Random hit chance
+				hit = rand.Float64() < 0.65 // 65% hit chance for enemy
+
+				if hit {
+					damage = weapon.damage
+					logMsg = fmt.Sprintf("Enemy fires %s - HIT for %d damage!", weapon.name, damage)
+
+					// Apply damage to player (shields first, then hull)
+					if m.combatEnhanced.playerShip.shields > 0 {
+						if m.combatEnhanced.playerShip.shields >= damage {
+							m.combatEnhanced.playerShip.shields -= damage
+						} else {
+							remainingDamage := damage - m.combatEnhanced.playerShip.shields
+							m.combatEnhanced.playerShip.shields = 0
+							m.combatEnhanced.playerShip.hull -= remainingDamage
+							if m.combatEnhanced.playerShip.hull < 0 {
+								m.combatEnhanced.playerShip.hull = 0
+							}
+						}
+					} else {
+						m.combatEnhanced.playerShip.hull -= damage
+						if m.combatEnhanced.playerShip.hull < 0 {
+							m.combatEnhanced.playerShip.hull = 0
+						}
+					}
+
+					// Check if player is destroyed
+					combatOver = m.combatEnhanced.playerShip.hull <= 0
+				} else {
+					logMsg = fmt.Sprintf("Enemy fires %s - MISS!", weapon.name)
+				}
+			}
+
+		case 1: // Evade
+			logMsg = "Enemy performs evasive maneuvers!"
+
+		case 2: // Defend
+			logMsg = "Enemy boosts their shields!"
+			m.combatEnhanced.enemyShip.shields += 10
+			if m.combatEnhanced.enemyShip.shields > 100 {
+				m.combatEnhanced.enemyShip.shields = 100
+			}
+		}
+
+		return enemyTurnMsg{
+			action:     "attack",
+			hit:        hit,
+			damage:     damage,
+			logMessage: logMsg,
+			combatOver: combatOver,
+		}
+	}
+}
+
 func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "1":
-			// Fire Laser Cannon
-			if m.combatEnhanced.isPlayerTurn && len(m.combatEnhanced.playerShip.weapons) > 0 {
-				// TODO: Implement weapon firing logic via API
-				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
-					"> You fire "+m.combatEnhanced.playerShip.weapons[0].name+" - HIT!")
-				m.combatEnhanced.isPlayerTurn = false
+			// Fire weapon slot 0
+			if m.combatEnhanced.isPlayerTurn {
+				return m, m.fireWeaponCmd(0)
 			}
 			return m, nil
 
 		case "2":
-			// Fire Pulse Laser
-			if m.combatEnhanced.isPlayerTurn && len(m.combatEnhanced.playerShip.weapons) > 1 {
-				// TODO: Implement weapon firing logic via API
-				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
-					"> You fire "+m.combatEnhanced.playerShip.weapons[1].name+" - HIT!")
-				m.combatEnhanced.isPlayerTurn = false
+			// Fire weapon slot 1
+			if m.combatEnhanced.isPlayerTurn {
+				return m, m.fireWeaponCmd(1)
 			}
 			return m, nil
 
 		case "3":
-			// Fire Missile
-			if m.combatEnhanced.isPlayerTurn && len(m.combatEnhanced.playerShip.weapons) > 2 {
-				// TODO: Implement weapon firing logic via API
-				weapon := m.combatEnhanced.playerShip.weapons[2]
-				if weapon.ammo > 0 {
-					m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
-						"> You fire "+weapon.name+" - HIT!")
-					m.combatEnhanced.playerShip.weapons[2].ammo--
-					m.combatEnhanced.isPlayerTurn = false
-				} else {
-					m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
-						"> No missiles remaining!")
-				}
+			// Fire weapon slot 2
+			if m.combatEnhanced.isPlayerTurn {
+				return m, m.fireWeaponCmd(2)
 			}
 			return m, nil
 
 		case "e", "E":
 			// Evasive maneuvers
 			if m.combatEnhanced.isPlayerTurn {
-				// TODO: Implement evasion logic via API
-				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
-					"> You perform evasive maneuvers!")
-				m.combatEnhanced.isPlayerTurn = false
+				return m, m.performEvasionCmd()
 			}
 			return m, nil
 
 		case "d", "D":
 			// Defend (boost shields)
 			if m.combatEnhanced.isPlayerTurn {
-				// TODO: Implement shield boost logic via API
-				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
-					"> You boost your shields!")
-				m.combatEnhanced.isPlayerTurn = false
+				return m, m.performDefendCmd()
 			}
 			return m, nil
 
 		case "r", "R":
-			// Retreat
-			// TODO: Implement retreat logic via API
-			// Check if retreat is successful, return to space view
+			// Retreat to space view
 			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
 				"> You attempt to flee combat...")
 			m.screen = ScreenSpaceView
@@ -412,6 +591,69 @@ func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = ScreenMainMenu
 			return m, nil
 		}
+
+	case combatActionMsg:
+		// Handle player combat action result
+		if msg.err != nil && msg.logMessage != "" {
+			// Non-critical error (like no ammo) - show log message
+			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog, "> "+msg.logMessage)
+		} else if msg.err != nil {
+			// Critical error
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Success - add to combat log
+			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog, "> "+msg.logMessage)
+
+			// End player turn
+			m.combatEnhanced.isPlayerTurn = false
+			m.combatEnhanced.turnNumber++
+
+			// Check if combat is over
+			if msg.combatOver {
+				if msg.victory {
+					// Victory - generate loot and return to space
+					m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+						"> ENEMY DESTROYED! Victory!")
+					m.combatEnhanced.combatPhase = "victory"
+					// TODO: Generate loot using combat.GenerateLoot()
+					// For now, just return to space view after a delay
+					m.screen = ScreenSpaceView
+				} else {
+					// Defeat
+					m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+						"> YOUR SHIP IS DESTROYED! Defeat!")
+					m.combatEnhanced.combatPhase = "defeat"
+					m.screen = ScreenMainMenu
+				}
+			} else {
+				// Continue combat - trigger AI turn
+				return m, m.processAITurnCmd()
+			}
+		}
+		return m, nil
+
+	case enemyTurnMsg:
+		// Handle AI enemy turn result
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Add to combat log
+			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog, "> "+msg.logMessage)
+
+			// Check if combat is over (player defeated)
+			if msg.combatOver {
+				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+					"> YOUR SHIP IS DESTROYED! Defeat!")
+				m.combatEnhanced.combatPhase = "defeat"
+				m.screen = ScreenMainMenu
+			} else {
+				// Return to player turn
+				m.combatEnhanced.isPlayerTurn = true
+			}
+		}
+		return m, nil
 	}
 
 	return m, nil
