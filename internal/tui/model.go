@@ -70,6 +70,7 @@ const (
 	ScreenShipyardEnhanced
 	ScreenMissionBoardEnhanced
 	ScreenNavigationEnhanced
+	ScreenCombatEnhanced
 )
 
 // Model is the main TUI model
@@ -128,6 +129,7 @@ type Model struct {
 	shipyardEnhanced      shipyardEnhancedModel
 	missionBoardEnhanced  missionBoardEnhancedModel
 	navigationEnhanced    navigationEnhancedModel
+	combatEnhanced        combatEnhancedModel
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -246,6 +248,7 @@ func NewModel(
 		shipyardEnhanced:     newShipyardEnhancedModel(),
 		missionBoardEnhanced: newMissionBoardEnhancedModel(),
 		navigationEnhanced:   newNavigationEnhancedModel(),
+		combatEnhanced:       newCombatEnhancedModel(),
 	}
 }
 
@@ -418,6 +421,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateMissionBoardEnhanced(msg)
 	case ScreenNavigationEnhanced:
 		return m.updateNavigationEnhanced(msg)
+	case ScreenCombatEnhanced:
+		return m.updateCombatEnhanced(msg)
 	default:
 		return m, nil
 	}
@@ -503,6 +508,8 @@ func (m Model) View() string {
 		return m.viewMissionBoardEnhanced()
 	case ScreenNavigationEnhanced:
 		return m.viewNavigationEnhanced()
+	case ScreenCombatEnhanced:
+		return m.viewCombatEnhanced()
 	default:
 		return "Unknown screen"
 	}

@@ -398,6 +398,12 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// TODO: Cycle through targetable objects
 			return m, nil
 
+		case "f", "F":
+			// Fire / Enter combat
+			// TODO: Check if there's a valid target
+			m.screen = ScreenCombatEnhanced
+			return m, nil
+
 		case "m", "M":
 			// System map
 			m.screen = ScreenNavigationEnhanced
