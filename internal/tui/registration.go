@@ -1,7 +1,7 @@
 // File: internal/tui/registration.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for registration
-// Version: 1.0.0
+// Description: Terminal UI component for registration with login screen integration
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -27,10 +27,12 @@ type registrationModel struct {
 	sshKeyData   []byte // If registering with SSH key (deprecated - SSH key auth removed)
 }
 
-type registrationCompleteMsg struct{
+type registrationCompleteMsg struct {
 	success bool
 	err     error
 }
+
+type switchToLoginMsg struct{}
 
 func newRegistrationModel(requireEmail bool, sshKeyData []byte) registrationModel {
 	return registrationModel{
@@ -64,13 +66,22 @@ func (m Model) updateRegistration(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case registrationCompleteMsg:
 		if msg.success {
-			// Registration successful - need to reconnect
+			// Registration successful - go back to login screen
 			m.registration.step = 5 // Success screen
-			return m, tea.Quit
+			// Wait a moment then go to login
+			return m, func() tea.Msg {
+				return switchToLoginMsg{}
+			}
 		} else {
 			m.registration.error = fmt.Sprintf("Registration failed: %v", msg.err)
 			return m, nil
 		}
+
+	case switchToLoginMsg:
+		// Switch to login screen after successful registration
+		m.screen = ScreenLogin
+		m.registration = newRegistrationModel(false, nil) // Reset registration state
+		return m, nil
 	}
 
 	return m, nil
@@ -280,8 +291,7 @@ func (m Model) viewRegistration() string {
 
 	case 5: // Success
 		s += "✓ Account created successfully!\n\n"
-		s += "You can now log in with your credentials.\n\n"
-		s += "Disconnecting..."
+		s += "Returning to login screen..."
 	}
 
 	return s

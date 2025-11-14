@@ -1,16 +1,20 @@
 // File: internal/tui/login.go
 // Project: Terminal Velocity
-// Description: Login screen with Escape Velocity-style ASCII logo
-// Version: 1.0.0
+// Description: Functional login screen with authentication and ASCII logo
+// Version: 2.0.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
 package tui
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 )
 
 // ASCII logo for Terminal Velocity
@@ -33,19 +37,29 @@ const asciiLogo = `
 `
 
 type loginModel struct {
-	focusedField int // 0: username, 1: password, 2: buttons
-	buttonIndex  int // 0: password login, 1: SSH key login, 2: register
-	username     string
-	password     string
-	showPassword bool
-	error        string
+	focusedField  int // 0: username, 1: password, 2: login button, 3: register button
+	username      string
+	password      string
+	showPassword  bool
+	error         string
+	isAuthenticating bool
 }
 
 func newLoginModel() loginModel {
 	return loginModel{
 		focusedField: 0,
-		buttonIndex:  0,
 	}
+}
+
+// loginSuccessMsg is sent when login succeeds
+type loginSuccessMsg struct {
+	playerID uuid.UUID
+	username string
+}
+
+// loginFailureMsg is sent when login fails
+type loginFailureMsg struct {
+	error string
 }
 
 func (m Model) viewLogin() string {
@@ -124,8 +138,8 @@ func (m Model) viewLogin() string {
 
 	// Username field
 	usernameLabel := "Username: "
-	usernameFocused := m.mainMenu.cursor == 0 // Using mainMenu.cursor as login cursor for now
-	usernameField := m.registration.email // Using email field for username
+	usernameFocused := m.loginModel.focusedField == 0
+	usernameField := m.loginModel.username
 	if usernameFocused {
 		usernameField = HighlightStyle.Render("[" + PadRight(usernameField+"_", 27) + "]")
 	} else {
@@ -151,8 +165,8 @@ func (m Model) viewLogin() string {
 
 	// Password field
 	passwordLabel := "Password: "
-	passwordFocused := m.mainMenu.cursor == 1
-	passwordField := strings.Repeat("*", len(m.registration.password))
+	passwordFocused := m.loginModel.focusedField == 1
+	passwordField := strings.Repeat("*", len(m.loginModel.password))
 	if passwordFocused {
 		passwordField = HighlightStyle.Render("[" + PadRight(passwordField+"_", 27) + "]")
 	} else {
@@ -176,28 +190,19 @@ func (m Model) viewLogin() string {
 	sb.WriteString(strings.Repeat(" ", width-panelLeft-panelWidth-1))
 	sb.WriteString(BoxVertical + "\n")
 
-	// Buttons
-	btnPasswordLogin := "[ Login with Password ]"
-	btnSSHLogin := "[ Login with SSH Key  ]"
-	if m.mainMenu.cursor == 2 {
-		btnPasswordLogin = HighlightStyle.Render(btnPasswordLogin)
+	// Login Button
+	btnLogin := "[ Login ]"
+	if m.loginModel.focusedField == 2 {
+		btnLogin = HighlightStyle.Render(btnLogin)
 	}
-	if m.mainMenu.cursor == 3 {
-		btnSSHLogin = HighlightStyle.Render(btnSSHLogin)
+	if m.loginModel.isAuthenticating {
+		btnLogin = "[ Authenticating... ]"
 	}
 
 	sb.WriteString(BoxVertical)
 	sb.WriteString(strings.Repeat(" ", panelLeft-1))
 	sb.WriteString(BoxVertical)
-	sb.WriteString(Center(btnPasswordLogin, panelWidth-2))
-	sb.WriteString(BoxVertical)
-	sb.WriteString(strings.Repeat(" ", width-panelLeft-panelWidth-1))
-	sb.WriteString(BoxVertical + "\n")
-
-	sb.WriteString(BoxVertical)
-	sb.WriteString(strings.Repeat(" ", panelLeft-1))
-	sb.WriteString(BoxVertical)
-	sb.WriteString(Center(btnSSHLogin, panelWidth-2))
+	sb.WriteString(Center(btnLogin, panelWidth-2))
 	sb.WriteString(BoxVertical)
 	sb.WriteString(strings.Repeat(" ", width-panelLeft-panelWidth-1))
 	sb.WriteString(BoxVertical + "\n")
@@ -231,7 +236,7 @@ func (m Model) viewLogin() string {
 
 	// Register button
 	btnRegister := "[ Create New Account ]"
-	if m.mainMenu.cursor == 4 {
+	if m.loginModel.focusedField == 3 {
 		btnRegister = HighlightStyle.Render(btnRegister)
 	}
 
@@ -266,22 +271,16 @@ func (m Model) viewLogin() string {
 	sb.WriteString(strings.Repeat(" ", width-2))
 	sb.WriteString(BoxVertical + "\n")
 
-	// SSH connection info
-	sshInfo := "Connect via SSH: ssh username@terminal-velocity.io:2222"
-	sb.WriteString(BoxVertical)
-	sb.WriteString(Center(sshInfo, width-2))
-	sb.WriteString(BoxVertical + "\n")
-
-	// Empty space
-	sb.WriteString(BoxVertical)
-	sb.WriteString(strings.Repeat(" ", width-2))
-	sb.WriteString(BoxVertical + "\n")
-
 	// Error message if present
-	if m.registration.error != "" {
+	if m.loginModel.error != "" {
 		sb.WriteString(BoxVertical)
-		sb.WriteString(Center(ErrorStyle.Render(m.registration.error), width-2))
+		sb.WriteString(Center(ErrorStyle.Render(m.loginModel.error), width-2))
 		sb.WriteString(BoxVertical + "\n")
+		sb.WriteString(BoxVertical)
+		sb.WriteString(strings.Repeat(" ", width-2))
+		sb.WriteString(BoxVertical + "\n")
+	} else {
+		// Empty space
 		sb.WriteString(BoxVertical)
 		sb.WriteString(strings.Repeat(" ", width-2))
 		sb.WriteString(BoxVertical + "\n")
@@ -293,8 +292,8 @@ func (m Model) viewLogin() string {
 	sb.WriteString(BoxCross + "\n")
 
 	sb.WriteString(BoxVertical)
-	sb.WriteString(" [Tab] Next Field  [Enter] Submit  [R]egister  [Q]uit")
-	sb.WriteString(strings.Repeat(" ", width-len(" [Tab] Next Field  [Enter] Submit  [R]egister  [Q]uit")-3))
+	sb.WriteString(" [Tab/↑/↓] Navigate  [Enter] Select  [Ctrl+C] Quit")
+	sb.WriteString(strings.Repeat(" ", width-len(" [Tab/↑/↓] Navigate  [Enter] Select  [Ctrl+C] Quit")-3))
 	sb.WriteString(BoxVertical + "\n")
 
 	// Bottom border
@@ -306,58 +305,150 @@ func (m Model) viewLogin() string {
 }
 
 func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Don't process input while authenticating
+	if m.loginModel.isAuthenticating {
+		switch msg := msg.(type) {
+		case loginSuccessMsg:
+			// Login successful - load player and transition to game
+			m.loginModel.isAuthenticating = false
+			m.playerID = msg.playerID
+			m.username = msg.username
+			return m, m.loadPlayer()
+		case loginFailureMsg:
+			// Login failed - show error
+			m.loginModel.isAuthenticating = false
+			m.loginModel.error = msg.error
+			m.loginModel.password = "" // Clear password on failure
+			return m, nil
+		}
+		return m, nil
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
+		case "ctrl+c":
 			return m, tea.Quit
 
-		case "tab":
-			// Cycle through fields
-			m.mainMenu.cursor = (m.mainMenu.cursor + 1) % 5
+		case "tab", "down":
+			// Cycle forward through fields
+			m.loginModel.focusedField = (m.loginModel.focusedField + 1) % 4
+			m.loginModel.error = ""
+			return m, nil
+
+		case "up":
+			// Cycle backward through fields
+			m.loginModel.focusedField = (m.loginModel.focusedField - 1 + 4) % 4
+			m.loginModel.error = ""
 			return m, nil
 
 		case "enter":
-			// Handle login attempt
-			// TODO: Implement actual login logic
-			if m.mainMenu.cursor == 2 {
-				// Password login button
-				m.screen = ScreenSpaceView
-			} else if m.mainMenu.cursor == 3 {
-				// SSH login button
-				m.screen = ScreenSpaceView
-			} else if m.mainMenu.cursor == 4 {
+			// Handle field submission
+			if m.loginModel.focusedField == 2 {
+				// Login button
+				return m.handleLogin()
+			} else if m.loginModel.focusedField == 3 {
 				// Register button
 				m.screen = ScreenRegistration
+				return m, nil
 			}
+			return m, nil
+
+		case "backspace":
+			// Handle backspace for text input fields
+			if m.loginModel.focusedField == 0 {
+				// Username field
+				if len(m.loginModel.username) > 0 {
+					m.loginModel.username = m.loginModel.username[:len(m.loginModel.username)-1]
+				}
+			} else if m.loginModel.focusedField == 1 {
+				// Password field
+				if len(m.loginModel.password) > 0 {
+					m.loginModel.password = m.loginModel.password[:len(m.loginModel.password)-1]
+				}
+			}
+			m.loginModel.error = ""
 			return m, nil
 
 		default:
 			// Handle text input for username/password fields
-			if m.mainMenu.cursor == 0 {
-				// Username field
-				if msg.String() == "backspace" {
-					if len(m.registration.email) > 0 {
-						m.registration.email = m.registration.email[:len(m.registration.email)-1]
-					}
-				} else if len(msg.String()) == 1 {
-					m.registration.email += msg.String()
-				}
-			} else if m.mainMenu.cursor == 1 {
-				// Password field
-				if msg.String() == "backspace" {
-					if len(m.registration.password) > 0 {
-						m.registration.password = m.registration.password[:len(m.registration.password)-1]
-					}
-				} else if len(msg.String()) == 1 {
-					m.registration.password += msg.String()
+			if len(msg.String()) == 1 {
+				if m.loginModel.focusedField == 0 {
+					// Username field
+					m.loginModel.username += msg.String()
+					m.loginModel.error = ""
+				} else if m.loginModel.focusedField == 1 {
+					// Password field
+					m.loginModel.password += msg.String()
+					m.loginModel.error = ""
 				}
 			}
 			return m, nil
 		}
+
+	case playerLoadedMsg:
+		// Player data loaded after successful login
+		m.player = msg.player
+		m.currentShip = msg.ship
+		m.err = msg.err
+
+		if m.err != nil {
+			// Error loading player data
+			m.loginModel.error = fmt.Sprintf("Error loading player: %v", m.err)
+			m.playerID = uuid.Nil
+			m.username = ""
+			return m, nil
+		}
+
+		// Initialize presence when player loads
+		if m.player != nil {
+			m.InitializePresence()
+		}
+
+		// Transition to main menu
+		m.screen = ScreenMainMenu
+		return m, nil
 	}
 
 	return m, nil
 }
 
-// Add a ScreenLogin constant to the Screen enum in model.go when integrating
+// handleLogin authenticates the user
+func (m Model) handleLogin() (Model, tea.Cmd) {
+	// Validate input
+	if m.loginModel.username == "" {
+		m.loginModel.error = "Please enter your username"
+		return m, nil
+	}
+	if m.loginModel.password == "" {
+		m.loginModel.error = "Please enter your password"
+		return m, nil
+	}
+
+	// Start authentication
+	m.loginModel.isAuthenticating = true
+	m.loginModel.error = ""
+
+	return m, m.authenticateUser()
+}
+
+// authenticateUser performs the authentication
+func (m Model) authenticateUser() tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Authenticate user
+		player, err := m.playerRepo.Authenticate(ctx, m.loginModel.username, m.loginModel.password)
+		if err != nil {
+			if err == database.ErrInvalidCredentials {
+				return loginFailureMsg{error: "Invalid username or password"}
+			}
+			return loginFailureMsg{error: fmt.Sprintf("Authentication error: %v", err)}
+		}
+
+		return loginSuccessMsg{
+			playerID: player.ID,
+			username: player.Username,
+		}
+	}
+}
