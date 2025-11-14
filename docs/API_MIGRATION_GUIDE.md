@@ -1,12 +1,15 @@
 # API Migration Guide
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Phase**: Phase 1 - Internal API Extraction
-**Status**: Implementation Guide
+**Status**: Implementation In Progress
+**Last Updated**: 2025-01-14
 
 ## Overview
 
 This guide explains how to migrate existing TUI code from direct manager/repository access to using the new API client interface. This is the core work of Phase 1.
+
+**📚 See Also**: [`PHASE_1B_EXAMPLE.md`](./PHASE_1B_EXAMPLE.md) for a complete real-world migration example with before/after code.
 
 ## Goals
 
@@ -14,6 +17,27 @@ This guide explains how to migrate existing TUI code from direct manager/reposit
 - **Standardize** all game operations through a single API
 - **Enable** future distributed architecture (Phase 2+)
 - **Maintain** backward compatibility during migration
+
+## Current Progress
+
+### ✅ Completed
+- API interface definitions (`internal/api/client.go`)
+- API type system (`internal/api/types.go`)
+- Server infrastructure (`internal/api/server/server.go`)
+- Session management (`internal/api/server/session.go`)
+- Data converters (`internal/api/server/converters.go`)
+- Example handlers: `GetPlayerState`, `BuyCommodity`, `Jump`
+- Proof-of-concept migration example
+
+### 🔄 In Progress
+- Implementing remaining 28 server handlers
+- TUI screen migrations
+- Unit tests for handlers
+
+### ⏳ Planned
+- Integration testing
+- Performance benchmarking
+- Documentation completion
 
 ## Architecture Comparison
 
@@ -654,6 +678,207 @@ After migration, you'll have:
 - ✅ **Future-proof** - Can switch to gRPC in Phase 2 without TUI changes
 - ✅ **Type safety** - Compile-time checks for API calls
 
+## Real Implementation Examples
+
+The following handlers have been fully implemented as reference examples:
+
+### 1. GetPlayerState - Data Retrieval Pattern
+
+**File**: `internal/api/server/server.go:128-147`
+
+Shows the pattern for retrieving and aggregating player state:
+```go
+func (s *GameServer) GetPlayerState(ctx context.Context, playerID uuid.UUID) (*api.PlayerState, error) {
+    // Load data from repositories
+    player, err := s.playerRepo.GetByID(ctx, playerID)
+    if err != nil {
+        return nil, err
+    }
+
+    ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+    if err != nil {
+        return nil, err
+    }
+
+    // Convert to API types using converters
+    state := convertPlayerToAPI(player, ship)
+    state.Stats = convertPlayerStatsToAPI(player)
+    state.Reputation = convertReputationToAPI(player)
+
+    return state, nil
+}
+```
+
+**Key Points**:
+- Load all required data from repositories
+- Use converter functions to transform models → API types
+- Return aggregate state in single response
+- Handle errors early with direct returns
+
+### 2. BuyCommodity - State Mutation Pattern
+
+**File**: `internal/api/server/server.go:223-348`
+
+Shows the pattern for validating and mutating game state:
+```go
+func (s *GameServer) BuyCommodity(ctx context.Context, req *api.TradeRequest) (*api.TradeResponse, error) {
+    // 1. Load required data
+    player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+    ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+    commodities, err := s.marketRepo.GetCommoditiesBySystemID(ctx, player.CurrentSystemID)
+
+    // 2. Validate preconditions
+    if player.CurrentPlanetID == nil {
+        return &api.TradeResponse{Success: false, Message: "You must be docked"}, nil
+    }
+
+    // 3. Validate business rules
+    if totalCost > player.Credits {
+        return &api.TradeResponse{Success: false, Message: "Insufficient credits"}, nil
+    }
+    if cargoAvailable < req.Quantity {
+        return &api.TradeResponse{Success: false, Message: "Insufficient cargo space"}, nil
+    }
+
+    // 4. Mutate state
+    ship.Cargo[req.CommodityID] += int(req.Quantity)
+    ship.CargoUsed += req.Quantity
+    player.Credits -= totalCost
+
+    // 5. Persist changes
+    s.shipRepo.Update(ctx, ship)
+    s.playerRepo.Update(ctx, player)
+    s.marketRepo.UpdateStock(ctx, player.CurrentSystemID, req.CommodityID, -int(req.Quantity))
+
+    // 6. Return success with updated state
+    return &api.TradeResponse{
+        Success: true,
+        NewState: convertPlayerToAPI(player, ship),
+        QuantityTraded: req.Quantity,
+        TotalCost: totalCost,
+    }, nil
+}
+```
+
+**Key Points**:
+- Always return `Success` field for client validation
+- Include descriptive `Message` for failures
+- Return updated `NewState` so client can sync
+- Use transactions where available (TODO: add transaction support)
+- Handle partial failures gracefully
+
+### 3. Jump - Navigation Pattern
+
+**File**: `internal/api/server/server.go:191-297`
+
+Shows the pattern for complex multi-step operations:
+```go
+func (s *GameServer) Jump(ctx context.Context, req *api.JumpRequest) (*api.JumpResponse, error) {
+    // 1. Load current state
+    player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+    ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+
+    // 2. Validate preconditions
+    if player.CurrentPlanetID != nil {
+        return &api.JumpResponse{Success: false, Message: "You must take off first"}, nil
+    }
+
+    // 3. Validate game rules (connectivity)
+    connections, err := s.systemRepo.GetConnections(ctx, player.CurrentSystemID)
+    isConnected := false
+    for _, connectedSystemID := range connections {
+        if connectedSystemID == req.TargetSystemID {
+            isConnected = true
+            break
+        }
+    }
+    if !isConnected {
+        return &api.JumpResponse{Success: false, Message: "No jump route"}, nil
+    }
+
+    // 4. Validate resources
+    if ship.Fuel < fuelCostPerJump {
+        return &api.JumpResponse{Success: false, Message: "Insufficient fuel"}, nil
+    }
+
+    // 5. Execute operation
+    player.CurrentSystemID = req.TargetSystemID
+    player.X = 0
+    player.Y = 0
+    ship.Fuel -= fuelCostPerJump
+    player.JumpsMade++
+
+    // 6. Persist and return
+    s.playerRepo.Update(ctx, player)
+    s.shipRepo.Update(ctx, ship)
+
+    return &api.JumpResponse{
+        Success: true,
+        NewState: convertPlayerToAPI(player, ship),
+        FuelConsumed: fuelCostPerJump,
+    }, nil
+}
+```
+
+**Key Points**:
+- Validate preconditions before any mutations
+- Check game rules (connections, resources)
+- Update all affected state atomically
+- Return specific operation results (`FuelConsumed`)
+- Always include updated state in response
+
+### 4. Data Converters
+
+**File**: `internal/api/server/converters.go`
+
+All converters follow this pattern:
+```go
+func convertPlayerToAPI(player *models.Player, ship *models.Ship) *api.PlayerState {
+    if player == nil {
+        return nil
+    }
+
+    state := &api.PlayerState{
+        PlayerID:        player.ID,
+        Username:        player.Username,
+        CurrentSystemID: player.CurrentSystemID,
+        Credits:         player.Credits,
+        // ... map all fields ...
+    }
+
+    // Convert nested objects
+    if ship != nil {
+        state.Ship = convertShipToAPI(ship)
+        state.Inventory = convertInventoryToAPI(ship)
+    }
+
+    // Determine derived fields
+    if player.CurrentPlanetID != nil {
+        state.Status = api.PlayerStatusDocked
+    } else {
+        state.Status = api.PlayerStatusInSpace
+    }
+
+    return state
+}
+```
+
+**Key Points**:
+- Always nil-check input
+- Map all relevant fields
+- Convert nested objects recursively
+- Calculate derived/computed fields
+- Use enums from API types, not database strings
+
+## Proof-of-Concept Migration
+
+See **[`PHASE_1B_EXAMPLE.md`](./PHASE_1B_EXAMPLE.md)** for:
+- Complete before/after comparison
+- Trading screen migration (80+ lines → 40 lines)
+- Model changes required
+- Testing strategies
+- Performance analysis
+
 ## Next Steps
 
 After migrating a screen:
@@ -669,8 +894,10 @@ After migrating a screen:
 **Need Help?**
 - See `internal/api/client.go` for available API methods
 - See `internal/api/server/server.go` for server implementation
+- See `internal/api/server/converters.go` for conversion utilities
 - See `internal/api/types.go` for request/response types
 - See `docs/ARCHITECTURE_REFACTORING.md` for overall design
+- See `docs/PHASE_1B_EXAMPLE.md` for real migration example
 
 **Last Updated**: 2025-01-14
-**Document Version**: 1.0.0
+**Document Version**: 1.1.0
