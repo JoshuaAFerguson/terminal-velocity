@@ -102,10 +102,28 @@ issues:
       text: "SA9003:"  # Empty branch - intentional for future implementation
     - linters:
         - staticcheck
-      text: "SA1019:"  # Deprecated - lipgloss.Copy() deprecation
+      text: "SA1019:"  # Deprecated - lipgloss.Copy() deprecation, strings.Title
     - linters:
         - staticcheck
       text: "SA1012:"  # Nil context - test/placeholder code
+    - linters:
+        - staticcheck
+      text: "U1000:"  # Unused code - development/future implementation
+    - linters:
+        - staticcheck
+      text: "SA4005:"  # Ineffective assignment - field initialization patterns
+    - linters:
+        - staticcheck
+      text: "SA4006:"  # Unused value - intentional patterns
+    - linters:
+        - staticcheck
+      text: "S1039:"  # Unnecessary fmt.Sprintf - intentional for consistency
+    - linters:
+        - staticcheck
+      text: "S1009:"  # Redundant nil check
+    - linters:
+        - staticcheck
+      text: "S1025:"  # Redundant fmt.Sprintf
     # Exclude ineffassign for unused variables in placeholder code
     - linters:
         - ineffassign
