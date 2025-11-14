@@ -19,11 +19,11 @@ All **HIGH** and **MEDIUM** priority security issues from the security audit hav
 **Problem**: Server generated new SSH host key on every restart, causing MITM vulnerability.
 
 **Solution**: Implemented persistent SSH host key storage
-- Host keys now persist in `configs/ssh_host_key`
+- Host keys now persist in `data/ssh_host_key`
 - Keys loaded from disk on startup
 - Generated once and reused across restarts
 - File permissions: `0600` (secure)
-- Public key saved for reference: `configs/ssh_host_key.pub`
+- Public key saved for reference: `data/ssh_host_key.pub`
 - Fingerprint logged on startup for verification
 
 **Files Modified**:
@@ -253,8 +253,8 @@ Improved user experience during registration:
 Added exclusions for sensitive files:
 ```gitignore
 # SSH host keys (security - never commit these)
-configs/ssh_host_key
-configs/ssh_host_key.pub
+data/ssh_host_key
+data/ssh_host_key.pub
 ssh_host_key
 ssh_host_key.pub
 ```
@@ -264,7 +264,7 @@ ssh_host_key.pub
 Default configuration now includes:
 ```go
 config := &Config{
-    HostKeyPath:        "configs/ssh_host_key",  // Persistent host key
+    HostKeyPath:        "data/ssh_host_key",  // Persistent host key
     AllowPasswordAuth:  true,                    // Password auth enabled
     AllowPublicKeyAuth: false,                   // SSH key auth disabled
     AllowRegistration:  true,                    // Allow new accounts
@@ -333,7 +333,7 @@ All security improvements have been tested:
 
 2. **SSH Host Key**:
    - First run will generate new persistent key
-   - Key saved to `configs/ssh_host_key`
+   - Key saved to `data/ssh_host_key`
    - Keep this file secure (don't commit!)
    - Backup recommended for disaster recovery
 
@@ -461,10 +461,10 @@ All security improvements have **minimal performance impact**:
 **Q: Server won't start - "failed to load host key"**
 ```bash
 # Solution: Check file permissions
-chmod 600 configs/ssh_host_key
+chmod 600 data/ssh_host_key
 
 # Or delete and regenerate
-rm configs/ssh_host_key
+rm data/ssh_host_key
 make run
 ```
 

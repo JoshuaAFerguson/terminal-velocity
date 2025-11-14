@@ -36,6 +36,8 @@ configs/*.local.yaml
 # SSH host keys (security - never commit these)
 configs/ssh_host_key
 configs/ssh_host_key.pub
+data/ssh_host_key
+data/ssh_host_key.pub
 ssh_host_key
 ssh_host_key.pub
 

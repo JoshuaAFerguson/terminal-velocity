@@ -93,7 +93,7 @@ clean: ## Clean build artifacts
 	rm -f coverage.out
 	rm -rf build/
 	rm -rf $(PROTO_OUT_DIR)
-	rm -f configs/ssh_host_key*
+	rm -f configs/ssh_host_key* data/ssh_host_key*
 
 setup-db: ## Set up PostgreSQL database
 	@echo "Setting up database..."
