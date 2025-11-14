@@ -8,6 +8,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -184,6 +185,167 @@ func (m Model) viewLanding() string {
 	return sb.String()
 }
 
+// refuelShipCmd refuels the player's ship to full
+func (m Model) refuelShipCmd() tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Check if player has a ship
+		if m.currentShip == nil {
+			return serviceCompleteMsg{
+				service: "refuel",
+				cost:    0,
+				err:     fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Get ship type to determine max fuel
+		// For now, assume max fuel is 300 (we'll need to load ship type from DB later)
+		// TODO: Load ship type from database to get actual MaxFuel value
+		maxFuel := 300
+		currentFuel := m.currentShip.Fuel
+
+		// Calculate fuel needed
+		fuelNeeded := maxFuel - currentFuel
+		if fuelNeeded <= 0 {
+			return serviceCompleteMsg{
+				service: "refuel",
+				cost:    0,
+				err:     fmt.Errorf("ship is already fully fueled"),
+			}
+		}
+
+		// Calculate cost (10 credits per unit of fuel)
+		costPerUnit := int64(10)
+		totalCost := costPerUnit * int64(fuelNeeded)
+
+		// Check if player has enough credits
+		if m.player.Credits < totalCost {
+			return serviceCompleteMsg{
+				service: "refuel",
+				cost:    totalCost,
+				err:     fmt.Errorf("insufficient credits (need %d, have %d)", totalCost, m.player.Credits),
+			}
+		}
+
+		// Update ship fuel in database
+		err := m.shipRepo.UpdateFuel(ctx, m.currentShip.ID, maxFuel)
+		if err != nil {
+			return serviceCompleteMsg{
+				service: "refuel",
+				cost:    totalCost,
+				err:     fmt.Errorf("failed to refuel ship: %w", err),
+			}
+		}
+
+		// Deduct credits from player
+		m.player.Credits -= totalCost
+		err = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+		if err != nil {
+			// Try to rollback fuel update
+			_ = m.shipRepo.UpdateFuel(ctx, m.currentShip.ID, currentFuel)
+			return serviceCompleteMsg{
+				service: "refuel",
+				cost:    totalCost,
+				err:     fmt.Errorf("failed to deduct credits: %w", err),
+			}
+		}
+
+		// Update local ship state
+		m.currentShip.Fuel = maxFuel
+
+		return serviceCompleteMsg{
+			service: "refuel",
+			cost:    totalCost,
+			err:     nil,
+		}
+	}
+}
+
+// repairShipCmd repairs the player's ship to full hull and shields
+func (m Model) repairShipCmd() tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Check if player has a ship
+		if m.currentShip == nil {
+			return serviceCompleteMsg{
+				service: "repair",
+				cost:    0,
+				err:     fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Get ship type to determine max hull/shields
+		// For now, assume max values (we'll need to load ship type from DB later)
+		// TODO: Load ship type from database to get actual MaxHull and MaxShields
+		maxHull := 100
+		maxShields := 100
+		currentHull := m.currentShip.Hull
+		currentShields := m.currentShip.Shields
+
+		// Calculate damage
+		hullDamage := maxHull - currentHull
+		shieldDamage := maxShields - currentShields
+		totalDamage := hullDamage + shieldDamage
+
+		if totalDamage <= 0 {
+			return serviceCompleteMsg{
+				service: "repair",
+				cost:    0,
+				err:     fmt.Errorf("ship is already fully repaired"),
+			}
+		}
+
+		// Calculate cost (50 credits per point of hull damage, 10 per shield)
+		hullCostPerPoint := int64(50)
+		shieldCostPerPoint := int64(10)
+		totalCost := (hullCostPerPoint * int64(hullDamage)) + (shieldCostPerPoint * int64(shieldDamage))
+
+		// Check if player has enough credits
+		if m.player.Credits < totalCost {
+			return serviceCompleteMsg{
+				service: "repair",
+				cost:    totalCost,
+				err:     fmt.Errorf("insufficient credits (need %d, have %d)", totalCost, m.player.Credits),
+			}
+		}
+
+		// Update ship hull and shields in database
+		err := m.shipRepo.UpdateHullAndShields(ctx, m.currentShip.ID, maxHull, maxShields)
+		if err != nil {
+			return serviceCompleteMsg{
+				service: "repair",
+				cost:    totalCost,
+				err:     fmt.Errorf("failed to repair ship: %w", err),
+			}
+		}
+
+		// Deduct credits from player
+		m.player.Credits -= totalCost
+		err = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+		if err != nil {
+			// Try to rollback repair
+			_ = m.shipRepo.UpdateHullAndShields(ctx, m.currentShip.ID, currentHull, currentShields)
+			return serviceCompleteMsg{
+				service: "repair",
+				cost:    totalCost,
+				err:     fmt.Errorf("failed to deduct credits: %w", err),
+			}
+		}
+
+		// Update local ship state
+		m.currentShip.Hull = maxHull
+		m.currentShip.Shields = maxShields
+
+		return serviceCompleteMsg{
+			service: "repair",
+			cost:    totalCost,
+			err:     nil,
+		}
+	}
+}
+
 func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -233,13 +395,11 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "r", "R":
 			// Refuel
-			// TODO: Implement refuel logic
-			return m, nil
+			return m, m.refuelShipCmd()
 
 		case "h", "H":
 			// Repairs
-			// TODO: Implement repair logic
-			return m, nil
+			return m, m.repairShipCmd()
 
 		case "t", "T":
 			// Takeoff
@@ -267,12 +427,26 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 5: // Bar & News
 				m.screen = ScreenNews
 			case 6: // Refuel
-				// TODO: Implement refuel
+				return m, m.refuelShipCmd()
 			case 7: // Repairs
-				// TODO: Implement repairs
+				return m, m.repairShipCmd()
 			}
 			return m, nil
 		}
+
+	case serviceCompleteMsg:
+		// Handle refuel/repair completion
+		if msg.err != nil {
+			// Show error message
+			m.errorMessage = fmt.Sprintf("%s failed: %v", msg.service, msg.err)
+			m.showErrorDialog = true
+		} else {
+			// Show success message
+			m.errorMessage = fmt.Sprintf("%s completed! Cost: %d credits",
+				strings.Title(msg.service), msg.cost)
+			m.showErrorDialog = true
+		}
+		return m, nil
 	}
 
 	return m, nil
