@@ -206,22 +206,28 @@ func (m Model) cycleTargetCmd() tea.Cmd {
 
 		if len(targetables) == 0 {
 			return targetSelectedMsg{
-				target:     nil,
-				targetType: "",
-				err:        fmt.Errorf("no targetable objects in range"),
+				target:      nil,
+				targetType:  "",
+				targetIndex: 0,
+				err:         fmt.Errorf("no targetable objects in range"),
 			}
 		}
 
-		// Cycle to next target
-		m.spaceView.targetIndex++
-		if m.spaceView.targetIndex >= len(targetables) {
-			m.spaceView.targetIndex = 0
+		// Calculate next target index (don't mutate m - it's a copy)
+		nextIndex := m.spaceView.targetIndex
+		if m.spaceView.hasTarget {
+			// Already have a target, cycle to next
+			nextIndex++
+		}
+		if nextIndex >= len(targetables) {
+			nextIndex = 0
 		}
 
 		return targetSelectedMsg{
-			target:     targetables[m.spaceView.targetIndex],
-			targetType: targetTypes[m.spaceView.targetIndex],
-			err:        nil,
+			target:      targetables[nextIndex],
+			targetType:  targetTypes[nextIndex],
+			targetIndex: nextIndex,
+			err:         nil,
 		}
 	}
 }
@@ -695,6 +701,11 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// m.screen = ScreenPlayerInfo
 			return m, nil
 
+		case "o", "O":
+			// Outfitter
+			m.screen = ScreenOutfitterEnhanced
+			return m, nil
+
 		case "esc":
 			// Menu
 			m.screen = ScreenMainMenu
@@ -832,8 +843,9 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			// Target selected successfully
 			m.spaceView.hasTarget = true
+			m.spaceView.targetIndex = msg.targetIndex
 			// The target display is automatically updated in the view function
-			// which reads from m.spaceView.ships[m.spaceView.targetIndex]
+			// which reads from the updated targetIndex
 		}
 		return m, nil
 

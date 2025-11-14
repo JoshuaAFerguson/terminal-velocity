@@ -301,7 +301,7 @@ func (m Model) updateOutfitterEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateOutfitterBrowser(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "backspace":
-		m.screen = ScreenMainMenu
+		m.screen = ScreenSpaceView
 		return m, nil
 
 	case "1":

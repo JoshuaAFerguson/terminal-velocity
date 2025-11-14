@@ -74,6 +74,12 @@ func TestScreenTransitions(t *testing.T) {
 			m.questBoardEnhanced = newQuestBoardEnhancedModel()
 			m.loginModel = newLoginModel()
 
+			// Special setup for SpaceView combat test - requires target
+			if tt.initialScreen == ScreenSpaceView && tt.keyPress == "f" {
+				m.spaceView.hasTarget = true
+				m.spaceView.targetIndex = 0
+			}
+
 			// Simulate key press
 			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.keyPress)}
 			if tt.keyPress == "esc" {

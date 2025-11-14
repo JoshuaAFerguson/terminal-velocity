@@ -173,9 +173,10 @@ type spaceViewLoadedMsg struct {
 }
 
 type targetSelectedMsg struct {
-	target     interface{} // could be Ship, Planet, etc.
-	targetType string      // "ship", "planet", "station"
-	err        error
+	target      interface{} // could be Ship, Planet, etc.
+	targetType  string      // "ship", "planet", "station"
+	targetIndex int         // index of the selected target
+	err         error
 }
 
 // Landing/Planet messages
