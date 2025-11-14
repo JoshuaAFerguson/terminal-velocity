@@ -338,6 +338,21 @@ CREATE TABLE IF NOT EXISTS server_settings (
     CONSTRAINT only_one_settings_row CHECK (id = 1)
 );
 
+-- Player mail system
+CREATE TABLE IF NOT EXISTS player_mail (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    from_player UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    to_player UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    subject VARCHAR(200) NOT NULL,
+    body TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMP,
+    deleted_by UUID[] DEFAULT '{}',  -- Array of player IDs who deleted this mail
+    CONSTRAINT subject_not_empty CHECK (char_length(subject) > 0),
+    CONSTRAINT body_not_empty CHECK (char_length(body) > 0)
+);
+
 -- Indexes for performance
 CREATE INDEX idx_players_username ON players(username);
 CREATE INDEX idx_players_email ON players(email) WHERE email IS NOT NULL;
@@ -360,6 +375,9 @@ CREATE INDEX idx_player_mutes_player ON player_mutes(player_id);
 CREATE INDEX idx_player_mutes_active ON player_mutes(is_active, expires_at);
 CREATE INDEX idx_admin_actions_admin ON admin_actions(admin_id, timestamp DESC);
 CREATE INDEX idx_admin_actions_timestamp ON admin_actions(timestamp DESC);
+CREATE INDEX idx_mail_recipient ON player_mail(to_player, sent_at DESC);
+CREATE INDEX idx_mail_sender ON player_mail(from_player, sent_at DESC);
+CREATE INDEX idx_mail_unread ON player_mail(to_player, read, sent_at DESC);
 
 -- Update foreign key for controlled systems
 ALTER TABLE star_systems
@@ -388,3 +406,4 @@ COMMENT ON TABLE player_bans IS 'Banned players with expiration tracking';
 COMMENT ON TABLE player_mutes IS 'Muted players with expiration tracking';
 COMMENT ON TABLE admin_actions IS 'Audit log of all admin actions';
 COMMENT ON TABLE server_settings IS 'Server configuration (single row)';
+COMMENT ON TABLE player_mail IS 'Player-to-player mail messages with soft delete';
