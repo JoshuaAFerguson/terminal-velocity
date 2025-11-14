@@ -1,7 +1,7 @@
 // File: internal/tui/model.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for model with login screen and unauthenticated state support
-// Version: 1.2.1
+// Version: 1.2.2
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -416,11 +416,12 @@ func NewRegistrationModel(
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
+	// Clear screen on initialization to prevent artifacts
 	// If we're on the login screen, don't load player data yet
 	if m.screen == ScreenLogin || m.screen == ScreenRegistration {
-		return nil
+		return tea.ClearScreen
 	}
-	return m.loadPlayer()
+	return tea.Batch(tea.ClearScreen, m.loadPlayer())
 }
 
 // Update handles messages and updates the model

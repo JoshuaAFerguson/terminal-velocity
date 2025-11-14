@@ -1,7 +1,7 @@
 // File: internal/tui/registration.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for registration with login screen integration
-// Version: 1.1.0
+// Version: 1.1.1
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -81,7 +81,7 @@ func (m Model) updateRegistration(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Switch to login screen after successful registration
 		m.screen = ScreenLogin
 		m.registration = newRegistrationModel(false, nil) // Reset registration state
-		return m, nil
+		return m, tea.ClearScreen
 	}
 
 	return m, nil

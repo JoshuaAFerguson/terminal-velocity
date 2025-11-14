@@ -1,7 +1,7 @@
 // File: internal/tui/login.go
 // Project: Terminal Velocity
 // Description: Functional login screen with authentication and ASCII logo
-// Version: 2.0.0
+// Version: 2.0.1
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -350,7 +350,7 @@ func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if m.loginModel.focusedField == 3 {
 				// Register button
 				m.screen = ScreenRegistration
-				return m, nil
+				return m, tea.ClearScreen
 			}
 			return m, nil
 
