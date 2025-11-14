@@ -73,6 +73,7 @@ const (
 	ScreenNavigationEnhanced
 	ScreenCombatEnhanced
 	ScreenQuestBoardEnhanced
+	ScreenTradeRoutes
 )
 
 // Model is the main TUI model
@@ -133,6 +134,7 @@ type Model struct {
 	navigationEnhanced    navigationEnhancedModel
 	combatEnhanced        combatEnhancedModel
 	questBoardEnhanced    questBoardEnhancedModel
+	tradeRoutes           tradeRoutesState
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -437,6 +439,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCombatEnhanced(msg)
 	case ScreenQuestBoardEnhanced:
 		return m.updateQuestBoardEnhanced(msg)
+	case ScreenTradeRoutes:
+		return m.updateTradeRoutes(msg)
 	default:
 		return m, nil
 	}
@@ -526,6 +530,8 @@ func (m Model) View() string {
 		return m.viewCombatEnhanced()
 	case ScreenQuestBoardEnhanced:
 		return m.viewQuestBoardEnhanced()
+	case ScreenTradeRoutes:
+		return m.viewTradeRoutes()
 	default:
 		return "Unknown screen"
 	}

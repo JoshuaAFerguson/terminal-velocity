@@ -20,6 +20,9 @@ func (m Model) updateGame(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc", "backspace":
 			m.screen = ScreenMainMenu
 			return m, nil
+		case "r":
+			m.screen = ScreenTradeRoutes
+			return m, nil
 		}
 	}
 
@@ -37,6 +40,7 @@ Your ship's systems hum quietly as you gaze out at the stars.
 Commands:
   n - Navigation
   t - Trading
+  r - Trade Routes & Nav Planner
   s - Shipyard
   m - Missions
 
@@ -44,7 +48,7 @@ Press ESC to return to main menu.`
 
 	s += boxStyle.Render(content)
 
-	s += renderFooter("ESC: Main Menu  •  n/t/s/m: Quick Access")
+	s += renderFooter("ESC: Main Menu  •  n/t/r/s/m: Quick Access")
 
 	return s
 }
