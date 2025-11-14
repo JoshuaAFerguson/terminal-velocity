@@ -16,6 +16,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/missions"
@@ -73,6 +74,8 @@ const (
 	ScreenNavigationEnhanced
 	ScreenCombatEnhanced
 	ScreenQuestBoardEnhanced
+	ScreenTradeRoutes
+	ScreenMail
 )
 
 // Model is the main TUI model
@@ -92,6 +95,7 @@ type Model struct {
 	sshKeyRepo *database.SSHKeyRepository
 	shipRepo   *database.ShipRepository
 	marketRepo *database.MarketRepository
+	mailRepo   *database.MailRepository
 
 	// Screen dimensions
 	width  int
@@ -133,6 +137,8 @@ type Model struct {
 	navigationEnhanced    navigationEnhancedModel
 	combatEnhanced        combatEnhancedModel
 	questBoardEnhanced    questBoardEnhancedModel
+	tradeRoutes           tradeRoutesState
+	mail                  mailState
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -149,6 +155,9 @@ type Model struct {
 
 	// Chat system
 	chatManager *chat.Manager
+
+	// Mail system
+	mailManager *mail.Manager
 
 	// Faction system
 	factionManager *factions.Manager
@@ -200,6 +209,7 @@ func NewModel(
 	sshKeyRepo *database.SSHKeyRepository,
 	shipRepo *database.ShipRepository,
 	marketRepo *database.MarketRepository,
+	mailRepo *database.MailRepository,
 ) Model {
 	return Model{
 		screen:              ScreenMainMenu,
@@ -210,6 +220,7 @@ func NewModel(
 		sshKeyRepo:          sshKeyRepo,
 		shipRepo:            shipRepo,
 		marketRepo:          marketRepo,
+		mailRepo:            mailRepo,
 		width:               80,
 		height:              24,
 		mainMenu:            newMainMenuModel(),
@@ -232,6 +243,7 @@ func NewModel(
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
 		chatManager:         chat.NewManager(),
+		mailManager:         mail.NewManager(mailRepo),
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
 		territoryManager:    territory.NewManager(),
@@ -437,6 +449,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCombatEnhanced(msg)
 	case ScreenQuestBoardEnhanced:
 		return m.updateQuestBoardEnhanced(msg)
+	case ScreenTradeRoutes:
+		return m.updateTradeRoutes(msg)
+	case ScreenMail:
+		return m.updateMail(msg)
 	default:
 		return m, nil
 	}
@@ -526,6 +542,10 @@ func (m Model) View() string {
 		return m.viewCombatEnhanced()
 	case ScreenQuestBoardEnhanced:
 		return m.viewQuestBoardEnhanced()
+	case ScreenTradeRoutes:
+		return m.viewTradeRoutes()
+	case ScreenMail:
+		return m.viewMail()
 	default:
 		return "Unknown screen"
 	}

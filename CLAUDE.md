@@ -45,8 +45,69 @@ make release        # Build cross-platform release binaries
 # Tools
 make genmap         # Generate and preview universe (100 systems)
 ./genmap -systems 50 -stats              # Custom universe generation
+./genmap -systems 100 -save              # Generate and save to database
 ./accounts create <username> <email>     # Create player account
 ./accounts add-key <username> <key-file> # Add SSH key to account
+```
+
+### First-Time Server Setup
+
+**Quick Start** (recommended):
+```bash
+# 1. Build tools
+make build-tools
+
+# 2. Run initialization script (sets up database + universe)
+./scripts/init-server.sh
+
+# 3. The script will:
+#    - Create database and user
+#    - Initialize schema
+#    - Generate and populate universe (100 systems)
+#    - Display connection instructions
+
+# 4. Create your player account
+./accounts create <username> <email>
+
+# 5. Start the server
+make run
+```
+
+**Manual Setup**:
+```bash
+# 1. Create database
+psql -U postgres -c "CREATE DATABASE terminal_velocity;"
+psql -U postgres -c "CREATE USER terminal_velocity WITH PASSWORD 'your_password';"
+psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE terminal_velocity TO terminal_velocity;"
+
+# 2. Initialize schema
+psql -U terminal_velocity -d terminal_velocity -f scripts/schema.sql
+
+# 3. Generate and save universe
+./genmap -systems 100 -save \
+  -db-host localhost \
+  -db-port 5432 \
+  -db-user terminal_velocity \
+  -db-password your_password \
+  -db-name terminal_velocity
+
+# 4. Create player account
+./accounts create <username> <email>
+
+# 5. Start server
+./server -config configs/config.yaml
+```
+
+**Database Migrations**:
+```bash
+# Check migration status
+./scripts/migrate.sh status
+
+# Apply pending migrations
+./scripts/migrate.sh up
+
+# Reset all migrations (DANGEROUS)
+./scripts/migrate.sh reset
 ```
 
 ### Docker Development
@@ -63,6 +124,67 @@ make docker-clean           # Remove all Docker artifacts and volumes
 
 ```bash
 ssh -p 2222 username@localhost
+```
+
+### Production Infrastructure
+
+**Observability & Monitoring**:
+```bash
+# Metrics server runs on port 8080 by default
+curl http://localhost:8080/metrics  # Prometheus-compatible metrics
+curl http://localhost:8080/stats    # Human-readable HTML stats page
+curl http://localhost:8080/health   # Health check endpoint
+```
+
+Metrics tracked:
+- Connection metrics (total, active, failed, duration)
+- Player metrics (active, logins, registrations, peak)
+- Game activity (trades, combat, missions, quests, jumps, cargo)
+- Economy (total credits, market volume, trade volume 24h)
+- System performance (database queries/errors, cache hit rate, uptime)
+
+**Automated Backups**:
+```bash
+# Manual backup with defaults
+./scripts/backup.sh
+
+# Custom backup configuration
+./scripts/backup.sh -d /var/backups -r 30 -c 50
+
+# List available backups
+./scripts/restore.sh --list
+
+# Restore from backup
+./scripts/restore.sh /path/to/backup.sql.gz
+
+# Automated backups via cron (see scripts/crontab.example)
+0 2 * * * /path/to/terminal-velocity/scripts/backup.sh  # Daily at 2 AM
+```
+
+Backup features:
+- Compression with gzip
+- Retention policies (days and count limits)
+- Automatic cleanup of old backups
+- Safe restore with confirmation prompts
+- Progress tracking for large databases
+
+**Rate Limiting & Security**:
+- Connection rate limiting (5 concurrent per IP, 20/min per IP)
+- Authentication rate limiting (5 attempts before 15min lockout)
+- Automatic IP banning (20 failures = 24h ban)
+- Brute force protection
+- Per-IP tracking with automatic cleanup
+
+Configuration in `internal/ratelimit/ratelimit.go`:
+```go
+cfg := &ratelimit.Config{
+    MaxConnectionsPerIP:     5,
+    MaxConnectionsPerMinute: 20,
+    MaxAuthAttempts:         5,
+    AuthLockoutTime:         15 * time.Minute,
+    AutobanThreshold:        20,
+    AutobanDuration:         24 * time.Hour,
+}
 ```
 
 ## Architecture
@@ -107,9 +229,16 @@ ssh -p 2222 username@localhost
   - `session/` - Session management & auto-save (30s autosave)
   - `errors/` - Error handling, metrics, and retry logic
   - `logger/` - Centralized logging infrastructure
-- `scripts/` - Database schema and migrations
+  - `metrics/` - Observability & monitoring (Prometheus metrics, HTTP server)
+  - `ratelimit/` - Rate limiting & security (connection/auth limiting, auto-banning)
+- `scripts/` - Database schema, migrations, and operations
   - `schema.sql` - Main database schema
   - `migrations/` - Database migration scripts
+  - `backup.sh` - Automated backup with retention policies
+  - `restore.sh` - Database restore from backup
+  - `init-server.sh` - Server initialization script
+  - `migrate.sh` - Migration runner (up/down/status)
+  - `crontab.example` - Example cron jobs for automation
 - `configs/` - YAML configuration files
   - `config.example.yaml` - Example server configuration
 - `docs/` - Additional documentation
@@ -227,6 +356,12 @@ PostgreSQL with UUID primary keys. Key tables:
 - `system_connections` - Jump routes (bidirectional)
 - `planets` - Planets with services array
 - `ships` - Player ships with hull, shields, fuel, cargo
+- `admin_users` - Server administrators with RBAC (NEW)
+- `player_bans` - Banned players with expiration tracking (NEW)
+- `player_mutes` - Muted players with expiration tracking (NEW)
+- `admin_actions` - Audit log of all admin actions (NEW)
+- `server_settings` - Server configuration persistence (NEW)
+- `schema_migrations` - Migration tracking (NEW)
 
 See `scripts/schema.sql` for full schema.
 
@@ -239,7 +374,20 @@ The `internal/game/universe/` package generates procedural universes:
 - 6 NPC factions (governments) assigned to systems
 - Planets generated per system with randomized services
 
-Use `cmd/genmap/` to preview generated universes before importing to database.
+Use `cmd/genmap/` to preview and generate universes:
+```bash
+# Preview universe statistics
+./genmap -systems 1000 -stats
+
+# Generate and save to database
+./genmap -systems 1000 -save \
+  -db-host localhost \
+  -db-port 5432 \
+  -db-user terminal_velocity \
+  -db-password your_password
+```
+
+**NEW**: The `-save` flag populates the database directly with generated universe data.
 
 ## Common Development Tasks
 
@@ -645,5 +793,5 @@ case ScreenDesired:
 ---
 
 **Last Updated**: 2025-01-14
-**Document Version**: 2.2.0
-**Project Version**: 0.8.0 (Phase 8 Complete)
+**Document Version**: 2.3.0
+**Project Version**: 0.8.0 (Phase 8 Complete, Production-Ready Infrastructure)

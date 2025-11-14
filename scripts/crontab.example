@@ -1,0 +1,94 @@
+# Terminal Velocity - Crontab Example
+# File: scripts/crontab.example
+# Description: Example crontab entries for automated tasks
+# To install: crontab -e (then paste relevant entries)
+
+# Environment variables (set these at the top of your crontab)
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=terminal_velocity
+DB_PASSWORD=your_secure_password_here
+DB_NAME=terminal_velocity
+BACKUP_DIR=/var/backups/terminal-velocity
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# ═══════════════════════════════════════════════════════════
+#                    BACKUP SCHEDULES
+# ═══════════════════════════════════════════════════════════
+
+# Daily backup at 2:00 AM (keep 7 days, 14 backups)
+0 2 * * * /path/to/terminal-velocity/scripts/backup.sh -d /var/backups/terminal-velocity -r 7 -c 14 >> /var/log/terminal-velocity/backup.log 2>&1
+
+# Hourly backup during peak hours (9 AM - 6 PM)
+0 9-18 * * * /path/to/terminal-velocity/scripts/backup.sh -d /var/backups/terminal-velocity-hourly -r 1 -c 24 >> /var/log/terminal-velocity/backup-hourly.log 2>&1
+
+# Weekly backup every Sunday at 3:00 AM (keep 30 days, 10 backups)
+0 3 * * 0 /path/to/terminal-velocity/scripts/backup.sh -d /var/backups/terminal-velocity-weekly -r 30 -c 10 >> /var/log/terminal-velocity/backup-weekly.log 2>&1
+
+# Monthly backup on the 1st at 4:00 AM (keep 365 days, 12 backups)
+0 4 1 * * /path/to/terminal-velocity/scripts/backup.sh -d /var/backups/terminal-velocity-monthly -r 365 -c 12 >> /var/log/terminal-velocity/backup-monthly.log 2>&1
+
+# ═══════════════════════════════════════════════════════════
+#                 RECOMMENDED STRATEGY
+# ═══════════════════════════════════════════════════════════
+#
+# Small deployments (< 100 players):
+#   - Daily backups with 7-day retention
+#   0 2 * * * /path/to/backup.sh -r 7 -c 14
+#
+# Medium deployments (100-1000 players):
+#   - Hourly backups during peak hours (24-hour retention)
+#   - Daily backups (7-day retention)
+#   - Weekly backups (30-day retention)
+#
+# Large deployments (> 1000 players):
+#   - Hourly backups (24-hour retention)
+#   - Daily backups (7-day retention)
+#   - Weekly backups (30-day retention)
+#   - Monthly backups (1-year retention)
+#   - Consider using continuous replication instead
+
+# ═══════════════════════════════════════════════════════════
+#                    OTHER TASKS
+# ═══════════════════════════════════════════════════════════
+
+# Clean up old log files every day at 1:00 AM
+0 1 * * * find /var/log/terminal-velocity -name "*.log" -mtime +30 -delete
+
+# Restart server every Sunday at 5:00 AM (optional, for maintenance)
+# 0 5 * * 0 systemctl restart terminal-velocity
+
+# Database vacuum and analyze weekly
+0 6 * * 0 PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "VACUUM ANALYZE;"
+
+# Check disk space and send alert if below 10%
+*/30 * * * * df -h | awk '$NF=="/"{if(int($5) > 90) print "Disk space critical: " $5 " used"}' | mail -s "Terminal Velocity Disk Alert" admin@example.com
+
+# ═══════════════════════════════════════════════════════════
+#                  CRONTAB SYNTAX REFERENCE
+# ═══════════════════════════════════════════════════════════
+#
+# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of the month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday)
+# │ │ │ │ │
+# │ │ │ │ │
+# * * * * * command to execute
+#
+# Special characters:
+#   *     any value
+#   ,     value list separator
+#   -     range of values
+#   /     step values
+#   @daily     Run once a day, at midnight
+#   @hourly    Run once an hour, at the start of the hour
+#   @reboot    Run at startup
+#
+# Examples:
+#   0 2 * * *        Run at 2:00 AM every day
+#   */15 * * * *     Run every 15 minutes
+#   0 9-17 * * 1-5   Run hourly from 9 AM to 5 PM, Monday to Friday
+#   0 0 1 * *        Run at midnight on the 1st day of every month

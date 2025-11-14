@@ -324,6 +324,40 @@ terminal-velocity/
   - Tiers from $5/month to custom partnerships
   - Exclusive benefits including early access, in-game recognition, and direct input on features
 
+## Production Infrastructure
+
+Terminal Velocity includes production-ready monitoring, backup, and security features:
+
+### Observability & Monitoring
+- **Prometheus Metrics**: Full observability with `/metrics` endpoint on port 8080
+- **Stats Dashboard**: Human-readable `/stats` page with real-time server statistics
+- **Health Checks**: `/health` endpoint for load balancers and monitoring tools
+- **Metrics Tracked**: Connections, players, game activity, economy, database performance
+
+```bash
+curl http://localhost:8080/metrics  # Prometheus format
+curl http://localhost:8080/stats    # HTML dashboard
+```
+
+### Automated Backups
+- **Automated Backups**: `scripts/backup.sh` with compression and retention policies
+- **Easy Restore**: `scripts/restore.sh` with safety checks and verification
+- **Cron Integration**: Example crontab for scheduled backups
+- **Flexible Configuration**: Retention by days and count, custom backup locations
+
+```bash
+./scripts/backup.sh -d /var/backups -r 30 -c 50  # 30 days, keep 50
+./scripts/restore.sh --list                       # List backups
+```
+
+### Rate Limiting & Security
+- **Connection Limits**: 5 concurrent connections per IP, 20/minute rate limit
+- **Auth Protection**: 5 failed attempts = 15 minute lockout
+- **Auto-Banning**: 20 failed attempts = 24 hour automatic ban
+- **Brute Force Protection**: Per-IP tracking with automatic cleanup
+
+See [CLAUDE.md](CLAUDE.md) for detailed configuration options.
+
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

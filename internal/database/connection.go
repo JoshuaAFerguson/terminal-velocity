@@ -1,7 +1,7 @@
 // File: internal/database/connection.go
 // Project: Terminal Velocity
 // Description: Database repository for connection
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -15,6 +15,7 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/errors"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/metrics"
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 )
 
@@ -144,6 +145,42 @@ func (db *DB) Ping(ctx context.Context) error {
 	}
 	log.Debug("Database ping successful")
 	return nil
+}
+
+// QueryContext wraps sql.DB.QueryContext with metrics tracking
+func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	metrics.Global().IncrementDBQueries()
+	rows, err := db.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		metrics.Global().IncrementDBErrors()
+	}
+	return rows, err
+}
+
+// QueryRowContext wraps sql.DB.QueryRowContext with metrics tracking
+func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	metrics.Global().IncrementDBQueries()
+	return db.DB.QueryRowContext(ctx, query, args...)
+}
+
+// ExecContext wraps sql.DB.ExecContext with metrics tracking
+func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	metrics.Global().IncrementDBQueries()
+	result, err := db.DB.ExecContext(ctx, query, args...)
+	if err != nil {
+		metrics.Global().IncrementDBErrors()
+	}
+	return result, err
+}
+
+// Exec wraps sql.DB.Exec with metrics tracking (for non-context queries)
+func (db *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
+	metrics.Global().IncrementDBQueries()
+	result, err := db.DB.Exec(query, args...)
+	if err != nil {
+		metrics.Global().IncrementDBErrors()
+	}
+	return result, err
 }
 
 // WithTransaction executes a function within a database transaction

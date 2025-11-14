@@ -1053,6 +1053,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Combat rating shown in combat log every 10 points
     - Trading rank shown in trading UI every 10 points
 
+- **Production Infrastructure (Phase 8+, Operations & Monitoring)**:
+  - **Observability & Monitoring System** (`internal/metrics/`):
+    - Prometheus-compatible metrics endpoint at `/metrics` (port 8080)
+    - Human-readable HTML stats dashboard at `/stats`
+    - Health check endpoint at `/health`
+    - Comprehensive metric tracking:
+      - Connection metrics (total, active, failed, duration)
+      - Player metrics (active, logins, registrations, peak players)
+      - Game activity (trades, combat, missions, quests, jumps, cargo)
+      - Economy (total credits, market volume, 24h trade volume)
+      - System performance (database queries/errors, cache hit rate, uptime)
+    - Thread-safe atomic counters and gauges
+    - Automatic database query instrumentation
+    - 24-hour rolling counters with automatic reset
+    - HTTP metrics server with graceful shutdown
+  - **Automated Backup System** (`scripts/`):
+    - `backup.sh`: Automated PostgreSQL backup with compression
+    - `restore.sh`: Safe database restore with verification
+    - Retention policies (days and count limits)
+    - Automatic cleanup of old backups
+    - Progress tracking for large databases
+    - Confirmation prompts for destructive operations
+    - Support for both compressed and uncompressed backups
+    - `crontab.example`: Example cron jobs for scheduled backups
+    - Multiple backup strategies (hourly, daily, weekly, monthly)
+  - **Rate Limiting & Security** (`internal/ratelimit/`):
+    - Connection rate limiting (5 concurrent per IP, 20/minute)
+    - Authentication rate limiting (5 failures = 15min lockout)
+    - Automatic IP banning (20 failures = 24h ban)
+    - Brute force protection with per-IP tracking
+    - Configurable thresholds and durations
+    - Automatic cleanup of old entries
+    - Manual ban/unban commands for admins
+    - Integrated into SSH authentication flow
+    - Failed login tracking across password and public key auth
+  - **Trade Route Calculator & Navigation Planner** (`internal/traderoutes/`, `internal/tui/traderoutes.go`):
+    - Advanced route optimization using Dijkstra's algorithm for pathfinding
+    - Profit calculations: per unit, per jump, ROI percentage, and total profit
+    - Three operation modes:
+      - Best Routes Globally: Find most profitable routes across all systems
+      - From Current System: Find routes starting from player's current location
+      - Navigation Plan: Plot multi-jump route to selected destination
+    - Interactive TUI screen with keyboard navigation (up/down, 1/2/3 mode switch)
+    - Route comparison with sortable columns (From, To, Commodity, Prices, Profit, Jumps, ROI)
+    - Detailed route information display with full statistics
+    - Navigation waypoint display with jump-by-jump breakdown
+    - Fuel requirement calculation for planned routes
+    - Integration with player ship cargo capacity for profit estimation
+    - Tech level-based price estimation using existing pricing modifiers
+    - Government legality checking (filters illegal commodities per faction)
+    - Accessible from game screen via [R] key
+    - Top 50 route limit for performance
+  - **Player Mail System** (`internal/mail/`, `internal/tui/mail.go`, `internal/database/mail_repository.go`):
+    - Complete player-to-player mail system with asynchronous messaging
+    - Four operation modes:
+      - Inbox: View received messages with unread count
+      - Sent: View sent messages
+      - Compose: Create new messages with recipient, subject, and body
+      - Read: View message details with reply support
+    - Interactive TUI with keyboard navigation:
+      - [1/2] Switch between Inbox and Sent folders
+      - [C] Compose new message
+      - [↑/↓] Navigate message list
+      - [Enter] Read selected message
+      - [D] Delete message (soft delete)
+      - [R] Reply to message (inbox only) or Refresh list
+      - [Tab] Cycle through compose fields
+      - [Ctrl+S] Send composed message
+    - Unread message tracking with badge display
+    - Soft delete system (persists until both parties delete)
+    - Authorization checks (sender/recipient only)
+    - Username lookup for addressing (no need to know UUIDs)
+    - Message list pagination (50 messages per page)
+    - Accessible from game screen via [M] key
+    - Backend features:
+      - Thread-safe mail manager with RWMutex
+      - Unread count caching for performance
+      - Automatic cleanup of old messages
+      - Database indexes for inbox/sent/unread queries
+      - Migration script (004_add_player_mail.sql)
+  - **Ship Loadout Sharing & Comparison** (`internal/loadouts/`, `internal/database/loadout_repository.go`):
+    - Complete system for sharing and comparing ship configurations
+    - Backend features:
+      - Share current ship loadout (public or private)
+      - Automatic stats calculation (DPS, armor, shield, speed, cargo, energy, mass)
+      - Browse public loadouts with filters (ship type, popularity)
+      - Compare two loadouts side-by-side with difference analysis
+      - Favorite/unfavorite system with counter tracking
+      - View tracking with automatic increment
+      - Apply loadout to player's ship (validates ship type match)
+      - Export/import loadouts as JSON
+    - Database schema:
+      - shared_loadouts table with JSONB for weapons/outfits/stats
+      - loadout_favorites junction table (many-to-many)
+      - Indexes for player queries, public browsing, ship type filtering, and popularity
+      - Cascade delete when player is deleted
+    - Manager operations:
+      - ShareLoadout(): Create new shared loadout from ship
+      - GetLoadout(): Retrieve with access permission checks
+      - GetPlayerLoadouts(): All loadouts by a player
+      - GetPublicLoadouts(): Browse public loadouts (paginated)
+      - GetPopularLoadouts(): Most viewed/favorited (sorted by algorithm)
+      - UpdateLoadout()/DeleteLoadout(): Modify owned loadouts
+      - FavoriteLoadout()/UnfavoriteLoadout(): Favorite management
+      - GetFavorites(): Retrieve player's favorited loadouts
+      - CompareLoadouts(): Side-by-side comparison with differences
+      - ApplyLoadout(): Copy loadout to player's ship
+      - ExportLoadout()/ImportLoadout(): JSON serialization
+    - Stats calculated:
+      - Total DPS from all weapons
+      - Total armor (base + outfit bonuses)
+      - Total shield (base + outfit bonuses)
+      - Total speed (base + engine bonuses)
+      - Total cargo (base + cargo expansion bonuses)
+      - Energy usage from weapons
+      - Mass usage from outfits
+    - Thread-safe operations with RWMutex
+    - Loadout caching for performance
+    - Migration script (005_add_shared_loadouts.sql)
+  - **Server Integration**:
+    - Metrics server starts on port 8080 by default
+    - Rate limiter enabled by default with sensible defaults
+    - Graceful shutdown for all infrastructure components
+    - Configuration via `server.Config` struct
+    - Non-fatal initialization (server continues if metrics fail)
+
 ### Changed
 - **Mission Manager (internal/missions/manager.go)**:
   - Version updated to 1.2.0

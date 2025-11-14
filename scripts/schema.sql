@@ -274,6 +274,111 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Admin users
+CREATE TABLE IF NOT EXISTS admin_users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    username VARCHAR(32) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    permissions TEXT[] DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES players(id) ON DELETE SET NULL,
+    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    UNIQUE(player_id)
+);
+
+-- Player bans
+CREATE TABLE IF NOT EXISTS player_bans (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    username VARCHAR(32) NOT NULL,
+    ip_address VARCHAR(45),
+    reason TEXT NOT NULL,
+    banned_by UUID NOT NULL REFERENCES players(id),
+    banned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    is_permanent BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Player mutes
+CREATE TABLE IF NOT EXISTS player_mutes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    username VARCHAR(32) NOT NULL,
+    reason TEXT NOT NULL,
+    muted_by UUID NOT NULL REFERENCES players(id),
+    muted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Admin actions (audit log)
+CREATE TABLE IF NOT EXISTS admin_actions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_id UUID NOT NULL REFERENCES players(id) ON DELETE SET NULL,
+    admin_name VARCHAR(32) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    target_id UUID,
+    target_name VARCHAR(100),
+    details TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ip_address VARCHAR(45),
+    success BOOLEAN DEFAULT TRUE,
+    error_msg TEXT
+);
+
+-- Server settings (single row configuration)
+CREATE TABLE IF NOT EXISTS server_settings (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    settings JSONB NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID REFERENCES players(id),
+    CONSTRAINT only_one_settings_row CHECK (id = 1)
+);
+
+-- Player mail system
+CREATE TABLE IF NOT EXISTS player_mail (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    from_player UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    to_player UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    subject VARCHAR(200) NOT NULL,
+    body TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMP,
+    deleted_by UUID[] DEFAULT '{}',  -- Array of player IDs who deleted this mail
+    CONSTRAINT subject_not_empty CHECK (char_length(subject) > 0),
+    CONSTRAINT body_not_empty CHECK (char_length(body) > 0)
+);
+
+-- Shared loadouts system
+CREATE TABLE IF NOT EXISTS shared_loadouts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    ship_type_id VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    weapons JSONB NOT NULL DEFAULT '[]',
+    outfits JSONB NOT NULL DEFAULT '[]',
+    stats JSONB NOT NULL DEFAULT '{}',
+    is_public BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    views INTEGER DEFAULT 0,
+    favorites INTEGER DEFAULT 0,
+    CONSTRAINT name_not_empty CHECK (char_length(name) > 0)
+);
+
+-- Loadout favorites (many-to-many)
+CREATE TABLE IF NOT EXISTS loadout_favorites (
+    loadout_id UUID NOT NULL REFERENCES shared_loadouts(id) ON DELETE CASCADE,
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (loadout_id, player_id)
+);
+
 -- Indexes for performance
 CREATE INDEX idx_players_username ON players(username);
 CREATE INDEX idx_players_email ON players(email) WHERE email IS NOT NULL;
@@ -288,6 +393,22 @@ CREATE INDEX idx_faction_members_player ON faction_members(player_id);
 CREATE INDEX idx_chat_channel ON chat_messages(channel, created_at DESC);
 CREATE INDEX idx_events_type ON events(type, created_at DESC);
 CREATE INDEX idx_missions_status ON missions(status);
+CREATE INDEX idx_admin_users_player ON admin_users(player_id);
+CREATE INDEX idx_admin_users_active ON admin_users(is_active);
+CREATE INDEX idx_player_bans_player ON player_bans(player_id);
+CREATE INDEX idx_player_bans_active ON player_bans(is_active, expires_at);
+CREATE INDEX idx_player_mutes_player ON player_mutes(player_id);
+CREATE INDEX idx_player_mutes_active ON player_mutes(is_active, expires_at);
+CREATE INDEX idx_admin_actions_admin ON admin_actions(admin_id, timestamp DESC);
+CREATE INDEX idx_admin_actions_timestamp ON admin_actions(timestamp DESC);
+CREATE INDEX idx_mail_recipient ON player_mail(to_player, sent_at DESC);
+CREATE INDEX idx_mail_sender ON player_mail(from_player, sent_at DESC);
+CREATE INDEX idx_mail_unread ON player_mail(to_player, read, sent_at DESC);
+CREATE INDEX idx_loadouts_player ON shared_loadouts(player_id, updated_at DESC);
+CREATE INDEX idx_loadouts_public ON shared_loadouts(is_public, created_at DESC) WHERE is_public = true;
+CREATE INDEX idx_loadouts_ship_type ON shared_loadouts(ship_type_id, is_public, created_at DESC) WHERE is_public = true;
+CREATE INDEX idx_loadouts_popular ON shared_loadouts((favorites * 2 + views) DESC, is_public) WHERE is_public = true;
+CREATE INDEX idx_loadout_favorites_player ON loadout_favorites(player_id, created_at DESC);
 
 -- Update foreign key for controlled systems
 ALTER TABLE star_systems
@@ -311,3 +432,11 @@ COMMENT ON TABLE market_prices IS 'Commodity prices at each planet';
 COMMENT ON TABLE missions IS 'Available and active missions';
 COMMENT ON TABLE chat_messages IS 'In-game chat history';
 COMMENT ON TABLE events IS 'Game events log for analytics';
+COMMENT ON TABLE admin_users IS 'Server administrators and moderators';
+COMMENT ON TABLE player_bans IS 'Banned players with expiration tracking';
+COMMENT ON TABLE player_mutes IS 'Muted players with expiration tracking';
+COMMENT ON TABLE admin_actions IS 'Audit log of all admin actions';
+COMMENT ON TABLE server_settings IS 'Server configuration (single row)';
+COMMENT ON TABLE player_mail IS 'Player-to-player mail messages with soft delete';
+COMMENT ON TABLE shared_loadouts IS 'Shared ship loadout configurations with stats tracking';
+COMMENT ON TABLE loadout_favorites IS 'Player favorites for shared loadouts';
