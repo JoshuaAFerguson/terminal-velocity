@@ -148,32 +148,95 @@ func (s *GameServer) GetPlayerState(ctx context.Context, playerID uuid.UUID) (*a
 
 // UpdatePlayerLocation updates player's location
 func (s *GameServer) UpdatePlayerLocation(ctx context.Context, req *api.LocationUpdate) (*api.PlayerState, error) {
-	// TODO: Update location in database and return new state
-	return nil, api.ErrNotFound
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update location
+	player.CurrentSystemID = req.SystemID
+	player.CurrentPlanetID = req.PlanetID
+	player.X = req.Position.X
+	player.Y = req.Position.Y
+
+	// Persist changes
+	if err := s.playerRepo.Update(ctx, player); err != nil {
+		return nil, err
+	}
+
+	// Load ship for complete state
+	ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get updated player state
+	state := convertPlayerToAPI(player, ship)
+	state.Stats = convertPlayerStatsToAPI(player)
+	state.Reputation = convertReputationToAPI(player)
+
+	return state, nil
 }
 
 // GetPlayerShip retrieves player's current ship
 func (s *GameServer) GetPlayerShip(ctx context.Context, playerID uuid.UUID) (*api.Ship, error) {
-	// TODO: Query shipRepo
-	return nil, api.ErrNotFound
+	// Load player to get current ship ID
+	player, err := s.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load the ship
+	ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to API ship
+	return convertShipToAPI(ship), nil
 }
 
 // GetPlayerInventory retrieves player's cargo and items
 func (s *GameServer) GetPlayerInventory(ctx context.Context, playerID uuid.UUID) (*api.Inventory, error) {
-	// TODO: Query ship cargo from shipRepo
-	return nil, api.ErrNotFound
+	// Load player to get current ship ID
+	player, err := s.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load the ship
+	ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to API inventory
+	return convertInventoryToAPI(ship), nil
 }
 
 // GetPlayerStats retrieves player statistics
 func (s *GameServer) GetPlayerStats(ctx context.Context, playerID uuid.UUID) (*api.PlayerStats, error) {
-	// TODO: Query player stats
-	return nil, api.ErrNotFound
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to API stats
+	return convertPlayerStatsToAPI(player), nil
 }
 
 // GetPlayerReputation retrieves faction reputation
 func (s *GameServer) GetPlayerReputation(ctx context.Context, playerID uuid.UUID) (*api.ReputationInfo, error) {
-	// TODO: Query reputation from database
-	return nil, api.ErrNotFound
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to API reputation
+	return convertReputationToAPI(player), nil
 }
 
 // StreamPlayerUpdates subscribes to real-time player state changes
@@ -298,24 +361,138 @@ func (s *GameServer) Jump(ctx context.Context, req *api.JumpRequest) (*api.JumpR
 
 // Land lands on a planet
 func (s *GameServer) Land(ctx context.Context, req *api.LandRequest) (*api.LandResponse, error) {
-	// TODO: Implement landing logic
-	// - Validate planet exists in current system
-	// - Update player location
-	return nil, api.ErrNotFound
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "Player not found",
+		}, nil
+	}
+
+	// Validate player is in space
+	if player.CurrentPlanetID != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "Already docked at a planet",
+		}, nil
+	}
+
+	// Load planet to verify it exists and is in current system
+	planet, err := s.systemRepo.GetPlanetByID(ctx, req.PlanetID)
+	if err != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "Planet not found",
+		}, nil
+	}
+
+	// Validate planet is in player's current system
+	if planet.SystemID != player.CurrentSystemID {
+		return &api.LandResponse{
+			Success: false,
+			Message: "Planet not in current system",
+		}, nil
+	}
+
+	// Update player location
+	player.CurrentPlanetID = &req.PlanetID
+
+	// Persist changes
+	if err := s.playerRepo.Update(ctx, player); err != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "Failed to update player location",
+		}, nil
+	}
+
+	// Load ship for complete state
+	ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+	if err != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "Failed to load ship data",
+		}, nil
+	}
+
+	// Get updated player state
+	newState := convertPlayerToAPI(player, ship)
+	newState.Stats = convertPlayerStatsToAPI(player)
+	newState.Reputation = convertReputationToAPI(player)
+
+	return &api.LandResponse{
+		Success:  true,
+		Message:  "Landing successful",
+		Planet:   convertPlanetToAPI(planet),
+		NewState: newState,
+	}, nil
 }
 
 // Takeoff takes off from a planet
 func (s *GameServer) Takeoff(ctx context.Context, req *api.TakeoffRequest) (*api.TakeoffResponse, error) {
-	// TODO: Implement takeoff logic
-	// - Validate player is docked
-	// - Update player status to in-space
-	return nil, api.ErrNotFound
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "Player not found",
+		}, nil
+	}
+
+	// Validate player is docked
+	if player.CurrentPlanetID == nil {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "Already in space",
+		}, nil
+	}
+
+	// Clear planet location (now in space)
+	player.CurrentPlanetID = nil
+
+	// Persist changes
+	if err := s.playerRepo.Update(ctx, player); err != nil {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "Failed to update player location",
+		}, nil
+	}
+
+	// Load ship for complete state
+	ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+	if err != nil {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "Failed to load ship data",
+		}, nil
+	}
+
+	// Get updated player state
+	newState := convertPlayerToAPI(player, ship)
+	newState.Stats = convertPlayerStatsToAPI(player)
+	newState.Reputation = convertReputationToAPI(player)
+
+	return &api.TakeoffResponse{
+		Success:  true,
+		Message:  "Takeoff successful",
+		NewState: newState,
+	}, nil
 }
 
 // GetMarket retrieves market data for a system
 func (s *GameServer) GetMarket(ctx context.Context, systemID uuid.UUID) (*api.Market, error) {
-	// TODO: Query marketRepo
-	return nil, api.ErrNotFound
+	// Get all commodities for the system
+	commodities, err := s.marketRepo.GetCommoditiesBySystemID(ctx, systemID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to API market format
+	// TODO: Get actual last updated timestamp from database
+	market := convertMarketToAPI(systemID.String(), commodities, "")
+	market.SystemID = systemID
+
+	return market, nil
 }
 
 // BuyCommodity purchases a commodity from the market
@@ -448,11 +625,119 @@ func (s *GameServer) BuyCommodity(ctx context.Context, req *api.TradeRequest) (*
 
 // SellCommodity sells a commodity to the market
 func (s *GameServer) SellCommodity(ctx context.Context, req *api.TradeRequest) (*api.TradeResponse, error) {
-	// TODO: Implement sell logic
-	// - Validate player has commodity
-	// - Update inventory
-	// - Add credits
-	return nil, api.ErrNotFound
+	// Load player and ship
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "Player not found",
+		}, nil
+	}
+
+	ship, err := s.shipRepo.GetByID(ctx, player.CurrentShipID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "Ship not found",
+		}, nil
+	}
+
+	// Validate player is docked
+	if player.CurrentPlanetID == nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "You must be docked at a planet to trade",
+		}, nil
+	}
+
+	// Get market data for current system
+	commodities, err := s.marketRepo.GetCommoditiesBySystemID(ctx, player.CurrentSystemID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "Market data unavailable",
+		}, nil
+	}
+
+	// Find the commodity
+	var commodity *models.CommodityListing
+	for i := range commodities {
+		if commodities[i].CommodityID == req.CommodityID {
+			commodity = &commodities[i]
+			break
+		}
+	}
+
+	if commodity == nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "Commodity not available at this market",
+		}, nil
+	}
+
+	// Validate player has the commodity
+	if ship.Cargo == nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "You don't have any cargo",
+		}, nil
+	}
+
+	cargoQuantity, hasCargo := ship.Cargo[req.CommodityID]
+	if !hasCargo || cargoQuantity < int(req.Quantity) {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "You don't have enough of this commodity",
+		}, nil
+	}
+
+	// Calculate total sale value
+	totalValue := int64(commodity.SellPrice) * int64(req.Quantity)
+
+	// Update ship cargo
+	ship.Cargo[req.CommodityID] -= int(req.Quantity)
+	if ship.Cargo[req.CommodityID] == 0 {
+		delete(ship.Cargo, req.CommodityID)
+	}
+	ship.CargoUsed -= req.Quantity
+
+	// Update player credits
+	player.Credits += totalValue
+
+	// Update database
+	if err := s.shipRepo.Update(ctx, ship); err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "Failed to update ship cargo",
+		}, nil
+	}
+
+	if err := s.playerRepo.Update(ctx, player); err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "Failed to update player credits",
+		}, nil
+	}
+
+	// Update market stock (selling increases market stock)
+	if err := s.marketRepo.UpdateStock(ctx, player.CurrentSystemID, req.CommodityID, int(req.Quantity)); err != nil {
+		// Stock update failed, but transaction succeeded
+		// Continue anyway as this is non-critical
+	}
+
+	// Get updated player state
+	newState := convertPlayerToAPI(player, ship)
+	newState.Stats = convertPlayerStatsToAPI(player)
+	newState.Reputation = convertReputationToAPI(player)
+
+	return &api.TradeResponse{
+		Success:        true,
+		Message:        "Sale successful",
+		QuantityTraded: req.Quantity,
+		TotalCost:      totalValue,
+		PricePerUnit:   commodity.SellPrice,
+		NewState:       newState,
+	}, nil
 }
 
 // BuyShip purchases a new ship
