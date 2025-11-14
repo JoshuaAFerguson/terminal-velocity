@@ -212,7 +212,7 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "s", "S":
 			// Shipyard
-			m.screen = ScreenShipyard
+			m.screen = ScreenShipyardEnhanced
 			return m, nil
 
 		case "m", "M":
@@ -253,7 +253,7 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 1: // Outfitters
 				m.screen = ScreenOutfitterEnhanced
 			case 2: // Shipyard
-				m.screen = ScreenShipyard
+				m.screen = ScreenShipyardEnhanced
 			case 3: // Missions
 				m.screen = ScreenMissions
 			case 4: // Bar & News
