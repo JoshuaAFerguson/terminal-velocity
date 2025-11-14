@@ -1053,6 +1053,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Combat rating shown in combat log every 10 points
     - Trading rank shown in trading UI every 10 points
 
+- **Production Infrastructure (Phase 8+, Operations & Monitoring)**:
+  - **Observability & Monitoring System** (`internal/metrics/`):
+    - Prometheus-compatible metrics endpoint at `/metrics` (port 8080)
+    - Human-readable HTML stats dashboard at `/stats`
+    - Health check endpoint at `/health`
+    - Comprehensive metric tracking:
+      - Connection metrics (total, active, failed, duration)
+      - Player metrics (active, logins, registrations, peak players)
+      - Game activity (trades, combat, missions, quests, jumps, cargo)
+      - Economy (total credits, market volume, 24h trade volume)
+      - System performance (database queries/errors, cache hit rate, uptime)
+    - Thread-safe atomic counters and gauges
+    - Automatic database query instrumentation
+    - 24-hour rolling counters with automatic reset
+    - HTTP metrics server with graceful shutdown
+  - **Automated Backup System** (`scripts/`):
+    - `backup.sh`: Automated PostgreSQL backup with compression
+    - `restore.sh`: Safe database restore with verification
+    - Retention policies (days and count limits)
+    - Automatic cleanup of old backups
+    - Progress tracking for large databases
+    - Confirmation prompts for destructive operations
+    - Support for both compressed and uncompressed backups
+    - `crontab.example`: Example cron jobs for scheduled backups
+    - Multiple backup strategies (hourly, daily, weekly, monthly)
+  - **Rate Limiting & Security** (`internal/ratelimit/`):
+    - Connection rate limiting (5 concurrent per IP, 20/minute)
+    - Authentication rate limiting (5 failures = 15min lockout)
+    - Automatic IP banning (20 failures = 24h ban)
+    - Brute force protection with per-IP tracking
+    - Configurable thresholds and durations
+    - Automatic cleanup of old entries
+    - Manual ban/unban commands for admins
+    - Integrated into SSH authentication flow
+    - Failed login tracking across password and public key auth
+  - **Server Integration**:
+    - Metrics server starts on port 8080 by default
+    - Rate limiter enabled by default with sensible defaults
+    - Graceful shutdown for all infrastructure components
+    - Configuration via `server.Config` struct
+    - Non-fatal initialization (server continues if metrics fail)
+
 ### Changed
 - **Mission Manager (internal/missions/manager.go)**:
   - Version updated to 1.2.0

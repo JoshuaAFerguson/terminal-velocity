@@ -126,6 +126,67 @@ make docker-clean           # Remove all Docker artifacts and volumes
 ssh -p 2222 username@localhost
 ```
 
+### Production Infrastructure
+
+**Observability & Monitoring**:
+```bash
+# Metrics server runs on port 8080 by default
+curl http://localhost:8080/metrics  # Prometheus-compatible metrics
+curl http://localhost:8080/stats    # Human-readable HTML stats page
+curl http://localhost:8080/health   # Health check endpoint
+```
+
+Metrics tracked:
+- Connection metrics (total, active, failed, duration)
+- Player metrics (active, logins, registrations, peak)
+- Game activity (trades, combat, missions, quests, jumps, cargo)
+- Economy (total credits, market volume, trade volume 24h)
+- System performance (database queries/errors, cache hit rate, uptime)
+
+**Automated Backups**:
+```bash
+# Manual backup with defaults
+./scripts/backup.sh
+
+# Custom backup configuration
+./scripts/backup.sh -d /var/backups -r 30 -c 50
+
+# List available backups
+./scripts/restore.sh --list
+
+# Restore from backup
+./scripts/restore.sh /path/to/backup.sql.gz
+
+# Automated backups via cron (see scripts/crontab.example)
+0 2 * * * /path/to/terminal-velocity/scripts/backup.sh  # Daily at 2 AM
+```
+
+Backup features:
+- Compression with gzip
+- Retention policies (days and count limits)
+- Automatic cleanup of old backups
+- Safe restore with confirmation prompts
+- Progress tracking for large databases
+
+**Rate Limiting & Security**:
+- Connection rate limiting (5 concurrent per IP, 20/min per IP)
+- Authentication rate limiting (5 attempts before 15min lockout)
+- Automatic IP banning (20 failures = 24h ban)
+- Brute force protection
+- Per-IP tracking with automatic cleanup
+
+Configuration in `internal/ratelimit/ratelimit.go`:
+```go
+cfg := &ratelimit.Config{
+    MaxConnectionsPerIP:     5,
+    MaxConnectionsPerMinute: 20,
+    MaxAuthAttempts:         5,
+    AuthLockoutTime:         15 * time.Minute,
+    AutobanThreshold:        20,
+    AutobanDuration:         24 * time.Hour,
+}
+```
+
 ## Architecture
 
 ### Directory Structure
@@ -168,9 +229,16 @@ ssh -p 2222 username@localhost
   - `session/` - Session management & auto-save (30s autosave)
   - `errors/` - Error handling, metrics, and retry logic
   - `logger/` - Centralized logging infrastructure
-- `scripts/` - Database schema and migrations
+  - `metrics/` - Observability & monitoring (Prometheus metrics, HTTP server)
+  - `ratelimit/` - Rate limiting & security (connection/auth limiting, auto-banning)
+- `scripts/` - Database schema, migrations, and operations
   - `schema.sql` - Main database schema
   - `migrations/` - Database migration scripts
+  - `backup.sh` - Automated backup with retention policies
+  - `restore.sh` - Database restore from backup
+  - `init-server.sh` - Server initialization script
+  - `migrate.sh` - Migration runner (up/down/status)
+  - `crontab.example` - Example cron jobs for automation
 - `configs/` - YAML configuration files
   - `config.example.yaml` - Example server configuration
 - `docs/` - Additional documentation

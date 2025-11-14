@@ -1,7 +1,7 @@
 // File: internal/server/server.go
 // Project: Terminal Velocity
 // Description: SSH server implementation and server
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -11,10 +11,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/metrics"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/ratelimit"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
@@ -25,17 +28,19 @@ var log = logger.WithComponent("server")
 
 // Server represents the SSH game server
 type Server struct {
-	config     *Config
-	port       int
-	sshConfig  *ssh.ServerConfig
-	listener   net.Listener
-	sessions   map[string]*PlayerSession
-	db         *database.DB
-	playerRepo *database.PlayerRepository
-	systemRepo *database.SystemRepository
-	sshKeyRepo *database.SSHKeyRepository
-	shipRepo   *database.ShipRepository
-	marketRepo *database.MarketRepository
+	config        *Config
+	port          int
+	sshConfig     *ssh.ServerConfig
+	listener      net.Listener
+	sessions      map[string]*PlayerSession
+	db            *database.DB
+	playerRepo    *database.PlayerRepository
+	systemRepo    *database.SystemRepository
+	sshKeyRepo    *database.SSHKeyRepository
+	shipRepo      *database.ShipRepository
+	marketRepo    *database.MarketRepository
+	metricsServer *metrics.Server
+	rateLimiter   *ratelimit.Limiter
 }
 
 // Config holds server configuration
@@ -47,6 +52,14 @@ type Config struct {
 	MaxPlayers  int
 	TickRate    int // Game loop ticks per second
 	Database    *database.Config
+
+	// Metrics configuration
+	MetricsEnabled bool
+	MetricsPort    int
+
+	// Rate limiting configuration
+	RateLimitEnabled bool
+	RateLimit        *ratelimit.Config
 
 	// Authentication settings
 	AllowPasswordAuth  bool // Allow password authentication
@@ -68,6 +81,14 @@ func NewServer(configFile string, port int) (*Server, error) {
 		TickRate:   10,
 		Database:   database.DefaultConfig(),
 
+		// Metrics configuration
+		MetricsEnabled: true,
+		MetricsPort:    8080,
+
+		// Rate limiting configuration
+		RateLimitEnabled: true,
+		RateLimit:        ratelimit.DefaultConfig(),
+
 		// Default authentication settings
 		AllowPasswordAuth:  true,  // Allow password auth
 		AllowPublicKeyAuth: true,  // Allow SSH key auth
@@ -76,8 +97,8 @@ func NewServer(configFile string, port int) (*Server, error) {
 		RequireEmailVerify: false, // Email verification not yet implemented
 	}
 
-	log.Info("Server configuration: host=%s, port=%d, maxPlayers=%d, tickRate=%d",
-		config.Host, config.Port, config.MaxPlayers, config.TickRate)
+	log.Info("Server configuration: host=%s, port=%d, maxPlayers=%d, tickRate=%d, metricsEnabled=%t, rateLimitEnabled=%t",
+		config.Host, config.Port, config.MaxPlayers, config.TickRate, config.MetricsEnabled, config.RateLimitEnabled)
 
 	srv := &Server{
 		config:   config,
@@ -98,6 +119,28 @@ func NewServer(configFile string, port int) (*Server, error) {
 		log.Error("Failed to initialize SSH config: %v", err)
 		srv.db.Close() // Clean up database on error
 		return nil, fmt.Errorf("failed to init SSH config: %w", err)
+	}
+
+	// Initialize metrics
+	if config.MetricsEnabled {
+		log.Debug("Initializing metrics system")
+		metricsCollector := metrics.Init()
+		metricsAddr := fmt.Sprintf(":%d", config.MetricsPort)
+		srv.metricsServer = metrics.NewServer(metricsAddr, metricsCollector)
+		if err := srv.metricsServer.Start(); err != nil {
+			log.Warn("Failed to start metrics server: %v", err)
+			// Non-fatal, continue without metrics
+		} else {
+			log.Info("Metrics server started on port %d (endpoints: /metrics, /stats, /health)", config.MetricsPort)
+		}
+	}
+
+	// Initialize rate limiter
+	if config.RateLimitEnabled {
+		log.Debug("Initializing rate limiter")
+		srv.rateLimiter = ratelimit.NewLimiter(config.RateLimit)
+		log.Info("Rate limiter enabled: maxConnPerIP=%d, maxAuthAttempts=%d, autoban=%d failures",
+			config.RateLimit.MaxConnectionsPerIP, config.RateLimit.MaxAuthAttempts, config.RateLimit.AutobanThreshold)
 	}
 
 	log.Info("Server created successfully")
@@ -175,18 +218,42 @@ func (s *Server) acceptConnections(ctx context.Context) {
 // handleConnection handles a single SSH connection
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
-	remoteAddr := conn.RemoteAddr().String()
+	remoteAddr := conn.RemoteAddr()
 	log.Debug("handleConnection called for %s", remoteAddr)
+
+	// Track connection attempt
+	metrics.Global().IncrementConnections()
+	connStart := time.Now()
+
+	// Check rate limit
+	if s.rateLimiter != nil {
+		if allowed, reason := s.rateLimiter.AllowConnection(remoteAddr); !allowed {
+			log.Warn("Connection rejected from %s: %s", remoteAddr, reason)
+			metrics.Global().IncrementFailedConnections()
+			// Send rejection message and close
+			conn.Write([]byte("Connection rejected: " + reason + "\r\n"))
+			return
+		}
+		defer s.rateLimiter.ReleaseConnection(remoteAddr)
+	}
 
 	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, s.sshConfig)
 	if err != nil {
 		log.Warn("SSH handshake failed from %s: %v", remoteAddr, err)
+		metrics.Global().IncrementFailedConnections()
 		return
 	}
-	defer sshConn.Close()
+	defer func() {
+		sshConn.Close()
+		// Track connection duration
+		metrics.Global().RecordConnectionDuration(time.Since(connStart))
+	}()
 
 	log.Info("SSH connection established: user=%s, addr=%s", sshConn.User(), sshConn.RemoteAddr())
+	metrics.Global().IncrementActiveConnections()
+	metrics.Global().IncrementLogins()
+	defer metrics.Global().DecrementActiveConnections()
 
 	// Discard all global out-of-band requests
 	go ssh.DiscardRequests(reqs)
@@ -357,13 +424,27 @@ func (s *Server) initSSHConfig() error {
 // handlePasswordAuth handles password-based authentication
 func (s *Server) handlePasswordAuth(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 	username := conn.User()
-	log.Info("Password login attempt: %s from %s", username, conn.RemoteAddr())
+	remoteAddr := conn.RemoteAddr()
+	log.Info("Password login attempt: %s from %s", username, remoteAddr)
 
 	ctx := context.Background()
+
+	// Check if authentication is locked for this IP
+	if s.rateLimiter != nil {
+		if locked, remaining := s.rateLimiter.IsAuthLocked(remoteAddr); locked {
+			log.Warn("Auth attempt from locked IP %s (user: %s, remaining: %v)", remoteAddr, username, remaining)
+			return nil, fmt.Errorf("too many failed attempts, try again in %v", remaining.Round(time.Second))
+		}
+	}
 
 	// Try to authenticate
 	player, err := s.playerRepo.Authenticate(ctx, username, string(password))
 	if err != nil {
+		// Record auth failure for rate limiting
+		if s.rateLimiter != nil {
+			s.rateLimiter.RecordAuthFailure(remoteAddr, username)
+		}
+
 		if err == database.ErrInvalidCredentials {
 			// Check if user exists
 			existingPlayer, checkErr := s.playerRepo.GetByUsername(ctx, username)
@@ -389,16 +470,29 @@ func (s *Server) handlePasswordAuth(conn ssh.ConnMetadata, password []byte) (*ss
 		return nil, fmt.Errorf("authentication error")
 	}
 
-	// Successful authentication
+	// Successful authentication - record success and clear failures
+	if s.rateLimiter != nil {
+		s.rateLimiter.RecordAuthSuccess(remoteAddr)
+	}
+
 	return s.onSuccessfulAuth(ctx, player)
 }
 
 // handlePublicKeyAuth handles SSH public key authentication
 func (s *Server) handlePublicKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	username := conn.User()
-	log.Info("Public key login attempt: %s from %s", username, conn.RemoteAddr())
+	remoteAddr := conn.RemoteAddr()
+	log.Info("Public key login attempt: %s from %s", username, remoteAddr)
 
 	ctx := context.Background()
+
+	// Check if authentication is locked for this IP
+	if s.rateLimiter != nil {
+		if locked, remaining := s.rateLimiter.IsAuthLocked(remoteAddr); locked {
+			log.Warn("Auth attempt from locked IP %s (user: %s, remaining: %v)", remoteAddr, username, remaining)
+			return nil, fmt.Errorf("too many failed attempts, try again in %v", remaining.Round(time.Second))
+		}
+	}
 
 	// Get the public key in authorized_keys format
 	keyData := ssh.MarshalAuthorizedKey(key)
@@ -406,6 +500,11 @@ func (s *Server) handlePublicKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (
 	// Try to find the player by public key
 	playerID, err := s.sshKeyRepo.GetPlayerIDByPublicKey(ctx, keyData)
 	if err != nil {
+		// Record auth failure for rate limiting
+		if s.rateLimiter != nil {
+			s.rateLimiter.RecordAuthFailure(remoteAddr, username)
+		}
+
 		if err == database.ErrSSHKeyNotFound {
 			// Key not found - check if user exists
 			player, checkErr := s.playerRepo.GetByUsername(ctx, username)
@@ -429,8 +528,17 @@ func (s *Server) handlePublicKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (
 	// Get player by ID
 	player, err := s.playerRepo.GetByID(ctx, playerID)
 	if err != nil {
+		// Record auth failure for rate limiting
+		if s.rateLimiter != nil {
+			s.rateLimiter.RecordAuthFailure(remoteAddr, username)
+		}
 		log.Info("Failed to get player %s: %v", playerID, err)
 		return nil, fmt.Errorf("authentication error")
+	}
+
+	// Successful authentication - record success and clear failures
+	if s.rateLimiter != nil {
+		s.rateLimiter.RecordAuthSuccess(remoteAddr)
 	}
 
 	// Verify username matches
@@ -506,6 +614,23 @@ func (s *Server) shutdown() error {
 	// Close all active sessions
 	for _, session := range s.sessions {
 		session.Close()
+	}
+
+	// Shutdown metrics server
+	if s.metricsServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.metricsServer.Stop(ctx); err != nil {
+			log.Warn("Error stopping metrics server: %v", err)
+		} else {
+			log.Info("Metrics server stopped")
+		}
+	}
+
+	// Shutdown rate limiter
+	if s.rateLimiter != nil {
+		s.rateLimiter.Stop()
+		log.Info("Rate limiter stopped")
 	}
 
 	// Close database connection
