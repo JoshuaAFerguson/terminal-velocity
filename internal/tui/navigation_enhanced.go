@@ -8,10 +8,12 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 )
 
 type navigationEnhancedModel struct {
@@ -272,6 +274,109 @@ func (m Model) viewNavigationEnhanced() string {
 	return sb.String()
 }
 
+// executeJumpCmd executes a hyperdrive jump to the selected system
+func (m Model) executeJumpCmd(systemName string, fuelRequired int) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Validate player has a ship
+		if m.currentShip == nil {
+			return jumpExecutedMsg{
+				destination: nil,
+				fuelUsed:    0,
+				err:         fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Check current fuel
+		if m.currentShip.Fuel < fuelRequired {
+			return jumpExecutedMsg{
+				destination: nil,
+				fuelUsed:    0,
+				err:         fmt.Errorf("insufficient fuel (need %d, have %d)", fuelRequired, m.currentShip.Fuel),
+			}
+		}
+
+		// TODO: Get actual system ID from system name
+		// For now, we'll need to look up the system in the database
+		// This is a simplified implementation - in production we'd have the system ID already
+
+		// Get connected system IDs
+		connectedIDs, err := m.systemRepo.GetConnections(ctx, m.player.CurrentSystem)
+		if err != nil {
+			return jumpExecutedMsg{
+				destination: nil,
+				fuelUsed:    0,
+				err:         fmt.Errorf("failed to get connected systems: %w", err),
+			}
+		}
+
+		// Find the target system by name
+		var targetSystemID uuid.UUID
+		var found bool
+		for _, sysID := range connectedIDs {
+			sys, err := m.systemRepo.GetSystemByID(ctx, sysID)
+			if err != nil {
+				continue // Skip systems we can't load
+			}
+			if sys.Name == systemName {
+				targetSystemID = sys.ID
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return jumpExecutedMsg{
+				destination: nil,
+				fuelUsed:    0,
+				err:         fmt.Errorf("system %s not found or not connected", systemName),
+			}
+		}
+
+		// Execute the jump - update player location
+		err = m.playerRepo.UpdateLocation(ctx, m.playerID, targetSystemID, nil)
+		if err != nil {
+			return jumpExecutedMsg{
+				destination: nil,
+				fuelUsed:    0,
+				err:         fmt.Errorf("failed to update location: %w", err),
+			}
+		}
+
+		// Update ship fuel
+		newFuel := m.currentShip.Fuel - fuelRequired
+		err = m.shipRepo.UpdateFuel(ctx, m.currentShip.ID, newFuel)
+		if err != nil {
+			// Try to rollback location update
+			_ = m.playerRepo.UpdateLocation(ctx, m.playerID, m.player.CurrentSystem, m.player.CurrentPlanet)
+			return jumpExecutedMsg{
+				destination: nil,
+				fuelUsed:    0,
+				err:         fmt.Errorf("failed to update fuel: %w", err),
+			}
+		}
+
+		// Update local state
+		m.player.CurrentSystem = targetSystemID
+		m.player.CurrentPlanet = nil // In space after jump
+		m.currentShip.Fuel = newFuel
+
+		// Get the destination system for the response
+		destSystem, err := m.systemRepo.GetSystemByID(ctx, targetSystemID)
+		if err != nil {
+			// Jump succeeded but couldn't get system details
+			destSystem = nil
+		}
+
+		return jumpExecutedMsg{
+			destination: destSystem,
+			fuelUsed:    fuelRequired,
+			err:         nil,
+		}
+	}
+}
+
 func (m Model) updateNavigationEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -290,10 +395,10 @@ func (m Model) updateNavigationEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			// Jump to selected system
-			// TODO: Implement jump logic via API
-			// - Check fuel requirements
-			// - Execute jump
-			// - Update current location
+			if m.navigationEnhanced.selectedSystem < len(m.navigationEnhanced.systems) {
+				system := m.navigationEnhanced.systems[m.navigationEnhanced.selectedSystem]
+				return m, m.executeJumpCmd(system.name, system.fuelRequired)
+			}
 			return m, nil
 
 		case "i", "I":
@@ -306,6 +411,27 @@ func (m Model) updateNavigationEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = ScreenSpaceView
 			return m, nil
 		}
+
+	case jumpExecutedMsg:
+		// Handle jump completion
+		if msg.err != nil {
+			// Show error message
+			m.errorMessage = fmt.Sprintf("Jump failed: %v", msg.err)
+			m.showErrorDialog = true
+		} else {
+			// Jump successful - show success message and return to space view
+			var destName string
+			if msg.destination != nil {
+				destName = msg.destination.Name
+			} else {
+				destName = "Unknown System"
+			}
+			m.errorMessage = fmt.Sprintf("Jumped to %s. Fuel used: %d units", destName, msg.fuelUsed)
+			m.showErrorDialog = true
+			// Return to space view after successful jump
+			m.screen = ScreenSpaceView
+		}
+		return m, nil
 	}
 
 	return m, nil
