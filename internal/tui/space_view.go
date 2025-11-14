@@ -1,7 +1,7 @@
 // File: internal/tui/space_view.go
 // Project: Terminal Velocity
-// Description: Main space view with 2D viewport, HUD, radar, and status
-// Version: 1.0.0
+// Description: Main space view with 2D viewport, HUD, radar, status, and real-time interactions
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -49,6 +49,123 @@ func newSpaceViewModel() spaceViewModel {
 		player:       playerPosition{x: 0, y: 0},
 		chatExpanded: false,
 		chatChannel:  0,
+	}
+}
+
+// Command functions for async space view operations
+
+// loadSpaceViewDataCmd loads current system data, planets, and nearby ships
+func (m Model) loadSpaceViewDataCmd() tea.Cmd {
+	return func() tea.Msg {
+		// TODO: Load actual data from repositories
+		// For now, return sample data
+
+		// Get current system
+		// system, err := m.systemRepo.GetSystem(m.player.CurrentSystemID)
+
+		// Get planets in system
+		// planets, err := m.planetRepo.GetPlanetsInSystem(m.player.CurrentSystemID)
+
+		// Get nearby ships (from presence manager or encounter manager)
+		// nearbyShips := m.presenceManager.GetNearbyShips(m.player.CurrentSystemID)
+
+		return spaceViewLoadedMsg{
+			system:      nil, // Will be loaded from database
+			planets:     nil, // Will be loaded from database
+			nearbyShips: nil, // Will be loaded from presence/encounter manager
+			playerShip:  m.currentShip,
+			err:         nil,
+		}
+	}
+}
+
+// cycleTargetCmd cycles to the next targetable object
+func (m Model) cycleTargetCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Build list of targetable objects
+		targetables := []interface{}{}
+		targetTypes := []string{}
+
+		// Add planets
+		for _, planet := range m.spaceView.planets {
+			targetables = append(targetables, planet)
+			targetTypes = append(targetTypes, "planet")
+		}
+
+		// Add ships
+		for _, ship := range m.spaceView.ships {
+			targetables = append(targetables, ship)
+			targetTypes = append(targetTypes, ship.objType)
+		}
+
+		if len(targetables) == 0 {
+			return targetSelectedMsg{
+				target:     nil,
+				targetType: "",
+				err:        fmt.Errorf("no targetable objects in range"),
+			}
+		}
+
+		// Cycle to next target
+		m.spaceView.targetIndex++
+		if m.spaceView.targetIndex >= len(targetables) {
+			m.spaceView.targetIndex = 0
+		}
+
+		return targetSelectedMsg{
+			target:     targetables[m.spaceView.targetIndex],
+			targetType: targetTypes[m.spaceView.targetIndex],
+			err:        nil,
+		}
+	}
+}
+
+// hailTargetCmd initiates communication with target
+func (m Model) hailTargetCmd() tea.Cmd {
+	return func() tea.Msg {
+		if !m.spaceView.hasTarget {
+			return errorMsg{
+				context: "hail",
+				err:     fmt.Errorf("no target selected"),
+			}
+		}
+
+		// TODO: Implement hailing via encounter manager or chat
+		// For now, just return success
+		// m.encounterManager.InitiateHail(target)
+
+		return operationCompleteMsg{
+			operation: "hail",
+			success:   true,
+			message:   "Hailing frequency opened...",
+			err:       nil,
+		}
+	}
+}
+
+// triggerRandomEncounterCmd triggers a random encounter
+func (m Model) triggerRandomEncounterCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.encounterManager == nil {
+			return errorMsg{
+				context: "encounter",
+				err:     fmt.Errorf("encounter manager not available"),
+			}
+		}
+
+		// Generate random encounter
+		// encounter := m.encounterManager.GenerateEncounter(m.player.CurrentSystemID)
+		// if encounter != nil {
+		//     return combatInitMsg with encounter data
+		// }
+
+		// For now, just return success
+		return operationCompleteMsg{
+			operation: "encounter",
+			success:   true,
+			message:   "Encounter generated",
+			err:       nil,
+		}
 	}
 }
 
@@ -395,14 +512,25 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "t", "T":
 			// Target next object
-			// TODO: Cycle through targetable objects
-			return m, nil
+			return m, m.cycleTargetCmd()
+
+		case "h", "H":
+			// Hail target
+			return m, m.hailTargetCmd()
 
 		case "f", "F":
 			// Fire / Enter combat
-			// TODO: Check if there's a valid target
-			m.screen = ScreenCombatEnhanced
-			return m, nil
+			if m.spaceView.hasTarget {
+				m.screen = ScreenCombatEnhanced
+				return m, nil
+			} else {
+				return m, func() tea.Msg {
+					return errorMsg{
+						context: "combat",
+						err:     fmt.Errorf("no target selected - press T to target"),
+					}
+				}
+			}
 
 		case "m", "M":
 			// System map
@@ -425,8 +553,29 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.spaceView.chatExpanded {
 				if msg.String() == "enter" {
 					// Send chat message
-					// TODO: Send to chat manager
-					m.spaceView.chatInput = ""
+					if m.chatManager != nil && m.spaceView.chatInput != "" {
+						username := "Player"
+						if m.player != nil {
+							username = m.player.Username
+						}
+
+						// Send to appropriate channel
+						switch m.spaceView.chatChannel {
+						case 0: // Global
+							m.chatManager.SendGlobalMessage(m.playerID, username, m.spaceView.chatInput)
+						case 1: // System
+							// TODO: Get current system ID and other players in system
+							// m.chatManager.SendSystemMessage(systemID, m.playerID, username, m.spaceView.chatInput, recipientIDs)
+						case 2: // Faction
+							// TODO: Get faction ID and member IDs
+							// m.chatManager.SendFactionMessage(factionID, m.playerID, username, m.spaceView.chatInput, memberIDs)
+						case 3: // DM
+							// TODO: Get recipient ID from target
+							// m.chatManager.SendDirectMessage(m.playerID, username, recipientID, recipientName, m.spaceView.chatInput)
+						}
+
+						m.spaceView.chatInput = ""
+					}
 					return m, nil
 				} else if msg.String() == "backspace" {
 					if len(m.spaceView.chatInput) > 0 {
@@ -440,6 +589,48 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+
+	case spaceViewLoadedMsg:
+		// Handle space view data loaded
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Update space view data
+			m.spaceView.planets = msg.planets
+			// TODO: Convert nearbyShips to spaceObjects
+			// m.spaceView.ships = convertToSpaceObjects(msg.nearbyShips)
+		}
+		return m, nil
+
+	case targetSelectedMsg:
+		// Handle target selection
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+			m.spaceView.hasTarget = false
+		} else {
+			m.spaceView.hasTarget = true
+			// TODO: Update target display in UI
+		}
+		return m, nil
+
+	case errorMsg:
+		// Handle errors
+		m.errorMessage = msg.err.Error()
+		m.showErrorDialog = true
+		return m, nil
+
+	case operationCompleteMsg:
+		// Handle operation complete
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Show success message if needed
+			// For hail, could trigger dialog or chat
+		}
+		return m, nil
 	}
 
 	return m, nil
