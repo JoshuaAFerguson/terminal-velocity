@@ -65,7 +65,7 @@ type questsLoadedMsg struct {
 
 type questActionMsg struct {
 	action  string // "accept", "abandon", "complete"
-	questID uuid.UUID
+	questID string // Quest ID as string (matches quest manager API)
 	err     error
 }
 

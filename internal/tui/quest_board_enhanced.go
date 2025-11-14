@@ -305,6 +305,71 @@ func (m Model) viewQuestBoardEnhanced() string {
 	return sb.String()
 }
 
+// abandonQuestCmd abandons a quest via the quest manager
+func (m Model) abandonQuestCmd(questID string) tea.Cmd {
+	return func() tea.Msg {
+		if m.questManager == nil {
+			return questActionMsg{
+				action:  "abandon",
+				questID: questID,
+				err:     fmt.Errorf("quest manager not available"),
+			}
+		}
+
+		// Abandon quest via manager
+		err := m.questManager.AbandonQuest(m.playerID, questID)
+		if err != nil {
+			return questActionMsg{
+				action:  "abandon",
+				questID: questID,
+				err:     err,
+			}
+		}
+
+		return questActionMsg{
+			action:  "abandon",
+			questID: questID,
+		}
+	}
+}
+
+// acceptQuestCmd accepts/starts a quest via the quest manager
+func (m Model) acceptQuestCmd(questID string) tea.Cmd {
+	return func() tea.Msg {
+		if m.questManager == nil {
+			return questActionMsg{
+				action:  "accept",
+				questID: questID,
+				err:     fmt.Errorf("quest manager not available"),
+			}
+		}
+
+		// Check if player can start quest
+		if !m.questManager.CanStartQuest(m.playerID, questID) {
+			return questActionMsg{
+				action:  "accept",
+				questID: questID,
+				err:     fmt.Errorf("cannot start quest (check requirements or quest limit)"),
+			}
+		}
+
+		// Start quest via manager
+		_, err := m.questManager.StartQuest(m.playerID, questID)
+		if err != nil {
+			return questActionMsg{
+				action:  "accept",
+				questID: questID,
+				err:     err,
+			}
+		}
+
+		return questActionMsg{
+			action:  "accept",
+			questID: questID,
+		}
+	}
+}
+
 func (m Model) updateQuestBoardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -322,16 +387,16 @@ func (m Model) updateQuestBoardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "enter":
-			// Show full quest details
-			// TODO: Implement detailed quest view or accept quest
+			// Accept available quest (if viewing available quests)
+			// For now, we assume the selected quest is from active quests
+			// In a full implementation, we'd track which tab is active
 			return m, nil
 
 		case "a", "A":
-			// Abandon quest
-			// TODO: Implement quest abandonment via API
+			// Abandon active quest
 			if m.questBoardEnhanced.selectedQuest < len(m.questBoardEnhanced.activeQuests) {
-				// Would call API to abandon quest
-				// quest := m.questBoardEnhanced.activeQuests[m.questBoardEnhanced.selectedQuest]
+				quest := m.questBoardEnhanced.activeQuests[m.questBoardEnhanced.selectedQuest]
+				return m, m.abandonQuestCmd(quest.id)
 			}
 			return m, nil
 
@@ -340,6 +405,22 @@ func (m Model) updateQuestBoardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = ScreenLanding
 			return m, nil
 		}
+
+	case questActionMsg:
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Success - quest accepted or abandoned
+			if msg.action == "accept" {
+				// Quest accepted - refresh quest list
+				m.questBoardEnhanced = newQuestBoardEnhancedModel()
+			} else if msg.action == "abandon" {
+				// Quest abandoned - refresh list
+				m.questBoardEnhanced = newQuestBoardEnhancedModel()
+			}
+		}
+		return m, nil
 	}
 
 	return m, nil
