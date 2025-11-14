@@ -236,6 +236,11 @@ func (r *SystemRepository) CreateJumpRoute(ctx context.Context, systemA, systemB
 	return nil
 }
 
+// GetConnections returns all jump connections for a system (public API method)
+func (r *SystemRepository) GetConnections(ctx context.Context, systemID uuid.UUID) ([]uuid.UUID, error) {
+	return r.getJumpConnections(ctx, systemID)
+}
+
 // getJumpConnections returns all jump connections for a system
 func (r *SystemRepository) getJumpConnections(ctx context.Context, systemID uuid.UUID) ([]uuid.UUID, error) {
 	query := `

@@ -303,10 +303,44 @@ func (s *GameServer) GetPlayerState(ctx context.Context, playerID uuid.UUID) (*a
 	return state, nil
 }
 
-// UpdatePlayerLocation updates player's location
+// UpdatePlayerLocation updates player's location and coordinates
 func (s *GameServer) UpdatePlayerLocation(ctx context.Context, req *api.LocationUpdate) (*api.PlayerState, error) {
-	// TODO: Reimplement - Player model lacks X/Y coordinates
-	return nil, api.ErrNotFound
+	if req.PlayerID == uuid.Nil {
+		return nil, api.ErrInvalidRequest
+	}
+
+	// Load player to verify they exist
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update system and planet if provided
+	if req.SystemID != uuid.Nil {
+		err = s.playerRepo.UpdateLocation(ctx, req.PlayerID, req.SystemID, req.PlanetID)
+		if err != nil {
+			return nil, err
+		}
+		player.CurrentSystem = req.SystemID
+		player.CurrentPlanet = req.PlanetID
+	}
+
+	// Update position coordinates
+	err = s.playerRepo.UpdatePosition(ctx, req.PlayerID, req.Position.X, req.Position.Y)
+	if err != nil {
+		return nil, err
+	}
+	player.X = req.Position.X
+	player.Y = req.Position.Y
+
+	// Load ship to return complete state
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return updated player state
+	return convertPlayerToAPI(player, ship), nil
 }
 
 // GetPlayerShip retrieves player's current ship
@@ -382,20 +416,255 @@ func (s *GameServer) StreamPlayerUpdates(ctx context.Context, playerID uuid.UUID
 
 // Jump performs a hyperspace jump to another system
 func (s *GameServer) Jump(ctx context.Context, req *api.JumpRequest) (*api.JumpResponse, error) {
-	// TODO: Reimplement with correct Player model and SystemRepository.GetConnections
-	return &api.JumpResponse{Success: false, Message: "Not implemented"}, nil
+	if req.PlayerID == uuid.Nil || req.TargetSystemID == uuid.Nil {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "invalid request: missing player or target system ID",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Check if player is docked (can't jump while docked)
+	if player.IsDocked() {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "cannot jump while docked - takeoff first",
+		}, nil
+	}
+
+	// Verify jump route exists
+	connections, err := s.systemRepo.GetConnections(ctx, player.CurrentSystem)
+	if err != nil {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "failed to load jump routes",
+		}, nil
+	}
+
+	// Check if target system is connected
+	canJump := false
+	for _, connectedSystemID := range connections {
+		if connectedSystemID == req.TargetSystemID {
+			canJump = true
+			break
+		}
+	}
+
+	if !canJump {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "no jump route to target system",
+		}, nil
+	}
+
+	// Load ship to check fuel
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "ship not found",
+		}, nil
+	}
+
+	// Check fuel (1 fuel per jump)
+	fuelCost := 1
+	if ship.Fuel < fuelCost {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "insufficient fuel",
+		}, nil
+	}
+
+	// Perform the jump
+	// Update player location to new system, clear planet, reset position to (0,0)
+	err = s.playerRepo.UpdateLocation(ctx, req.PlayerID, req.TargetSystemID, nil)
+	if err != nil {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "failed to update location",
+		}, nil
+	}
+
+	err = s.playerRepo.UpdatePosition(ctx, req.PlayerID, 0, 0)
+	if err != nil {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "failed to update position",
+		}, nil
+	}
+
+	// Consume fuel
+	ship.Fuel -= fuelCost
+	err = s.shipRepo.Update(ctx, ship)
+	if err != nil {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "failed to update ship fuel",
+		}, nil
+	}
+
+	// Record jump in player stats (update TotalJumps)
+	player.RecordJump()
+	err = s.playerRepo.Update(ctx, player)
+	if err != nil {
+		return &api.JumpResponse{
+			Success: false,
+			Message: "failed to update player stats",
+		}, nil
+	}
+
+	// Update local player state
+	player.CurrentSystem = req.TargetSystemID
+	player.CurrentPlanet = nil
+	player.X = 0
+	player.Y = 0
+
+	// Return success with new state
+	return &api.JumpResponse{
+		Success:      true,
+		Message:      "jump successful",
+		NewState:     convertPlayerToAPI(player, ship),
+		FuelConsumed: int32(fuelCost),
+	}, nil
 }
 
 // Land lands on a planet
 func (s *GameServer) Land(ctx context.Context, req *api.LandRequest) (*api.LandResponse, error) {
-	// TODO: Reimplement with correct Player model
-	return &api.LandResponse{Success: false, Message: "Not implemented"}, nil
+	if req.PlayerID == uuid.Nil || req.PlanetID == uuid.Nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "invalid request: missing player or planet ID",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Check if already docked
+	if player.IsDocked() {
+		return &api.LandResponse{
+			Success: false,
+			Message: "already docked - takeoff first",
+		}, nil
+	}
+
+	// Load planet to verify it exists and is in current system
+	planet, err := s.systemRepo.GetPlanetByID(ctx, req.PlanetID)
+	if err != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "planet not found",
+		}, nil
+	}
+
+	// Verify planet is in player's current system
+	if planet.SystemID != player.CurrentSystem {
+		return &api.LandResponse{
+			Success: false,
+			Message: "planet is not in current system",
+		}, nil
+	}
+
+	// TODO: Check distance to planet (requires planet X/Y coordinates)
+	// For now, we'll allow landing from anywhere in the system
+
+	// Update player location to be docked at planet
+	err = s.playerRepo.UpdateLocation(ctx, req.PlayerID, player.CurrentSystem, &req.PlanetID)
+	if err != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "failed to update location",
+		}, nil
+	}
+
+	// Update local player state
+	player.CurrentPlanet = &req.PlanetID
+
+	// Load ship
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return &api.LandResponse{
+			Success: false,
+			Message: "ship not found",
+		}, nil
+	}
+
+	// Return success with updated state
+	return &api.LandResponse{
+		Success:  true,
+		Message:  "landed successfully",
+		Planet:   convertPlanetToAPI(planet),
+		NewState: convertPlayerToAPI(player, ship),
+	}, nil
 }
 
 // Takeoff takes off from a planet
 func (s *GameServer) Takeoff(ctx context.Context, req *api.TakeoffRequest) (*api.TakeoffResponse, error) {
-	// TODO: Reimplement with correct Player model
-	return &api.TakeoffResponse{Success: false, Message: "Not implemented"}, nil
+	if req.PlayerID == uuid.Nil {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "invalid request: missing player ID",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Check if player is docked
+	if !player.IsDocked() {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "not docked at a planet",
+		}, nil
+	}
+
+	// Update player location to clear planet (takeoff into space)
+	err = s.playerRepo.UpdateLocation(ctx, req.PlayerID, player.CurrentSystem, nil)
+	if err != nil {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "failed to update location",
+		}, nil
+	}
+
+	// Update local player state
+	player.CurrentPlanet = nil
+
+	// Load ship
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return &api.TakeoffResponse{
+			Success: false,
+			Message: "ship not found",
+		}, nil
+	}
+
+	// Return success with updated state
+	return &api.TakeoffResponse{
+		Success:  true,
+		Message:  "takeoff successful",
+		NewState: convertPlayerToAPI(player, ship),
+	}, nil
 }
 
 // GetMarket retrieves market data for a system

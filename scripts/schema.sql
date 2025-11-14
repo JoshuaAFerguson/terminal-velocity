@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS players (
     current_planet UUID,
     ship_id UUID,
 
+    -- Position
+    x DOUBLE PRECISION DEFAULT 0,
+    y DOUBLE PRECISION DEFAULT 0,
+
     -- Progression
     combat_rating INTEGER DEFAULT 0,
     total_kills INTEGER DEFAULT 0,

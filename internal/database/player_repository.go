@@ -558,6 +558,31 @@ func (r *PlayerRepository) UpdateLocation(ctx context.Context, playerID uuid.UUI
 	return nil
 }
 
+// UpdatePosition updates a player's X/Y coordinates within a system
+func (r *PlayerRepository) UpdatePosition(ctx context.Context, playerID uuid.UUID, x, y float64) error {
+	query := `
+		UPDATE players
+		SET x = $1, y = $2
+		WHERE id = $3
+	`
+
+	result, err := r.db.ExecContext(ctx, query, x, y, playerID)
+	if err != nil {
+		return fmt.Errorf("failed to update position: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrPlayerNotFound
+	}
+
+	return nil
+}
+
 // UpdateShip updates a player's current ship
 func (r *PlayerRepository) UpdateShip(ctx context.Context, playerID uuid.UUID, shipID uuid.UUID) error {
 	query := `

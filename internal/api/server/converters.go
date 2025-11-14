@@ -28,9 +28,9 @@ func convertPlayerToAPI(player *models.Player, ship *models.Ship) *api.PlayerSta
 		CurrentSystemID: player.CurrentSystem,
 		CurrentPlanetID: player.CurrentPlanet,
 		Position: api.Coordinates{
-			X: 0, // TODO: Add coordinates to Player model
-			Y: 0,
-			Z: 0,
+			X: player.X,
+			Y: player.Y,
+			Z: 0, // TODO: Add Z coordinate if needed for 3D space
 		},
 		Credits:       player.Credits,
 		Fuel:          0, // Fuel is on Ship, not Player
