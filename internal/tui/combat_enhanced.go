@@ -8,17 +8,20 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/combat"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type combatEnhancedModel struct {
 	// Combat state
 	isPlayerTurn bool
-	combatPhase  string // "ongoing", "victory", "defeat", "fled"
+	combatPhase  string // "ongoing", "victory", "defeat", "fled", "loot"
 
 	// Ships
 	playerShip combatShip
@@ -33,6 +36,14 @@ type combatEnhancedModel struct {
 	// Player action selection
 	selectedAction int
 	actionMode     string // "select", "confirm"
+
+	// Loot system
+	lootDrop       *combat.LootDrop
+	showingLoot    bool
+	enemyShipType  *models.ShipType // Store for loot generation
+	enemyWasHostile bool
+	enemyHadBounty bool
+	enemyBounty    int64
 }
 
 type combatShip struct {
@@ -292,10 +303,33 @@ func (m Model) viewCombatEnhanced() string {
 	sb.WriteString(strings.Repeat(" ", width-2))
 	sb.WriteString(BoxVertical + "\n")
 
-	// Action panel - turn selection
+	// Action panel - turn selection or loot display
 	actionWidth := 68
 	var actionContent strings.Builder
-	if m.combatEnhanced.isPlayerTurn {
+
+	// Show loot screen if available
+	if m.combatEnhanced.showingLoot && m.combatEnhanced.lootDrop != nil {
+		loot := m.combatEnhanced.lootDrop
+		actionContent.WriteString(" SALVAGE AVAILABLE:                                             \n")
+		actionContent.WriteString("                                                                \n")
+		actionContent.WriteString(fmt.Sprintf("  Credits: %s                                     \n",
+			PadRight(formatCredits(loot.Credits), 40)))
+
+		if len(loot.Cargo) > 0 {
+			actionContent.WriteString(fmt.Sprintf("  Cargo Items: %d                                              \n", len(loot.Cargo)))
+		}
+		if len(loot.Weapons) > 0 {
+			actionContent.WriteString(fmt.Sprintf("  Weapons: %d (will be sold)                                   \n", len(loot.Weapons)))
+		}
+		if len(loot.RareItems) > 0 {
+			for _, item := range loot.RareItems {
+				actionContent.WriteString(fmt.Sprintf("  RARE: %s (%s)                 \n",
+					PadRight(item.Name, 30), item.Rarity))
+			}
+		}
+		actionContent.WriteString("                                                                \n")
+		actionContent.WriteString("  [C] Collect Salvage        [L] Leave and Continue            \n")
+	} else if m.combatEnhanced.isPlayerTurn {
 		actionContent.WriteString(" YOUR TURN - Select Action:                                     \n")
 		actionContent.WriteString("                                                                \n")
 		actionContent.WriteString("  [1] Fire Laser Cannon     [2] Fire Pulse Laser               \n")
@@ -324,8 +358,14 @@ func (m Model) viewCombatEnhanced() string {
 	sb.WriteString(strings.Repeat(" ", width-2))
 	sb.WriteString(BoxVertical + "\n")
 
-	// Footer
-	footer := DrawFooter("[1-3] Fire Weapon  [E]vade  [D]efend  [R]etreat  [H]ail  [ESC] Menu", width)
+	// Footer - dynamic based on combat state
+	var footerText string
+	if m.combatEnhanced.showingLoot {
+		footerText = "[C]ollect Loot  [L]eave Loot  [ESC] Leave"
+	} else {
+		footerText = "[1-3] Fire Weapon  [E]vade  [D]efend  [R]etreat  [H]ail  [ESC] Menu"
+	}
+	footer := DrawFooter(footerText, width)
 	sb.WriteString(footer)
 
 	return sb.String()
@@ -463,6 +503,139 @@ func (m Model) performDefendCmd() tea.Cmd {
 	}
 }
 
+// generateCombatLootCmd generates loot from destroyed enemy ship
+func (m Model) generateCombatLootCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Need to create a dummy enemy ship from the combatEnhanced model
+		// In a real scenario, this would come from the encounter system
+		enemyShip := &models.Ship{
+			TypeID:  m.combatEnhanced.enemyShip.shipType,
+			Hull:    0,
+			Shields: 0,
+			Cargo:   []models.CargoItem{},
+			Weapons: []string{},
+			Outfits: []string{},
+		}
+
+		// For demo purposes, use a basic ship type
+		// In production, this would be loaded from shipRepo
+		enemyShipType := &models.ShipType{
+			ID:          m.combatEnhanced.enemyShip.shipType,
+			Name:        m.combatEnhanced.enemyShip.name,
+			Price:       50000, // Default pirate ship value
+			Class:       "fighter",
+			CargoSpace:  20,
+			WeaponSlots: 2,
+		}
+
+		// Use stored values or defaults
+		wasHostile := m.combatEnhanced.enemyWasHostile
+		if !wasHostile {
+			wasHostile = m.combatEnhanced.enemyShip.attitude == "hostile"
+		}
+		hadBounty := m.combatEnhanced.enemyHadBounty
+		bountyAmount := m.combatEnhanced.enemyBounty
+
+		// Generate loot
+		loot := combat.GenerateLoot(
+			enemyShip,
+			enemyShipType,
+			wasHostile,
+			hadBounty,
+			bountyAmount,
+		)
+
+		return combatLootGeneratedMsg{
+			loot:          loot,
+			enemyShipType: enemyShipType,
+			err:           nil,
+		}
+	}
+}
+
+// collectCombatLootCmd collects the loot and updates player ship/credits
+func (m Model) collectCombatLootCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.combatEnhanced.lootDrop == nil {
+			return combatLootCollectedMsg{
+				success: false,
+				message: "No loot to collect",
+				err:     fmt.Errorf("no loot available"),
+			}
+		}
+
+		// Get current ship type for cargo space checking
+		// In production, this would be loaded from shipRepo
+		if m.currentShip == nil {
+			return combatLootCollectedMsg{
+				success: false,
+				message: "No ship equipped",
+				err:     fmt.Errorf("no ship"),
+			}
+		}
+
+		// Create a dummy ship type for demo
+		// In production, load from database
+		playerShipType := &models.ShipType{
+			ID:         m.currentShip.TypeID,
+			CargoSpace: 100, // Default cargo space
+		}
+
+		// Check cargo space
+		if !combat.CanCarryLoot(m.currentShip, playerShipType, m.combatEnhanced.lootDrop) {
+			cargoNeeded := combat.CalculateCargoSpaceRequired(m.combatEnhanced.lootDrop)
+			cargoUsed := m.currentShip.GetCargoUsed()
+			cargoAvailable := playerShipType.CargoSpace - cargoUsed
+
+			return combatLootCollectedMsg{
+				success: false,
+				message: fmt.Sprintf("Insufficient cargo space! Need %d tons, have %d tons available",
+					cargoNeeded, cargoAvailable),
+				err:     fmt.Errorf("insufficient cargo space"),
+			}
+		}
+
+		// Apply loot to player ship
+		success, message := combat.ApplyLoot(m.currentShip, playerShipType, m.combatEnhanced.lootDrop)
+
+		if !success {
+			return combatLootCollectedMsg{
+				success: false,
+				message: message,
+				err:     fmt.Errorf("failed to apply loot"),
+			}
+		}
+
+		// Update player credits
+		creditsEarned := m.combatEnhanced.lootDrop.Credits
+
+		// Update in database (async)
+		if m.player != nil {
+			newBalance := m.player.Credits + creditsEarned
+			ctx := context.Background()
+			err := m.playerRepo.UpdateCredits(ctx, m.playerID, newBalance)
+			if err != nil {
+				return combatLootCollectedMsg{
+					success:       true,
+					creditsEarned: creditsEarned,
+					message:       message + "\n(Warning: Failed to save credits to database)",
+					err:           err,
+				}
+			}
+
+			// Update local player state
+			m.player.Credits = newBalance
+		}
+
+		return combatLootCollectedMsg{
+			success:       true,
+			creditsEarned: creditsEarned,
+			message:       message,
+			err:           nil,
+		}
+	}
+}
+
 // processAITurnCmd processes the AI enemy's turn
 func (m Model) processAITurnCmd() tea.Cmd {
 	return func() tea.Msg {
@@ -536,6 +709,31 @@ func (m Model) processAITurnCmd() tea.Cmd {
 func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Check if we're showing loot screen
+		if m.combatEnhanced.showingLoot {
+			switch msg.String() {
+			case "c", "C":
+				// Collect loot
+				return m, m.collectCombatLootCmd()
+
+			case "l", "L":
+				// Leave loot and return to space
+				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+					"> You leave the salvage behind")
+				m.combatEnhanced.showingLoot = false
+				m.screen = ScreenSpaceView
+				return m, nil
+
+			case "esc":
+				// ESC also leaves loot
+				m.combatEnhanced.showingLoot = false
+				m.screen = ScreenSpaceView
+				return m, nil
+			}
+			return m, nil
+		}
+
+		// Normal combat controls
 		switch msg.String() {
 		case "1":
 			// Fire weapon slot 0
@@ -612,13 +810,12 @@ func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Check if combat is over
 			if msg.combatOver {
 				if msg.victory {
-					// Victory - generate loot and return to space
+					// Victory - generate loot
 					m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
 						"> ENEMY DESTROYED! Victory!")
 					m.combatEnhanced.combatPhase = "victory"
-					// TODO: Generate loot using combat.GenerateLoot()
-					// For now, just return to space view after a delay
-					m.screen = ScreenSpaceView
+					// Generate loot from destroyed enemy
+					return m, m.generateCombatLootCmd()
 				} else {
 					// Defeat
 					m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
@@ -652,6 +849,48 @@ func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Return to player turn
 				m.combatEnhanced.isPlayerTurn = true
 			}
+		}
+		return m, nil
+
+	case combatLootGeneratedMsg:
+		// Handle loot generation result
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+			m.screen = ScreenSpaceView // Return to space on error
+		} else {
+			// Store loot and show loot screen
+			loot, ok := msg.loot.(*combat.LootDrop)
+			if ok && loot != nil {
+				m.combatEnhanced.lootDrop = loot
+				m.combatEnhanced.showingLoot = true
+				m.combatEnhanced.combatPhase = "loot"
+
+				// Add loot message to combat log
+				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+					"> Salvage available! Press [C] to collect or [L] to leave")
+			} else {
+				// No loot or error converting
+				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+					"> No salvage recovered from wreckage")
+				m.screen = ScreenSpaceView
+			}
+		}
+		return m, nil
+
+	case combatLootCollectedMsg:
+		// Handle loot collection result
+		if msg.err != nil && !msg.success {
+			// Failed to collect loot
+			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+				"> "+msg.message)
+			// Stay on loot screen to try again or leave
+		} else {
+			// Successfully collected loot
+			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+				"> Loot collected! Earned "+formatCredits(msg.creditsEarned)+" credits")
+			m.combatEnhanced.showingLoot = false
+			m.screen = ScreenSpaceView
 		}
 		return m, nil
 	}

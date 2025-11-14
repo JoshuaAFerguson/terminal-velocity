@@ -285,13 +285,24 @@ func (m Model) acceptMissionCmd(missionTitle string) tea.Cmd {
 			}
 		}
 
-		// For now, we don't have ShipType in memory, so we'll pass nil
-		// This would need to be loaded from the database in a real scenario
+		// Load ShipType for mission validation
+		var shipType *models.ShipType
+		if m.currentShip != nil {
+			shipType = models.GetShipTypeByID(m.currentShip.TypeID)
+			if shipType == nil {
+				return missionActionMsg{
+					action: "accept",
+					err:    fmt.Errorf("ship type not found: %s", m.currentShip.TypeID),
+				}
+			}
+		}
+
+		// Accept mission with proper ship type for cargo/rating validation
 		err := m.missionManager.AcceptMission(
 			targetMission.ID,
 			m.player,
 			m.currentShip,
-			nil, // ShipType not loaded, manager should handle gracefully
+			shipType,
 		)
 
 		if err != nil {

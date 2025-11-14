@@ -127,6 +127,20 @@ type combatEndMsg struct {
 	err           error
 }
 
+// Combat loot messages
+type combatLootGeneratedMsg struct {
+	loot          interface{} // *combat.LootDrop (avoiding circular import)
+	enemyShipType *models.ShipType
+	err           error
+}
+
+type combatLootCollectedMsg struct {
+	success       bool
+	creditsEarned int64
+	message       string
+	err           error
+}
+
 // Equipment/Outfitter messages
 type equipmentLoadedMsg struct {
 	available []*models.Equipment

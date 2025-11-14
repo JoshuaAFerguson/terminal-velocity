@@ -8,11 +8,14 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 )
 
 type spaceViewModel struct {
@@ -52,27 +55,128 @@ func newSpaceViewModel() spaceViewModel {
 	}
 }
 
+// convertShipsToSpaceObjects converts Ship models to spaceObject for display
+func convertShipsToSpaceObjects(ships []*models.Ship, playerPos playerPosition) []spaceObject {
+	objects := make([]spaceObject, 0, len(ships))
+
+	for i, ship := range ships {
+		// Position ships in a circle around the player for demo
+		// In production, use actual ship coordinates
+		angle := float64(i) * (360.0 / float64(len(ships))) * (3.14159 / 180.0)
+		distance := 50.0 + float64(i)*10.0
+
+		x := playerPos.x + distance*math.Cos(angle)
+		y := playerPos.y + distance*math.Sin(angle)
+
+		// Determine if ship is hostile (simplified)
+		hostile := false // Would check ship faction/reputation
+
+		objects = append(objects, spaceObject{
+			name:     ship.Name,
+			icon:     "◊", // Ship icon
+			x:        x,
+			y:        y,
+			distance: distance,
+			hostile:  hostile,
+			objType:  "player", // All nearby ships are players in this context
+		})
+	}
+
+	return objects
+}
+
+// convertPlanetsToSpaceObjects converts Planet models to spaceObject for display
+func convertPlanetsToSpaceObjects(planets []*models.Planet, playerPos playerPosition) []spaceObject {
+	objects := make([]spaceObject, 0, len(planets))
+
+	for i, planet := range planets {
+		// Position planets in a different pattern from ships
+		angle := float64(i) * (360.0 / float64(len(planets))) * (3.14159 / 180.0)
+		distance := 150.0 + float64(i)*20.0
+
+		x := playerPos.x + distance*math.Cos(angle)
+		y := playerPos.y + distance*math.Sin(angle)
+
+		objects = append(objects, spaceObject{
+			name:     planet.Name,
+			icon:     "●", // Planet icon
+			x:        x,
+			y:        y,
+			distance: distance,
+			hostile:  false,
+			objType:  "planet",
+		})
+	}
+
+	return objects
+}
+
 // Command functions for async space view operations
 
 // loadSpaceViewDataCmd loads current system data, planets, and nearby ships
 func (m Model) loadSpaceViewDataCmd() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Load actual data from repositories
-		// For now, return sample data
+		ctx := context.Background()
 
-		// Get current system
-		// system, err := m.systemRepo.GetSystem(m.player.CurrentSystemID)
+		// Get current system from player's location
+		var system *models.StarSystem
+		var planets []*models.Planet
+		var nearbyShips []*models.Ship
+		var err error
 
-		// Get planets in system
-		// planets, err := m.planetRepo.GetPlanetsInSystem(m.player.CurrentSystemID)
+		if m.player != nil && m.systemRepo != nil {
+			// Load current system
+			system, err = m.systemRepo.GetSystemByID(ctx, m.player.CurrentSystem)
+			if err != nil {
+				return spaceViewLoadedMsg{
+					system:      nil,
+					planets:     nil,
+					nearbyShips: nil,
+					playerShip:  m.currentShip,
+					err:         fmt.Errorf("failed to load system: %w", err),
+				}
+			}
 
-		// Get nearby ships (from presence manager or encounter manager)
-		// nearbyShips := m.presenceManager.GetNearbyShips(m.player.CurrentSystemID)
+			// Load planets in system
+			planets, err = m.systemRepo.GetPlanetsBySystem(ctx, m.player.CurrentSystem)
+			if err != nil {
+				// Log error but don't fail - system may have no planets
+				planets = []*models.Planet{}
+			}
+		}
+
+		// Get nearby ships from presence manager
+		if m.player != nil && m.presenceManager != nil {
+			playersInSystem := m.presenceManager.GetPlayersInSystem(m.player.CurrentSystem)
+
+			// Convert PlayerPresence to Ship objects for display
+			// Note: This is simplified. In production, you'd load full ship data
+			// from database using the ship IDs from presence data
+			nearbyShips = make([]*models.Ship, 0, len(playersInSystem))
+
+			for _, presence := range playersInSystem {
+				// Skip the current player
+				if presence.PlayerID == m.playerID {
+					continue
+				}
+
+				// Create a simplified ship representation
+				// In production, load actual ship data from database
+				nearbyShips = append(nearbyShips, &models.Ship{
+					ID:      uuid.New(), // Would be actual ship ID from database
+					OwnerID: presence.PlayerID,
+					TypeID:  presence.ShipType,
+					Name:    presence.ShipName,
+					Hull:    100, // Would be actual hull from database
+					Shields: 100, // Would be actual shields from database
+				})
+			}
+		}
 
 		return spaceViewLoadedMsg{
-			system:      nil, // Will be loaded from database
-			planets:     nil, // Will be loaded from database
-			nearbyShips: nil, // Will be loaded from presence/encounter manager
+			system:      system,
+			planets:     planets,
+			nearbyShips: nearbyShips,
 			playerShip:  m.currentShip,
 			err:         nil,
 		}
@@ -563,15 +667,61 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 						switch m.spaceView.chatChannel {
 						case 0: // Global
 							m.chatManager.SendGlobalMessage(m.playerID, username, m.spaceView.chatInput)
+
 						case 1: // System
-							// TODO: Get current system ID and other players in system
-							// m.chatManager.SendSystemMessage(systemID, m.playerID, username, m.spaceView.chatInput, recipientIDs)
+							// Get current system ID and other players in system
+							if m.player != nil && m.presenceManager != nil {
+								systemID := m.player.CurrentSystem
+								playersInSystem := m.presenceManager.GetPlayersInSystem(systemID)
+
+								// Extract player IDs for recipients
+								recipientIDs := make([]uuid.UUID, 0, len(playersInSystem))
+								for _, presence := range playersInSystem {
+									recipientIDs = append(recipientIDs, presence.PlayerID)
+								}
+
+								m.chatManager.SendSystemMessage(systemID, m.playerID, username, m.spaceView.chatInput, recipientIDs)
+							}
+
 						case 2: // Faction
-							// TODO: Get faction ID and member IDs
-							// m.chatManager.SendFactionMessage(factionID, m.playerID, username, m.spaceView.chatInput, memberIDs)
+							// Get faction ID and member IDs
+							if m.player != nil && m.player.IsInFaction() && m.factionManager != nil {
+								factionID := *m.player.FactionID
+								faction, err := m.factionManager.GetFaction(factionID)
+								if err == nil && faction != nil {
+									// Convert UUID to string for faction ID
+									factionIDStr := factionID.String()
+									memberIDs := faction.Members
+
+									m.chatManager.SendFactionMessage(factionIDStr, m.playerID, username, m.spaceView.chatInput, memberIDs)
+								} else {
+									// Player not in faction or faction not found
+									// Could show error message here
+								}
+							} else {
+								// Player not in a faction
+								// Could show error message here
+							}
+
 						case 3: // DM
-							// TODO: Get recipient ID from target
-							// m.chatManager.SendDirectMessage(m.playerID, username, recipientID, recipientName, m.spaceView.chatInput)
+							// Get recipient from targeted ship
+							// Note: This requires the space view to have actual player ship data
+							// For now, this is a placeholder that checks if we have a valid target
+							if m.spaceView.hasTarget && m.spaceView.targetIndex < len(m.spaceView.ships) {
+								targetShip := m.spaceView.ships[m.spaceView.targetIndex]
+
+								// In production, the spaceObject would need a playerID field
+								// loaded from presenceManager. For now, we log that DM requires
+								// proper target selection with player IDs
+								_ = targetShip // Avoid unused variable warning
+
+								// TODO: When space view data loading is implemented, this will use:
+								// - targetShip.playerID for recipientID
+								// - targetShip.playerName for recipient name
+								// m.chatManager.SendDirectMessage(m.playerID, username, recipientID, recipientName, m.spaceView.chatInput)
+
+								// For now, could show a message that DM requires target selection
+							}
 						}
 
 						m.spaceView.chatInput = ""
@@ -596,10 +746,24 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errorMessage = msg.err.Error()
 			m.showErrorDialog = true
 		} else {
-			// Update space view data
+			// Update space view data with loaded planets
 			m.spaceView.planets = msg.planets
-			// TODO: Convert nearbyShips to spaceObjects
-			// m.spaceView.ships = convertToSpaceObjects(msg.nearbyShips)
+
+			// Convert ships and planets to spaceObjects for rendering
+			shipObjects := convertShipsToSpaceObjects(msg.nearbyShips, m.spaceView.player)
+			planetObjects := convertPlanetsToSpaceObjects(msg.planets, m.spaceView.player)
+
+			// Combine all objects (ships + planets)
+			allObjects := make([]spaceObject, 0, len(shipObjects)+len(planetObjects))
+			allObjects = append(allObjects, planetObjects...)
+			allObjects = append(allObjects, shipObjects...)
+			m.spaceView.ships = allObjects
+
+			// Reset target if it's now out of range
+			if m.spaceView.targetIndex >= len(allObjects) {
+				m.spaceView.targetIndex = 0
+				m.spaceView.hasTarget = len(allObjects) > 0
+			}
 		}
 		return m, nil
 
@@ -610,8 +774,10 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showErrorDialog = true
 			m.spaceView.hasTarget = false
 		} else {
+			// Target selected successfully
 			m.spaceView.hasTarget = true
-			// TODO: Update target display in UI
+			// The target display is automatically updated in the view function
+			// which reads from m.spaceView.ships[m.spaceView.targetIndex]
 		}
 		return m, nil
 
