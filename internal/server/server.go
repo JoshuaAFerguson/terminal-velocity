@@ -1,7 +1,7 @@
 // File: internal/server/server.go
 // Project: Terminal Velocity
 // Description: SSH server implementation with anonymous login and application-layer authentication
-// Version: 2.0.0
+// Version: 2.0.1
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -353,6 +353,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		model,
 		tea.WithInput(channel),
 		tea.WithOutput(channel),
+		tea.WithAltScreen(), // Use alternate screen buffer to prevent artifacts
 	)
 
 	// Run the program
@@ -380,6 +381,7 @@ func (s *Server) startAnonymousSession(channel ssh.Channel) {
 		model,
 		tea.WithInput(channel),
 		tea.WithOutput(channel),
+		tea.WithAltScreen(), // Use alternate screen buffer to prevent artifacts
 	)
 
 	// Run the program
@@ -400,6 +402,7 @@ func (s *Server) startRegistrationSession(username string, channel ssh.Channel) 
 		model,
 		tea.WithInput(channel),
 		tea.WithOutput(channel),
+		tea.WithAltScreen(), // Use alternate screen buffer to prevent artifacts
 	)
 
 	// Run the program

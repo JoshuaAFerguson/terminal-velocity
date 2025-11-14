@@ -1,7 +1,7 @@
 // File: internal/tui/model.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for model with login screen and unauthenticated state support
-// Version: 1.2.0
+// Version: 1.2.1
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -668,7 +668,8 @@ func (m Model) loadPlayer() tea.Cmd {
 // changeScreen changes the current screen
 func (m *Model) changeScreen(screen Screen) tea.Cmd {
 	m.screen = screen
-	return nil
+	// Clear screen to prevent artifacts when transitioning
+	return tea.ClearScreen
 }
 
 // checkAchievements checks for newly unlocked achievements and queues them for display
