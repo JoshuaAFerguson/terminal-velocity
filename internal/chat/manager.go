@@ -10,14 +10,11 @@ package chat
 import (
 	"sync"
 
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles chat message routing and history for all players
-
-var log = logger.WithComponent("Chat")
 
 type Manager struct {
 	mu        sync.RWMutex

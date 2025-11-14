@@ -13,14 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
 // Manager handles server events and scheduling
-
-var log = logger.WithComponent("Events")
 
 type Manager struct {
 	mu             sync.RWMutex

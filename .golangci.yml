@@ -19,26 +19,27 @@ linters:
     - gocritic
     - unconvert
     - gocyclo
-  settings:
-    errcheck:
-      check-type-assertions: true
-      check-blank: false
-    govet:
-      enable-all: true
-      disable:
-        - shadow
-        - fieldalignment
-    gocyclo:
-      min-complexity: 40
-    dupl:
-      threshold: 150
-    gocritic:
-      enabled-tags:
-        - diagnostic
-        - experimental
-        - opinionated
-        - performance
-        - style
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+  govet:
+    enable-all: true
+    disable:
+      - shadow
+      - fieldalignment
+  gocyclo:
+    min-complexity: 40
+  dupl:
+    threshold: 150
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
 
 issues:
   exclude-rules:

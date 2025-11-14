@@ -16,11 +16,8 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/game/universe"
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
-
-var log = logger.WithComponent("Genmap")
 
 func main() {
 	var (
