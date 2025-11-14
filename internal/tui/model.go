@@ -18,6 +18,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/missions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/outfitting"
@@ -179,8 +180,15 @@ type Model struct {
 	// Quest system
 	questManager *quests.Manager
 
-	// Error message
-	err error
+	// Mission system
+	missionManager *missions.Manager
+
+	// Error handling
+	err               error
+	errorMessage      string
+	showErrorDialog   bool
+	loadingOperation  string
+	isLoading         bool
 }
 
 // NewModel creates a new TUI model
@@ -243,6 +251,7 @@ func NewModel(
 		tutorialManager:     tutorial.NewManager(),
 		questsModel:         newQuestsModel(),
 		questManager:        quests.NewManager(),
+		missionManager:      missions.NewManager(),
 		loginModel:          newLoginModel(),
 		spaceView:           spaceViewModel{},
 		landing:              landingModel{},
