@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -239,6 +240,120 @@ func (m Model) viewMissionBoardEnhanced() string {
 	return sb.String()
 }
 
+// acceptMissionCmd accepts a mission via the mission manager
+func (m Model) acceptMissionCmd(missionTitle string) tea.Cmd {
+	return func() tea.Msg {
+		if m.missionManager == nil {
+			return missionActionMsg{
+				action: "accept",
+				err:    fmt.Errorf("mission manager not available"),
+			}
+		}
+
+		if m.currentShip == nil {
+			return missionActionMsg{
+				action: "accept",
+				err:    fmt.Errorf("no ship equipped"),
+			}
+		}
+
+		// Get available missions from manager
+		availableMissions := m.missionManager.GetAvailableMissions()
+
+		// Find mission by title
+		var targetMission *models.Mission
+		for _, mission := range availableMissions {
+			if mission.Title == missionTitle {
+				targetMission = mission
+				break
+			}
+		}
+
+		if targetMission == nil {
+			return missionActionMsg{
+				action: "accept",
+				err:    fmt.Errorf("mission not found"),
+			}
+		}
+
+		// Check if player has space for mission (max 5 active)
+		activeMissions := m.missionManager.GetActiveMissions()
+		if len(activeMissions) >= 5 {
+			return missionActionMsg{
+				action: "accept",
+				err:    fmt.Errorf("maximum active missions (5) reached"),
+			}
+		}
+
+		// For now, we don't have ShipType in memory, so we'll pass nil
+		// This would need to be loaded from the database in a real scenario
+		err := m.missionManager.AcceptMission(
+			targetMission.ID,
+			m.player,
+			m.currentShip,
+			nil, // ShipType not loaded, manager should handle gracefully
+		)
+
+		if err != nil {
+			return missionActionMsg{
+				action:    "accept",
+				missionID: targetMission.ID,
+				err:       err,
+			}
+		}
+
+		return missionActionMsg{
+			action:    "accept",
+			missionID: targetMission.ID,
+		}
+	}
+}
+
+// declineMissionCmd declines a mission via the mission manager
+func (m Model) declineMissionCmd(missionTitle string) tea.Cmd {
+	return func() tea.Msg {
+		if m.missionManager == nil {
+			return missionActionMsg{
+				action: "decline",
+				err:    fmt.Errorf("mission manager not available"),
+			}
+		}
+
+		// Get available missions from manager
+		availableMissions := m.missionManager.GetAvailableMissions()
+
+		// Find mission by title
+		var targetMission *models.Mission
+		for _, mission := range availableMissions {
+			if mission.Title == missionTitle {
+				targetMission = mission
+				break
+			}
+		}
+
+		if targetMission == nil {
+			return missionActionMsg{
+				action: "decline",
+				err:    fmt.Errorf("mission not found"),
+			}
+		}
+
+		err := m.missionManager.DeclineMission(targetMission.ID)
+		if err != nil {
+			return missionActionMsg{
+				action:    "decline",
+				missionID: targetMission.ID,
+				err:       err,
+			}
+		}
+
+		return missionActionMsg{
+			action:    "decline",
+			missionID: targetMission.ID,
+		}
+	}
+}
+
 func (m Model) updateMissionBoardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -257,12 +372,18 @@ func (m Model) updateMissionBoardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "a", "A":
 			// Accept mission
-			// TODO: Implement mission acceptance via API
+			if m.missionBoardEnhanced.selectedMission < len(m.missionBoardEnhanced.missions) {
+				mission := m.missionBoardEnhanced.missions[m.missionBoardEnhanced.selectedMission]
+				return m, m.acceptMissionCmd(mission.title)
+			}
 			return m, nil
 
 		case "d", "D":
 			// Decline mission
-			// Just return to browse mode
+			if m.missionBoardEnhanced.selectedMission < len(m.missionBoardEnhanced.missions) {
+				mission := m.missionBoardEnhanced.missions[m.missionBoardEnhanced.selectedMission]
+				return m, m.declineMissionCmd(mission.title)
+			}
 			return m, nil
 
 		case "esc":
@@ -270,6 +391,23 @@ func (m Model) updateMissionBoardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = ScreenLanding
 			return m, nil
 		}
+
+	case missionActionMsg:
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Success - mission accepted or declined
+			if msg.action == "accept" {
+				// Mission accepted - could show success message
+				// For now, just refresh the mission list
+				m.missionBoardEnhanced = newMissionBoardEnhancedModel()
+			} else if msg.action == "decline" {
+				// Mission declined - refresh list
+				m.missionBoardEnhanced = newMissionBoardEnhancedModel()
+			}
+		}
+		return m, nil
 	}
 
 	return m, nil
