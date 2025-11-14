@@ -78,7 +78,7 @@ func NewServer(configFile string, port int) (*Server, error) {
 	config := &Config{
 		Host:        "0.0.0.0",
 		Port:        port,
-		HostKeyPath: "configs/ssh_host_key", // Persistent SSH host key
+		HostKeyPath: "data/ssh_host_key", // Persistent SSH host key (writable in Docker)
 		MaxPlayers:  100,
 		TickRate:    10,
 		Database:    database.DefaultConfig(),

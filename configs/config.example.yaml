@@ -14,7 +14,8 @@ database:
 
 security:
   # SSH host key path (will be generated if not exists)
-  host_key_path: "configs/ssh_host_key"
+  # Note: In Docker, use data/ instead of configs/ as configs is read-only
+  host_key_path: "data/ssh_host_key"
 
   # Password hashing
   bcrypt_cost: 10

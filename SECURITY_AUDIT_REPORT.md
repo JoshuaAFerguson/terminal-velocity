@@ -126,7 +126,7 @@ query := `
     ```
   - **Recommendation**:
     1. Implement persistent host key storage
-    2. Load from `configs/ssh_host_key` as documented
+    2. Load from `data/ssh_host_key` as documented
     3. Only generate if file doesn't exist
     4. Set restrictive file permissions (0600)
 
@@ -470,7 +470,7 @@ No critical security vulnerabilities identified.
 ### Immediate (Before Production Deployment):
 1. ⚠️ **HIGH**: Implement persistent SSH host key storage
    - Create `loadOrGenerateHostKey()` function
-   - Store in `configs/ssh_host_key`
+   - Store in `data/ssh_host_key`
    - Set file permissions to 0600
 
 2. ⚠️ **MEDIUM**: Migrate database credentials to environment variables
