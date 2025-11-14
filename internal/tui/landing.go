@@ -109,6 +109,7 @@ func (m Model) viewLanding() string {
 		{"O", "Outfitters", ""},
 		{"S", "Shipyard", ""},
 		{"M", "Mission BBS", ""},
+		{"Q", "Quest Terminal", ""},
 		{"B", "Bar & News", ""},
 		{"R", "Refuel", "(1,200 cr)"},
 		{"H", "Repairs", "(Free)"},
@@ -194,8 +195,8 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "down", "j":
-			// Max 7 services
-			if m.navigation.cursor < 6 {
+			// Max 8 services
+			if m.navigation.cursor < 7 {
 				m.navigation.cursor++
 			}
 			return m, nil
@@ -218,6 +219,11 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "m", "M":
 			// Missions
 			m.screen = ScreenMissionBoardEnhanced
+			return m, nil
+
+		case "q", "Q":
+			// Quest Terminal
+			m.screen = ScreenQuestBoardEnhanced
 			return m, nil
 
 		case "b", "B":
@@ -256,11 +262,13 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.screen = ScreenShipyardEnhanced
 			case 3: // Missions
 				m.screen = ScreenMissionBoardEnhanced
-			case 4: // Bar & News
+			case 4: // Quest Terminal
+				m.screen = ScreenQuestBoardEnhanced
+			case 5: // Bar & News
 				m.screen = ScreenNews
-			case 5: // Refuel
+			case 6: // Refuel
 				// TODO: Implement refuel
-			case 6: // Repairs
+			case 7: // Repairs
 				// TODO: Implement repairs
 			}
 			return m, nil
