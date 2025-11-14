@@ -1,7 +1,7 @@
 // File: internal/tui/model.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for model
-// Version: 1.0.0
+// Description: Terminal UI component for model with all enhanced screens integrated
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -253,8 +253,8 @@ func NewModel(
 		questManager:        quests.NewManager(),
 		missionManager:      missions.NewManager(),
 		loginModel:          newLoginModel(),
-		spaceView:           spaceViewModel{},
-		landing:              landingModel{},
+		spaceView:           newSpaceViewModel(),
+		landing:             newLandingModel(),
 		tradingEnhanced:      newTradingEnhancedModel(),
 		shipyardEnhanced:     newShipyardEnhancedModel(),
 		missionBoardEnhanced: newMissionBoardEnhancedModel(),
