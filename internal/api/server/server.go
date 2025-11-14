@@ -9,6 +9,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/api"
@@ -669,26 +670,249 @@ func (s *GameServer) Takeoff(ctx context.Context, req *api.TakeoffRequest) (*api
 
 // GetMarket retrieves market data for a system
 func (s *GameServer) GetMarket(ctx context.Context, systemID uuid.UUID) (*api.Market, error) {
-	// TODO: Reimplement with correct MarketRepository methods
-	return &api.Market{Commodities: make([]*api.CommodityListing, 0)}, nil
+	if systemID == uuid.Nil {
+		return nil, api.ErrInvalidRequest
+	}
+
+	// Get all market prices for planets in this system
+	prices, err := s.marketRepo.GetCommoditiesBySystemID(ctx, systemID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build commodity map from standard commodities
+	commodities := make(map[string]*models.Commodity)
+	for i := range models.StandardCommodities {
+		commodity := &models.StandardCommodities[i]
+		commodities[commodity.ID] = commodity
+	}
+
+	// Convert to API market
+	// Note: This aggregates prices from all planets in the system
+	// In a real implementation, you might want to show the best prices or average prices
+	market := convertMarketToAPI(prices, commodities)
+	market.SystemID = systemID
+
+	return market, nil
 }
 
 // BuyCommodity purchases a commodity from the market
-// TODO: Reimplement with correct Ship.Cargo ([]CargoItem) and market repository methods
 func (s *GameServer) BuyCommodity(ctx context.Context, req *api.TradeRequest) (*api.TradeResponse, error) {
+	if req.PlayerID == uuid.Nil || req.CommodityID == "" || req.Quantity <= 0 {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "invalid request: missing player, commodity, or quantity",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Must be docked to trade
+	if !player.IsDocked() {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "must be docked at a planet to trade",
+		}, nil
+	}
+
+	// Load ship
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "ship not found",
+		}, nil
+	}
+
+	// Get market price
+	price, err := s.marketRepo.GetMarketPrice(ctx, *player.CurrentPlanet, req.CommodityID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "commodity not available at this planet",
+		}, nil
+	}
+
+	// Check stock availability
+	if price.Stock < int(req.Quantity) {
+		return &api.TradeResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient stock (available: %d)", price.Stock),
+		}, nil
+	}
+
+	// Calculate cost (player buys at sell price)
+	totalCost := price.SellPrice * int64(req.Quantity)
+
+	// Check credits
+	if !player.CanAfford(totalCost) {
+		return &api.TradeResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient credits (need: %d, have: %d)", totalCost, player.Credits),
+		}, nil
+	}
+
+	// TODO: Check cargo space (requires ShipType lookup)
+	// For now, just add to cargo
+
+	// Perform the trade
+	// 1. Deduct credits
+	player.AddCredits(-totalCost)
+	err = s.playerRepo.Update(ctx, player)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "failed to update player credits",
+		}, nil
+	}
+
+	// 2. Add cargo to ship
+	ship.AddCargo(req.CommodityID, int(req.Quantity))
+	err = s.shipRepo.Update(ctx, ship)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "failed to update ship cargo",
+		}, nil
+	}
+
+	// 3. Update market stock
+	err = s.marketRepo.UpdateStock(ctx, *player.CurrentPlanet, req.CommodityID, -int(req.Quantity))
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "failed to update market stock",
+		}, nil
+	}
+
+	// Return success
 	return &api.TradeResponse{
-		Success: false,
-		Message: "BuyCommodity not yet implemented - requires model updates",
+		Success:        true,
+		Message:        "purchase successful",
+		QuantityTraded: req.Quantity,
+		TotalCost:      totalCost,
+		PricePerUnit:   int32(price.SellPrice),
+		NewState:       convertPlayerToAPI(player, ship),
 	}, nil
 }
 
 
 // SellCommodity sells a commodity to the market
-// TODO: Reimplement with correct Ship.Cargo ([]CargoItem) and market repository methods
 func (s *GameServer) SellCommodity(ctx context.Context, req *api.TradeRequest) (*api.TradeResponse, error) {
+	if req.PlayerID == uuid.Nil || req.CommodityID == "" || req.Quantity <= 0 {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "invalid request: missing player, commodity, or quantity",
+		}, nil
+	}
+
+	// Load player
+	player, err := s.playerRepo.GetByID(ctx, req.PlayerID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "player not found",
+		}, nil
+	}
+
+	// Must be docked to trade
+	if !player.IsDocked() {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "must be docked at a planet to trade",
+		}, nil
+	}
+
+	// Load ship
+	ship, err := s.shipRepo.GetByID(ctx, player.ShipID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "ship not found",
+		}, nil
+	}
+
+	// Check if player has the commodity
+	currentQuantity := ship.GetCommodityQuantity(req.CommodityID)
+	if currentQuantity < int(req.Quantity) {
+		return &api.TradeResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient cargo (have: %d, trying to sell: %d)", currentQuantity, req.Quantity),
+		}, nil
+	}
+
+	// Get market price
+	price, err := s.marketRepo.GetMarketPrice(ctx, *player.CurrentPlanet, req.CommodityID)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "commodity not traded at this planet",
+		}, nil
+	}
+
+	// Check demand (can't sell more than demand)
+	if price.Demand < int(req.Quantity) {
+		return &api.TradeResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient demand (available: %d)", price.Demand),
+		}, nil
+	}
+
+	// Calculate payment (player sells at buy price)
+	totalPayment := price.BuyPrice * int64(req.Quantity)
+
+	// Perform the trade
+	// 1. Add credits
+	player.AddCredits(totalPayment)
+	err = s.playerRepo.Update(ctx, player)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "failed to update player credits",
+		}, nil
+	}
+
+	// 2. Remove cargo from ship
+	success := ship.RemoveCargo(req.CommodityID, int(req.Quantity))
+	if !success {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "failed to remove cargo from ship",
+		}, nil
+	}
+
+	err = s.shipRepo.Update(ctx, ship)
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "failed to update ship cargo",
+		}, nil
+	}
+
+	// 3. Update market stock (increase stock, decrease demand)
+	err = s.marketRepo.UpdateStock(ctx, *player.CurrentPlanet, req.CommodityID, int(req.Quantity))
+	if err != nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "failed to update market stock",
+		}, nil
+	}
+
+	// Return success
 	return &api.TradeResponse{
-		Success: false,
-		Message: "SellCommodity not yet implemented - requires model updates",
+		Success:        true,
+		Message:        "sale successful",
+		QuantityTraded: req.Quantity,
+		TotalCost:      totalPayment,
+		PricePerUnit:   int32(price.BuyPrice),
+		NewState:       convertPlayerToAPI(player, ship),
 	}, nil
 }
 
