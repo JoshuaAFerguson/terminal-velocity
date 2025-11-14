@@ -377,10 +377,12 @@ func (m *Manager) calculateLoadoutStats(shipType *models.ShipType, weapons, outf
 				stats.TotalArmor += outfit.HullBonus
 			case "shield_booster":
 				stats.TotalShield += outfit.ShieldBonus
-			case "engine_upgrade":
+			case "engine":
 				stats.TotalSpeed += outfit.SpeedBonus
 			case "cargo_pod":
 				stats.TotalCargo += outfit.CargoBonus
+			case "fuel_tank":
+				// Fuel bonus not tracked in LoadoutStats yet
 			}
 			// Note: Mass tracking not yet implemented in Outfit model
 		}
