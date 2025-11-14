@@ -9,6 +9,7 @@ package models
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -189,6 +190,7 @@ func GetChannelIcon(channel ChatChannel) string {
 
 // ChatHistory represents a player's chat history
 type ChatHistory struct {
+	mu          sync.RWMutex              // Protects concurrent access
 	PlayerID    uuid.UUID                 `json:"player_id"`
 	GlobalChat  []*ChatMessage            `json:"global_chat"`
 	SystemChat  []*ChatMessage            `json:"system_chat"`
@@ -217,6 +219,9 @@ func NewChatHistory(playerID uuid.UUID) *ChatHistory {
 
 // AddMessage adds a message to the appropriate channel history
 func (h *ChatHistory) AddMessage(msg *ChatMessage) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	switch msg.Channel {
 	case ChatChannelGlobal:
 		h.GlobalChat = append(h.GlobalChat, msg)
@@ -272,6 +277,9 @@ func (h *ChatHistory) trimDirectChannel(otherPlayer string) {
 
 // GetMessages returns messages for a specific channel
 func (h *ChatHistory) GetMessages(channel ChatChannel, limit int) []*ChatMessage {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
 	var messages []*ChatMessage
 
 	switch channel {
@@ -299,6 +307,9 @@ func (h *ChatHistory) GetMessages(channel ChatChannel, limit int) []*ChatMessage
 
 // GetDirectMessages returns messages for a specific direct message conversation
 func (h *ChatHistory) GetDirectMessages(otherPlayer string, limit int) []*ChatMessage {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
 	messages, exists := h.DirectChats[otherPlayer]
 	if !exists {
 		return []*ChatMessage{}
@@ -321,6 +332,9 @@ func (h *ChatHistory) GetUnreadCount(channel ChatChannel) int {
 
 // ClearChannel clears all messages from a specific channel
 func (h *ChatHistory) ClearChannel(channel ChatChannel) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	switch channel {
 	case ChatChannelGlobal:
 		h.GlobalChat = []*ChatMessage{}
@@ -337,6 +351,9 @@ func (h *ChatHistory) ClearChannel(channel ChatChannel) {
 
 // GetActiveDirectChats returns a list of usernames with active DM conversations
 func (h *ChatHistory) GetActiveDirectChats() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
 	chats := []string{}
 	for username := range h.DirectChats {
 		chats = append(chats, username)

@@ -235,7 +235,9 @@ func (db *DB) WithTransaction(ctx context.Context, fn func(*sql.Tx) error) error
 			// Rollback on panic
 			errors.RecordGlobalError("database", "transaction_panic", fmt.Errorf("panic: %v", p))
 			log.Error("PANIC in transaction, rolling back: panic=%v", p)
-			_ = tx.Rollback() // Ignore rollback error during panic
+			if rbErr := tx.Rollback(); rbErr != nil {
+				log.Error("Rollback failed during panic: rollback_error=%v, panic=%v", rbErr, p)
+			}
 			panic(p)
 		}
 	}()

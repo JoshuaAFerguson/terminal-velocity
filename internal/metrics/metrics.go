@@ -205,8 +205,9 @@ func (m *MetricsCollector) IncrementCounter(name string) {
 	if _, ok := m.customCounters[name]; !ok {
 		m.customCounters[name] = &atomic.Int64{}
 	}
+	counter := m.customCounters[name]
 	m.mu.Unlock()
-	m.customCounters[name].Add(1)
+	counter.Add(1)
 }
 
 func (m *MetricsCollector) SetGauge(name string, value int64) {
@@ -214,8 +215,9 @@ func (m *MetricsCollector) SetGauge(name string, value int64) {
 	if _, ok := m.customGauges[name]; !ok {
 		m.customGauges[name] = &atomic.Int64{}
 	}
+	gauge := m.customGauges[name]
 	m.mu.Unlock()
-	m.customGauges[name].Store(value)
+	gauge.Store(value)
 }
 
 // Snapshot returns a complete snapshot of all metrics
