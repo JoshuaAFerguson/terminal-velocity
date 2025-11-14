@@ -8,10 +8,13 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 )
 
 type shipyardEnhancedModel struct {
@@ -246,6 +249,204 @@ func (m Model) viewShipyardEnhanced() string {
 	return sb.String()
 }
 
+// purchaseShipCmd purchases a new ship without trading in the old one
+func (m Model) purchaseShipCmd(shipName string, shipPrice int64) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Validate credits
+		if m.player.Credits < shipPrice {
+			return shipPurchaseCompleteMsg{
+				err: fmt.Errorf("insufficient credits (need %d, have %d)",
+					shipPrice, m.player.Credits),
+			}
+		}
+
+		// Create new ship instance
+		shipTypeID := strings.ToLower(shipName) // Map ship name to type ID
+		newShip := &models.Ship{
+			ID:      uuid.New(),
+			OwnerID: m.playerID,
+			TypeID:  shipTypeID,
+			Name:    shipName, // Default name, player can rename later
+			Hull:    getShipMaxHull(shipName),
+			Shields: getShipMaxShields(shipName),
+			Fuel:    getShipMaxFuel(shipName),
+			Cargo:   []models.CargoItem{},
+			Crew:    1,
+			Weapons: []string{},
+			Outfits: []string{},
+		}
+
+		// Create ship in database
+		err := m.shipRepo.Create(ctx, newShip)
+		if err != nil {
+			return shipPurchaseCompleteMsg{
+				err: fmt.Errorf("failed to create ship: %w", err),
+			}
+		}
+
+		// Deduct credits
+		m.player.Credits -= shipPrice
+		err = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+		if err != nil {
+			// Rollback ship creation
+			_ = m.shipRepo.Delete(ctx, newShip.ID)
+			return shipPurchaseCompleteMsg{
+				err: fmt.Errorf("failed to deduct credits: %w", err),
+			}
+		}
+
+		// Set as current ship
+		m.currentShip = newShip
+
+		return shipPurchaseCompleteMsg{ship: newShip}
+	}
+}
+
+// tradeInPurchaseShipCmd purchases a new ship and trades in the current ship
+func (m Model) tradeInPurchaseShipCmd(shipName string, shipPrice int64) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		if m.currentShip == nil {
+			return shipPurchaseCompleteMsg{
+				err: fmt.Errorf("no ship to trade in"),
+			}
+		}
+
+		// Calculate trade-in value (70% of original price)
+		oldShipPrice := getShipPrice(m.currentShip.TypeID)
+		tradeInValue := int64(float64(oldShipPrice) * 0.7)
+
+		// Calculate net cost
+		netCost := shipPrice - tradeInValue
+
+		// Validate credits for net cost
+		if netCost > 0 && m.player.Credits < netCost {
+			return shipPurchaseCompleteMsg{
+				err: fmt.Errorf("insufficient credits (need %d after trade-in, have %d)",
+					netCost, m.player.Credits),
+			}
+		}
+
+		// Save old ship ID for deletion
+		oldShipID := m.currentShip.ID
+
+		// Create new ship instance
+		shipTypeID := strings.ToLower(shipName)
+		newShip := &models.Ship{
+			ID:      uuid.New(),
+			OwnerID: m.playerID,
+			TypeID:  shipTypeID,
+			Name:    shipName,
+			Hull:    getShipMaxHull(shipName),
+			Shields: getShipMaxShields(shipName),
+			Fuel:    getShipMaxFuel(shipName),
+			Cargo:   []models.CargoItem{},
+			Crew:    1,
+			Weapons: []string{},
+			Outfits: []string{},
+		}
+
+		// Create new ship in database
+		err := m.shipRepo.Create(ctx, newShip)
+		if err != nil {
+			return shipPurchaseCompleteMsg{
+				err: fmt.Errorf("failed to create ship: %w", err),
+			}
+		}
+
+		// Update credits (add trade-in value, subtract new ship price)
+		if netCost > 0 {
+			m.player.Credits -= netCost
+		} else {
+			m.player.Credits += (-netCost) // netCost is negative, so we add the absolute value
+		}
+
+		err = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+		if err != nil {
+			// Rollback ship creation
+			_ = m.shipRepo.Delete(ctx, newShip.ID)
+			return shipPurchaseCompleteMsg{
+				err: fmt.Errorf("failed to update credits: %w", err),
+			}
+		}
+
+		// Delete old ship
+		err = m.shipRepo.Delete(ctx, oldShipID)
+		if err != nil {
+			// Rollback credit update
+			if netCost > 0 {
+				m.player.Credits += netCost
+			} else {
+				m.player.Credits -= (-netCost)
+			}
+			_ = m.playerRepo.UpdateCredits(ctx, m.playerID, m.player.Credits)
+			_ = m.shipRepo.Delete(ctx, newShip.ID)
+			return shipPurchaseCompleteMsg{
+				err: fmt.Errorf("failed to delete old ship: %w", err),
+			}
+		}
+
+		// Set as current ship
+		m.currentShip = newShip
+
+		return shipPurchaseCompleteMsg{ship: newShip}
+	}
+}
+
+// Helper functions to get ship specifications
+func getShipMaxHull(shipName string) int {
+	shipSpecs := map[string]int{
+		"Shuttle": 40, "Lightning": 80, "Courier": 100,
+		"Corvette": 200, "Destroyer": 400, "Freighter": 300,
+		"Cruiser": 600, "Battleship": 1000,
+	}
+	if hull, ok := shipSpecs[shipName]; ok {
+		return hull
+	}
+	return 100 // Default
+}
+
+func getShipMaxShields(shipName string) int {
+	shipSpecs := map[string]int{
+		"Shuttle": 20, "Lightning": 60, "Courier": 80,
+		"Corvette": 150, "Destroyer": 300, "Freighter": 100,
+		"Cruiser": 500, "Battleship": 800,
+	}
+	if shields, ok := shipSpecs[shipName]; ok {
+		return shields
+	}
+	return 50 // Default
+}
+
+func getShipMaxFuel(shipName string) int {
+	shipSpecs := map[string]int{
+		"Shuttle": 400, "Lightning": 300, "Courier": 500,
+		"Corvette": 600, "Destroyer": 800, "Freighter": 1000,
+		"Cruiser": 1200, "Battleship": 1500,
+	}
+	if fuel, ok := shipSpecs[shipName]; ok {
+		return fuel
+	}
+	return 300 // Default
+}
+
+func getShipPrice(shipTypeID string) int64 {
+	// Convert ship type ID back to name and get price
+	shipName := strings.Title(shipTypeID)
+	shipPrices := map[string]int64{
+		"Shuttle": 12000, "Lightning": 45000, "Courier": 75000,
+		"Corvette": 180000, "Destroyer": 450000, "Freighter": 220000,
+		"Cruiser": 780000, "Battleship": 1500000,
+	}
+	if price, ok := shipPrices[shipName]; ok {
+		return price
+	}
+	return 10000 // Default
+}
+
 func (m Model) updateShipyardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -263,13 +464,19 @@ func (m Model) updateShipyardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "p", "P":
-			// Purchase ship
-			// TODO: Implement purchase logic via API
+			// Purchase ship without trade-in
+			if m.shipyardEnhanced.selectedShip < len(m.shipyardEnhanced.ships) {
+				ship := m.shipyardEnhanced.ships[m.shipyardEnhanced.selectedShip]
+				return m, m.purchaseShipCmd(ship.name, ship.price)
+			}
 			return m, nil
 
 		case "t", "T":
 			// Trade-in purchase
-			// TODO: Implement trade-in logic via API
+			if m.shipyardEnhanced.selectedShip < len(m.shipyardEnhanced.ships) {
+				ship := m.shipyardEnhanced.ships[m.shipyardEnhanced.selectedShip]
+				return m, m.tradeInPurchaseShipCmd(ship.name, ship.price)
+			}
 			return m, nil
 
 		case "esc":
@@ -277,6 +484,18 @@ func (m Model) updateShipyardEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = ScreenLanding
 			return m, nil
 		}
+
+	case shipPurchaseCompleteMsg:
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+		} else {
+			// Success - ship purchased
+			m.currentShip = msg.ship
+			// Optionally show success message or return to landing
+			m.screen = ScreenLanding
+		}
+		return m, nil
 	}
 
 	return m, nil
