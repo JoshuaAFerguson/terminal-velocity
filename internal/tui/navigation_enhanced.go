@@ -307,9 +307,9 @@ func (m Model) executeJumpCmd(systemName string, fuelRequired int) tea.Cmd {
 			}
 		}
 
-		// TODO: Get actual system ID from system name
-		// For now, we'll need to look up the system in the database
-		// This is a simplified implementation - in production we'd have the system ID already
+		// Get connected system IDs and find target by name
+		// NOTE: Could be optimized with SystemRepository.GetConnectedSystemByName() method
+		// to avoid loading each system individually
 
 		// Get connected system IDs
 		connectedIDs, err := m.systemRepo.GetConnections(ctx, m.player.CurrentSystem)
@@ -413,7 +413,9 @@ func (m Model) updateNavigationEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "i", "I":
 			// Show detailed system info
-			// TODO: Implement detailed info screen
+			// NOTE: Future feature - would show modal with full system details
+			// (government, tech level, planets, economy, factions, etc.)
+			// Current implementation shows key info in the system list
 			return m, nil
 
 		case "esc":

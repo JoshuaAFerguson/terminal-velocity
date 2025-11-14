@@ -145,7 +145,7 @@ type combatLootCollectedMsg struct {
 type equipmentLoadedMsg struct {
 	available []*models.Equipment
 	installed []*models.Equipment
-	// loadouts  []*models.Loadout  // TODO: models.Loadout not yet implemented
+	loadouts  []*models.ShipLoadout // Ship loadout configurations
 	err       error
 }
 

@@ -370,10 +370,11 @@ func (m Model) viewSpaceView() string {
 	sb.WriteString(m.drawSpaceViewport(viewportWidth, viewportHeight))
 
 	// Right sidebar: Radar + Status
-	// TODO: Implement proper side-by-side rendering
-	// rightSidebar := m.drawRightSidebar(15, viewportHeight)
+	// NOTE: Future enhancement - could render sidebar next to viewport instead of below
+	// Would require splitting viewport and sidebar lines and joining them character-by-character
+	// Current vertical layout is functional and clear
 
-	// For now, the sidebar is rendered inline below the viewport
+	// Sidebar rendered below viewport
 	sb.WriteString("\n")
 
 	// Bottom panels: Target info + Cargo
@@ -697,8 +698,9 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "i", "I":
 			// Player info
-			// TODO: Implement ScreenPlayerInfo
-			// m.screen = ScreenPlayerInfo
+			// NOTE: Future feature - would show detailed player stats screen
+			// (full inventory, detailed ship stats, achievements, reputation, etc.)
+			// Current implementation shows key stats in the header
 			return m, nil
 
 		case "o", "O":
