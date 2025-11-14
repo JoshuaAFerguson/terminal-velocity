@@ -33,6 +33,12 @@ vendor/
 configs/config.yaml
 configs/*.local.yaml
 
+# SSH host keys (security - never commit these)
+configs/ssh_host_key
+configs/ssh_host_key.pub
+ssh_host_key
+ssh_host_key.pub
+
 # Database
 *.db
 *.sqlite

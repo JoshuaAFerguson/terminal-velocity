@@ -10,9 +10,9 @@ package tui
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/validation"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -24,15 +24,13 @@ type registrationModel struct {
 	error        string
 	cursor       int
 	requireEmail bool
-	sshKeyData   []byte // If registering with SSH key
+	sshKeyData   []byte // If registering with SSH key (deprecated - SSH key auth removed)
 }
 
-type registrationCompleteMsg struct {
+type registrationCompleteMsg struct{
 	success bool
 	err     error
 }
-
-var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 func newRegistrationModel(requireEmail bool, sshKeyData []byte) registrationModel {
 	return registrationModel{
@@ -87,27 +85,27 @@ func (m Model) handleRegistrationStep() (Model, tea.Cmd) {
 		reg.error = ""
 
 	case 1: // Email input
-		if reg.requireEmail && reg.email == "" {
-			reg.error = "Email is required"
-			return m, nil
+		// Validate email (required or optional based on config)
+		var emailErr error
+		if reg.requireEmail {
+			emailErr = validation.ValidateEmail(reg.email)
+		} else {
+			emailErr = validation.ValidateEmailOptional(reg.email)
 		}
-		if reg.email != "" && !emailRegex.MatchString(reg.email) {
-			reg.error = "Invalid email format"
+
+		if emailErr != nil {
+			reg.error = emailErr.Error()
 			return m, nil
 		}
 		reg.error = ""
 
-		// If using SSH key, skip password steps
-		if len(reg.sshKeyData) > 0 {
-			reg.step = 4 // Go to creating account
-			return m, m.createAccount()
-		}
-
+		// SSH key authentication has been removed - always go to password
 		reg.step = 2
 
 	case 2: // Password input
-		if len(reg.password) < 8 {
-			reg.error = "Password must be at least 8 characters"
+		// Validate password complexity
+		if err := validation.ValidatePassword(reg.password); err != nil {
+			reg.error = err.Error()
 			return m, nil
 		}
 		reg.error = ""
@@ -244,8 +242,31 @@ func (m Model) viewRegistration() string {
 		s += helpStyle.Render("Type your email  •  Enter to continue  •  ESC to cancel")
 
 	case 2: // Password
-		s += "Create a password (minimum 8 characters):\n"
+		s += "Create a secure password:\n"
+		s += "Requirements:\n"
+		s += "  • At least 8 characters\n"
+		s += "  • At least one uppercase letter\n"
+		s += "  • At least one lowercase letter\n"
+		s += "  • At least one number\n\n"
 		s += "> " + strings.Repeat("•", len(reg.password)) + "█\n\n"
+
+		// Show password strength if there's input
+		if len(reg.password) > 0 {
+			score, strength := validation.GetPasswordStrength(reg.password)
+			var strengthColor string
+			switch {
+			case score < 30:
+				strengthColor = "\x1b[31m" // Red
+			case score < 50:
+				strengthColor = "\x1b[33m" // Yellow
+			case score < 70:
+				strengthColor = "\x1b[36m" // Cyan
+			default:
+				strengthColor = "\x1b[32m" // Green
+			}
+			s += fmt.Sprintf("Strength: %s%s\x1b[0m (%d/100)\n\n", strengthColor, strength, score)
+		}
+
 		s += helpStyle.Render("Type your password  •  Enter to continue  •  ESC to cancel")
 
 	case 3: // Confirm password
