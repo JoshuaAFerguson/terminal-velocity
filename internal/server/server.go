@@ -119,7 +119,10 @@ func NewServer(configFile string, port int) (*Server, error) {
 	log.Debug("Initializing SSH configuration")
 	if err := srv.initSSHConfig(); err != nil {
 		log.Error("Failed to initialize SSH config: %v", err)
-		srv.db.Close() // Clean up database on error
+		// Clean up database on error
+		if closeErr := srv.db.Close(); closeErr != nil {
+			log.Warn("Failed to close database during cleanup: %v", closeErr)
+		}
 		return nil, fmt.Errorf("failed to init SSH config: %w", err)
 	}
 
@@ -250,7 +253,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 	defer func() {
-		sshConn.Close()
+		if err := sshConn.Close(); err != nil {
+			log.Warn("Failed to close SSH connection from %s: %v", remoteAddr, err)
+		}
 		// Track connection duration
 		metrics.Global().RecordConnectionDuration(time.Since(connStart))
 	}()
@@ -674,6 +679,8 @@ type PlayerSession struct {
 // Close closes the player session
 func (ps *PlayerSession) Close() {
 	if ps.Channel != nil {
-		ps.Channel.Close()
+		if err := ps.Channel.Close(); err != nil {
+			log.Warn("Failed to close SSH channel for user %s: %v", ps.Username, err)
+		}
 	}
 }

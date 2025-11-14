@@ -140,7 +140,10 @@ func NewDB(cfg *Config) (*DB, error) {
 		if err := db.PingContext(pingCtx); err != nil {
 			errors.RecordGlobalError("database", "connection_ping", err)
 			log.Error("Failed to ping database: error=%v", err)
-			db.Close()
+			// Clean up database connection on ping failure
+			if closeErr := db.Close(); closeErr != nil {
+				log.Warn("Failed to close database during cleanup: error=%v", closeErr)
+			}
 			return err
 		}
 
