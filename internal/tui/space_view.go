@@ -390,7 +390,7 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "j", "J":
 			// Jump (navigation)
-			m.screen = ScreenNavigation
+			m.screen = ScreenNavigationEnhanced
 			return m, nil
 
 		case "t", "T":
