@@ -234,14 +234,50 @@ func (m Model) hailTargetCmd() tea.Cmd {
 			}
 		}
 
-		// TODO: Implement hailing via encounter manager or chat
-		// For now, just return success
-		// m.encounterManager.InitiateHail(target)
+		// Check if we have a valid target
+		if m.spaceView.targetIndex >= len(m.spaceView.ships) {
+			return errorMsg{
+				context: "hail",
+				err:     fmt.Errorf("invalid target"),
+			}
+		}
+
+		target := m.spaceView.ships[m.spaceView.targetIndex]
+		var message string
+
+		// Handle hailing based on target type
+		switch target.objType {
+		case "planet":
+			// Hailing a planet - show planet info
+			message = "Hailing " + target.name + "...\n"
+			message += "Receiving docking clearance and planet information.\n"
+			message += "Use [L] to land on this planet."
+
+		case "player":
+			// Hailing another player - could open DM chat
+			message = "Hailing " + target.name + "...\n"
+			message += "Opening communication channel.\n"
+			message += "Use chat (DM channel) to communicate."
+
+		case "ship", "enemy":
+			// Hailing an NPC ship
+			message = "Hailing " + target.name + "...\n"
+			if target.hostile {
+				message += target.name + ": \"You're in the wrong sector, " +
+					"traveler. Turn back now!\""
+			} else {
+				message += target.name + ": \"Greetings! Safe travels in this system.\""
+			}
+
+		default:
+			message = "Hailing " + target.name + "...\n"
+			message += "No response."
+		}
 
 		return operationCompleteMsg{
 			operation: "hail",
 			success:   true,
-			message:   "Hailing frequency opened...",
+			message:   message,
 			err:       nil,
 		}
 	}

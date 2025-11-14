@@ -211,11 +211,22 @@ func (m Model) viewShipyardEnhanced() string {
 
 	if m.shipyardEnhanced.selectedShip < len(m.shipyardEnhanced.ships) {
 		ship := m.shipyardEnhanced.ships[m.shipyardEnhanced.selectedShip]
-		currentShip := "Corvette \"Starhawk\""
-		tradeInValue := int64(126000) // TODO: Calculate from current ship
+
+		// Get current ship info and calculate trade-in value
+		currentShipName := "Unknown Ship"
+		tradeInValue := int64(0)
+		if m.currentShip != nil {
+			currentShipName = m.currentShip.Name
+			// Get current ship type for value calculation
+			currentShipType := models.GetShipTypeByID(m.currentShip.TypeID)
+			if currentShipType != nil {
+				// Trade-in is 70% of original purchase price
+				tradeInValue = int64(float64(currentShipType.Price) * 0.7)
+			}
+		}
 
 		purchaseContent.WriteString(fmt.Sprintf(" YOUR SHIP: %-35s Trade-in: %s\n",
-			currentShip, FormatCredits(tradeInValue)))
+			currentShipName, FormatCredits(tradeInValue)))
 		purchaseContent.WriteString("                                                                      \n")
 		purchaseContent.WriteString(fmt.Sprintf(" Purchase %s for %s?\n", ship.name, FormatCredits(ship.price)))
 

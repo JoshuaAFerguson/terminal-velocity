@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
@@ -225,8 +226,17 @@ func (m Model) viewNavigationEnhanced() string {
 		detailsContent.WriteString(fmt.Sprintf(" Distance: %.1f light years%-9s\n", sys.distance, ""))
 		detailsContent.WriteString(fmt.Sprintf(" Fuel Required: %d units%-11s\n", sys.fuelRequired, ""))
 
-		currentFuel := 201 // TODO: Get from ship
-		maxFuel := 300
+		// Get actual fuel from current ship
+		currentFuel := 0
+		maxFuel := 300 // Default max fuel
+		if m.currentShip != nil {
+			currentFuel = m.currentShip.Fuel
+			// Get max fuel from ship type
+			shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+			if shipType != nil {
+				maxFuel = shipType.MaxFuel
+			}
+		}
 		detailsContent.WriteString(fmt.Sprintf(" Your Fuel: %d/%d units%-9s\n", currentFuel, maxFuel, ""))
 		detailsContent.WriteString("                                 \n")
 		detailsContent.WriteString(fmt.Sprintf(" Government: %-20s\n", sys.government))

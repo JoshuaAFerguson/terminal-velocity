@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -133,7 +134,18 @@ func (m Model) viewTradingEnhanced() string {
 		detailsContent.WriteString(fmt.Sprintf(" Buy Price:  %d cr/ton             Sell Price: %d cr/ton             \n",
 			comm.sellPrice, comm.buyPrice))
 
-		cargoSpace := 35 // TODO: Get from ship
+		// Get actual cargo space from ship
+		cargoSpace := 0
+		cargoUsed := 0
+		if m.currentShip != nil {
+			// Get cargo space from ship type
+			shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+			if shipType != nil {
+				totalSpace := shipType.CargoSpace
+				cargoUsed = m.currentShip.GetCargoUsed()
+				cargoSpace = totalSpace - cargoUsed
+			}
+		}
 		detailsContent.WriteString(fmt.Sprintf(" In Cargo:   %d tons               Available Space: %d tons          \n",
 			comm.inCargo, cargoSpace))
 		detailsContent.WriteString("                                                                      \n")

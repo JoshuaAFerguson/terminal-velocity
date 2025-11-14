@@ -778,10 +778,43 @@ func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "h", "H":
-			// Hail enemy
-			// TODO: Implement communication system
-			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
-				"> You hail the enemy ship...")
+			// Hail enemy ship
+			if m.combatEnhanced.combatPhase == "ongoing" {
+				// Add hail message
+				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+					"> You hail the "+m.combatEnhanced.enemyShip.name+"...")
+
+				// Generate NPC response based on attitude
+				var response string
+				switch m.combatEnhanced.enemyShip.attitude {
+				case "hostile":
+					responses := []string{
+						"Prepare to be destroyed!",
+						"Your cargo or your life!",
+						"No mercy for trespassers!",
+						"You picked the wrong target!",
+					}
+					response = responses[rand.Intn(len(responses))]
+				case "neutral":
+					responses := []string{
+						"State your business.",
+						"We're just passing through.",
+						"What do you want?",
+						"This isn't worth fighting over.",
+					}
+					response = responses[rand.Intn(len(responses))]
+				default:
+					responses := []string{
+						"Greetings, traveler!",
+						"Safe travels!",
+						"May your journey be prosperous.",
+					}
+					response = responses[rand.Intn(len(responses))]
+				}
+
+				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+					"> "+m.combatEnhanced.enemyShip.name+": \""+response+"\"")
+			}
 			return m, nil
 
 		case "esc":
