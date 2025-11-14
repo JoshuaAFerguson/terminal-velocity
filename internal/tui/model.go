@@ -68,6 +68,7 @@ const (
 	ScreenLanding
 	ScreenTradingEnhanced
 	ScreenShipyardEnhanced
+	ScreenMissionBoardEnhanced
 )
 
 // Model is the main TUI model
@@ -121,9 +122,10 @@ type Model struct {
 	questsModel       questsModel
 	loginModel        loginModel
 	spaceView         spaceViewModel
-	landing           landingModel
-	tradingEnhanced   tradingEnhancedModel
-	shipyardEnhanced  shipyardEnhancedModel
+	landing               landingModel
+	tradingEnhanced       tradingEnhancedModel
+	shipyardEnhanced      shipyardEnhancedModel
+	missionBoardEnhanced  missionBoardEnhancedModel
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -237,9 +239,10 @@ func NewModel(
 		questManager:        quests.NewManager(),
 		loginModel:          newLoginModel(),
 		spaceView:           spaceViewModel{},
-		landing:             landingModel{},
-		tradingEnhanced:     newTradingEnhancedModel(),
-		shipyardEnhanced:    newShipyardEnhancedModel(),
+		landing:              landingModel{},
+		tradingEnhanced:      newTradingEnhancedModel(),
+		shipyardEnhanced:     newShipyardEnhancedModel(),
+		missionBoardEnhanced: newMissionBoardEnhancedModel(),
 	}
 }
 
@@ -408,6 +411,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTradingEnhanced(msg)
 	case ScreenShipyardEnhanced:
 		return m.updateShipyardEnhanced(msg)
+	case ScreenMissionBoardEnhanced:
+		return m.updateMissionBoardEnhanced(msg)
 	default:
 		return m, nil
 	}
@@ -489,6 +494,8 @@ func (m Model) View() string {
 		return m.viewTradingEnhanced()
 	case ScreenShipyardEnhanced:
 		return m.viewShipyardEnhanced()
+	case ScreenMissionBoardEnhanced:
+		return m.viewMissionBoardEnhanced()
 	default:
 		return "Unknown screen"
 	}
