@@ -76,11 +76,12 @@ func NewServer(configFile string, port int) (*Server, error) {
 
 	// TODO: Load config from file
 	config := &Config{
-		Host:       "0.0.0.0",
-		Port:       port,
-		MaxPlayers: 100,
-		TickRate:   10,
-		Database:   database.DefaultConfig(),
+		Host:        "0.0.0.0",
+		Port:        port,
+		HostKeyPath: "configs/ssh_host_key", // Persistent SSH host key
+		MaxPlayers:  100,
+		TickRate:    10,
+		Database:    database.DefaultConfig(),
 
 		// Metrics configuration
 		MetricsEnabled: true,
@@ -92,7 +93,7 @@ func NewServer(configFile string, port int) (*Server, error) {
 
 		// Default authentication settings
 		AllowPasswordAuth:  true,  // Allow password auth
-		AllowPublicKeyAuth: true,  // Allow SSH key auth
+		AllowPublicKeyAuth: false, // SSH key auth disabled - password only
 		AllowRegistration:  true,  // Allow new user registration
 		RequireEmail:       true,  // Require email for new accounts
 		RequireEmailVerify: false, // Email verification not yet implemented
@@ -391,35 +392,28 @@ func (s *Server) startRegistrationSession(username string, channel ssh.Channel) 
 func (s *Server) initSSHConfig() error {
 	s.sshConfig = &ssh.ServerConfig{}
 
-	// Password authentication callback
+	// Password authentication callback (required)
 	if s.config.AllowPasswordAuth {
 		s.sshConfig.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 			return s.handlePasswordAuth(conn, password)
 		}
+	} else {
+		return fmt.Errorf("password authentication must be enabled (SSH key auth has been removed)")
 	}
 
-	// Public key authentication callback
-	if s.config.AllowPublicKeyAuth {
-		s.sshConfig.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			return s.handlePublicKeyAuth(conn, key)
-		}
-	}
+	// Public key authentication removed - password only
+	// SSH key authentication has been removed for simplicity and security
 
-	// If no auth methods enabled, return error
-	if !s.config.AllowPasswordAuth && !s.config.AllowPublicKeyAuth {
-		return fmt.Errorf("no authentication methods enabled")
-	}
-
-	// Generate a temporary host key (TODO: load from file)
-	// For development only - in production, use a persistent key
-	privateKey, err := generateHostKey()
+	// Load or generate persistent SSH host key
+	log.Debug("Loading SSH host key from: %s", s.config.HostKeyPath)
+	privateKey, err := loadOrGenerateHostKey(s.config.HostKeyPath)
 	if err != nil {
-		return fmt.Errorf("failed to generate host key: %w", err)
+		return fmt.Errorf("failed to load/generate host key: %w", err)
 	}
 
 	s.sshConfig.AddHostKey(privateKey)
-	log.Info("SSH authentication methods: password=%v publickey=%v",
-		s.config.AllowPasswordAuth, s.config.AllowPublicKeyAuth)
+	log.Info("SSH authentication: password-only (publickey disabled)")
+	log.Info("SSH host key fingerprint: %s", ssh.FingerprintSHA256(privateKey.PublicKey()))
 	return nil
 }
 

@@ -11,6 +11,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/errors"
@@ -44,19 +46,54 @@ type Config struct {
 }
 
 // DefaultConfig returns a default database configuration
+// It checks environment variables first, then falls back to defaults
 func DefaultConfig() *Config {
-	return &Config{
-		Host:            "localhost",
-		Port:            5432,
-		User:            "terminal_velocity",
-		Password:        "",
-		Database:        "terminal_velocity",
-		SSLMode:         "disable",
-		MaxOpenConns:    25,
-		MaxIdleConns:    5,
+	cfg := &Config{
+		Host:            getEnv("DB_HOST", "localhost"),
+		Port:            getEnvAsInt("DB_PORT", 5432),
+		User:            getEnv("DB_USER", "terminal_velocity"),
+		Password:        getEnv("DB_PASSWORD", ""),
+		Database:        getEnv("DB_NAME", "terminal_velocity"),
+		SSLMode:         getEnv("DB_SSLMODE", "disable"),
+		MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
+		MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
 		ConnMaxLifetime: time.Hour,
 		ConnMaxIdleTime: 10 * time.Minute,
 	}
+
+	// Warn if using default password
+	if cfg.Password == "" {
+		log.Warn("Database password not set! Set DB_PASSWORD environment variable for security")
+	}
+
+	// Log which values came from environment variables
+	if os.Getenv("DB_HOST") != "" {
+		log.Debug("Using DB_HOST from environment: %s", cfg.Host)
+	}
+	if os.Getenv("DB_PASSWORD") != "" {
+		log.Debug("Using DB_PASSWORD from environment (value hidden)")
+	}
+
+	return cfg
+}
+
+// getEnv gets an environment variable or returns a default value
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// getEnvAsInt gets an environment variable as an integer or returns a default value
+func getEnvAsInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+		log.Warn("Invalid integer value for %s: %s, using default: %d", key, value, defaultValue)
+	}
+	return defaultValue
 }
 
 // NewDB creates a new database connection pool
