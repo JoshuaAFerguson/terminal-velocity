@@ -25,6 +25,22 @@ Terminal Velocity is a comprehensive space trading and combat game with **full m
 - ✅ **Tutorial system**: Interactive onboarding for new players
 - ✅ **Admin tools**: Full server management and monitoring
 
+## 🚀 Recent Updates (2025-11-15)
+
+**Production-Ready Release** - 61 critical bugs fixed + Enhanced Observability:
+
+- ✅ **Security Fixes**: 6 money duplication exploits eliminated with atomic transactions
+- ✅ **Concurrency Safety**: 15 race conditions fixed, all managers thread-safe
+- ✅ **Input Validation**: 30+ fixes preventing memory exhaustion and injection attacks
+- ✅ **Resource Management**: 3 goroutine leaks fixed, proper shutdown handling
+- ✅ **Database Performance**: 17 strategic indexes added (10-100x improvement expected)
+- ✅ **Enhanced Observability**: Latency histograms (p50/p95/p99), error categorization
+- ✅ **Health Monitoring**: Comprehensive health checks with status indicators
+- ✅ **Regression Tests**: 15+ tests ensuring bug fixes don't regress
+- ✅ **Documentation**: Security audit, bug fix summary, comprehensive testing guide
+
+See [CHANGELOG.md](CHANGELOG.md) for complete details and [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) for security analysis.
+
 ## Features
 
 ### 🎯 Core Gameplay
@@ -331,12 +347,22 @@ Terminal Velocity includes production-ready monitoring, backup, and security fea
 ### Observability & Monitoring
 - **Prometheus Metrics**: Full observability with `/metrics` endpoint on port 8080
 - **Stats Dashboard**: Human-readable `/stats` page with real-time server statistics
-- **Health Checks**: `/health` endpoint for load balancers and monitoring tools
-- **Metrics Tracked**: Connections, players, game activity, economy, database performance
+- **Enhanced Metrics**: `/stats/enhanced` with latency percentiles and error tracking
+- **Performance Profiling**: `/stats/performance` with color-coded health indicators
+- **Health Checks**: `/health` endpoint with comprehensive status (healthy/degraded/unhealthy)
+- **Metrics Tracked**:
+  - Connections, players, game activity, economy, database performance
+  - Operation latencies (p50/p95/p99 percentiles)
+  - Error categorization and recent error history
+  - Throughput metrics (trades/min, combat/min, queries/min)
+  - Resource utilization and cache performance
 
 ```bash
-curl http://localhost:8080/metrics  # Prometheus format
-curl http://localhost:8080/stats    # HTML dashboard
+curl http://localhost:8080/metrics            # Prometheus format
+curl http://localhost:8080/stats              # HTML dashboard
+curl http://localhost:8080/stats/enhanced     # Latency & error tracking
+curl http://localhost:8080/stats/performance  # Performance profiling
+curl http://localhost:8080/health             # Health status (JSON)
 ```
 
 ### Automated Backups
