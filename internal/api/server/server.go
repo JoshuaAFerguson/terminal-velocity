@@ -1,7 +1,7 @@
 // File: internal/api/server/server.go
 // Project: Terminal Velocity
 // Description: In-process API server implementation
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/api"
@@ -599,8 +600,16 @@ func (s *GameServer) Land(ctx context.Context, req *api.LandRequest) (*api.LandR
 		}, nil
 	}
 
-	// TODO: Check distance to planet (requires planet X/Y coordinates)
-	// For now, we'll allow landing from anywhere in the system
+	// Check distance to planet (max landing distance: 100 units squared = ~10 unit radius)
+	const maxLandingDistanceSquared = 10000.0
+	distanceSquared := planet.DistanceFrom(player.X, player.Y)
+	if distanceSquared > maxLandingDistanceSquared {
+		return &api.LandResponse{
+			Success: false,
+			Message: fmt.Sprintf("too far from planet (distance: %.1f units). Move closer to land.",
+				math.Sqrt(distanceSquared)),
+		}, nil
+	}
 
 	// Update player location to be docked at planet
 	err = s.playerRepo.UpdateLocation(ctx, req.PlayerID, player.CurrentSystem, &req.PlanetID)

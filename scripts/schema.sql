@@ -131,6 +131,8 @@ CREATE TABLE IF NOT EXISTS planets (
     system_id UUID REFERENCES star_systems(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     description TEXT,
+    x DOUBLE PRECISION DEFAULT 0,  -- X coordinate within system
+    y DOUBLE PRECISION DEFAULT 0,  -- Y coordinate within system
     services TEXT[] DEFAULT '{}',  -- Array of service types
     population BIGINT DEFAULT 0,
     tech_level INTEGER DEFAULT 5,

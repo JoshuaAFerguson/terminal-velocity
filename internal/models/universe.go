@@ -1,7 +1,7 @@
 // File: internal/models/universe.go
 // Project: Terminal Velocity
 // Description: Data models for universe
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -35,6 +35,8 @@ type Planet struct {
 	SystemID    uuid.UUID `json:"system_id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	X           float64   `json:"x"` // X coordinate within system
+	Y           float64   `json:"y"` // Y coordinate within system
 	Services    []string  `json:"services"` // shipyard, outfitter, missions, trading, bar
 	Population  int64     `json:"population"`
 	TechLevel   int       `json:"tech_level"`
@@ -68,6 +70,13 @@ func (p *Planet) HasService(service string) bool {
 		}
 	}
 	return false
+}
+
+// DistanceFrom calculates distance from given coordinates to this planet
+func (p *Planet) DistanceFrom(x, y float64) float64 {
+	dx := p.X - x
+	dy := p.Y - y
+	return dx*dx + dy*dy // Return squared distance (good enough for comparison)
 }
 
 // IsConnectedTo checks if system has a direct jump route to another
