@@ -1600,19 +1600,19 @@ func (s *GameServer) AcceptMission(ctx context.Context, req *api.MissionAcceptRe
 
 // AbandonMission abandons an active mission
 func (s *GameServer) AbandonMission(ctx context.Context, missionID uuid.UUID) error {
-	// TODO: Integrate with missions manager
-	// For now, return error as missions system needs manager integration
-	// When implemented, this should:
-	// 1. Verify mission exists and is active
-	// 2. Update mission status to "failed" or remove it
-	// 3. Apply any reputation penalties
-	// 4. Clean up mission-related state
+	if missionID == uuid.Nil {
+		return api.ErrInvalidRequest
+	}
 
-	// Placeholder: In production, use missions manager
-	// err := s.missionsManager.AbandonMission(missionID)
-	// return err
+	// Use missions manager to fail the mission
+	// Note: Passing nil for player means mission failure won't be recorded on player stats
+	// In a full implementation, the API signature should include playerID to properly track failures
+	err := s.missionMgr.FailMission(missionID, "abandoned by player", nil)
+	if err != nil {
+		return fmt.Errorf("failed to abandon mission: %w", err)
+	}
 
-	return api.ErrNotFound
+	return nil
 }
 
 // GetActiveMissions retrieves player's active missions
@@ -1731,8 +1731,28 @@ func (s *GameServer) GetActiveQuests(ctx context.Context, playerID uuid.UUID) (*
 		quest := s.questMgr.GetQuest(playerQuest.QuestID)
 		if quest != nil {
 			apiQuest := convertQuestToAPI(quest)
-			// TODO: In Phase 2, add progress info from playerQuest to apiQuest
-			_ = playerQuest // Has ObjectiveProgress, CurrentObjective, etc.
+
+			// Add progress info from playerQuest
+			apiQuest.Status = api.QuestStatus(playerQuest.Status)
+
+			// Update objective progress from player's actual progress
+			for _, objective := range apiQuest.Objectives {
+				// Check if objective is completed
+				isCompleted := false
+				for _, completedID := range playerQuest.CompletedObjectives {
+					if completedID == objective.ObjectiveID {
+						isCompleted = true
+						break
+					}
+				}
+				objective.Completed = isCompleted
+
+				// Update current progress
+				if currentProgress, exists := playerQuest.Objectives[objective.ObjectiveID]; exists {
+					objective.ProgressCurrent = int32(currentProgress)
+				}
+			}
+
 			apiQuests = append(apiQuests, apiQuest)
 		}
 	}
