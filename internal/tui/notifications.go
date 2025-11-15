@@ -499,34 +499,59 @@ func (m *Model) renderNotificationView() string {
 
 func (m *Model) loadAllNotifications() tea.Cmd {
 	return func() tea.Msg {
-		// ctx := context.Background() // TODO: Will be used for notification operations
+		ctx := context.Background()
 
-		// TODO: Use notifications manager once integrated
-		// For now, return empty list
-		notifications := []models.Notification{}
-		unreadCount := 0
+		// Use notifications manager to load all notifications
+		var notifications []models.Notification
+		var unreadCount int
+		var errStr string
+
+		if m.notificationsManager != nil {
+			var err error
+			notifications, err = m.notificationsManager.GetNotifications(ctx, m.playerID, 100)
+			if err != nil {
+				errStr = err.Error()
+			}
+
+			// Get unread count
+			unreadCount, _ = m.notificationsManager.GetUnreadCount(ctx, m.playerID)
+		} else {
+			notifications = []models.Notification{}
+		}
 
 		return notificationsLoadedMsg{
 			notifications: notifications,
 			unreadCount:   unreadCount,
-			err:           "",
+			err:           errStr,
 		}
 	}
 }
 
 func (m *Model) loadUnreadNotifications() tea.Cmd {
 	return func() tea.Msg {
-		// ctx := context.Background() // TODO: Will be used for notification operations
+		ctx := context.Background()
 
-		// TODO: Use notifications manager once integrated
-		// For now, return empty list
-		notifications := []models.Notification{}
-		unreadCount := 0
+		// Use notifications manager to load unread notifications
+		var notifications []models.Notification
+		var unreadCount int
+		var errStr string
+
+		if m.notificationsManager != nil {
+			var err error
+			notifications, err = m.notificationsManager.GetUnreadNotifications(ctx, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+
+			unreadCount = len(notifications)
+		} else {
+			notifications = []models.Notification{}
+		}
 
 		return notificationsLoadedMsg{
 			notifications: notifications,
 			unreadCount:   unreadCount,
-			err:           "",
+			err:           errStr,
 		}
 	}
 }
@@ -535,17 +560,28 @@ func (m *Model) loadNotificationsByType(notifType string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use notifications manager once integrated
-		_ = ctx
-		_ = notifType
+		// Use notifications manager to load notifications by type
+		var notifications []models.Notification
+		var unreadCount int
+		var errStr string
 
-		notifications := []models.Notification{}
-		unreadCount := 0
+		if m.notificationsManager != nil {
+			var err error
+			notifications, err = m.notificationsManager.GetNotificationsByType(ctx, m.playerID, notifType)
+			if err != nil {
+				errStr = err.Error()
+			}
+
+			// Get unread count
+			unreadCount, _ = m.notificationsManager.GetUnreadCount(ctx, m.playerID)
+		} else {
+			notifications = []models.Notification{}
+		}
 
 		return notificationsLoadedMsg{
 			notifications: notifications,
 			unreadCount:   unreadCount,
-			err:           "",
+			err:           errStr,
 		}
 	}
 }
@@ -554,12 +590,17 @@ func (m *Model) markNotificationAsRead(notifID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use notifications manager once integrated
-		_ = ctx
-		_ = notifID
+		// Use notifications manager to mark as read
+		var errStr string
+		if m.notificationsManager != nil {
+			err := m.notificationsManager.MarkAsRead(ctx, notifID, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return notificationActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }
@@ -568,12 +609,17 @@ func (m *Model) dismissNotification(notifID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use notifications manager once integrated
-		_ = ctx
-		_ = notifID
+		// Use notifications manager to dismiss notification
+		var errStr string
+		if m.notificationsManager != nil {
+			err := m.notificationsManager.DismissNotification(ctx, notifID, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return notificationActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }
@@ -582,11 +628,17 @@ func (m *Model) markAllNotificationsAsRead() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use notifications manager once integrated
-		_ = ctx
+		// Use notifications manager to mark all as read
+		var errStr string
+		if m.notificationsManager != nil {
+			err := m.notificationsManager.MarkAllAsRead(ctx, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return notificationActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }
@@ -595,11 +647,17 @@ func (m *Model) clearDismissedNotifications() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use notifications manager once integrated
-		_ = ctx
+		// Use notifications manager to dismiss all read notifications
+		var errStr string
+		if m.notificationsManager != nil {
+			err := m.notificationsManager.DismissAllRead(ctx, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return notificationActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }
