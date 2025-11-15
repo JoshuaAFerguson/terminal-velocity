@@ -1,7 +1,7 @@
 // File: internal/database/migrations.go
 // Project: Terminal Velocity
 // Description: Database repository for migrations
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -74,8 +74,14 @@ func (db *DB) ClearDatabase(ctx context.Context) error {
 }
 
 // GetSchemaVersion returns the current schema version
-// This is a placeholder for future migration versioning
 func (db *DB) GetSchemaVersion(ctx context.Context) (int, error) {
-	// TODO: Implement schema versioning table
-	return 1, nil
+	var version int
+	query := `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`
+
+	err := db.QueryRowContext(ctx, query).Scan(&version)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get schema version: %w", err)
+	}
+
+	return version, nil
 }
