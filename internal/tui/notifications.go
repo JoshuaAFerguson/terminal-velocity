@@ -40,6 +40,24 @@ type notificationsState struct {
 	typeSelectIndex int
 }
 
+func newNotificationsState() notificationsState {
+	return notificationsState{
+		mode:          notificationsModeAll,
+		selectedIndex: 0,
+		availableTypes: []string{
+			"system",
+			"quest",
+			"mission",
+			"achievement",
+			"event",
+			"social",
+			"faction",
+			"trade",
+			"combat",
+		},
+	}
+}
+
 func (m *Model) updateNotifications(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

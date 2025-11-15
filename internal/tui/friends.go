@@ -39,6 +39,13 @@ type friendsState struct {
 	usernameInput string
 }
 
+func newFriendsState() friendsState {
+	return friendsState{
+		mode:          friendsModeFriends,
+		selectedIndex: 0,
+	}
+}
+
 func (m *Model) updateFriends(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

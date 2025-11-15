@@ -18,11 +18,12 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/missions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/outfitting"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
@@ -169,6 +170,12 @@ type Model struct {
 	// Mail system
 	mailManager *mail.Manager
 
+	// Fleet system
+	fleetManager *fleet.Manager
+
+	// Notifications system
+	notificationsManager *notifications.Manager
+
 	// Faction system
 	factionManager *factions.Manager
 
@@ -202,9 +209,6 @@ type Model struct {
 	// Mission system
 	missionManager *missions.Manager
 
-	// Fleet system
-	fleetManager *fleet.Manager
-
 	// Error handling
 	err               error
 	errorMessage      string
@@ -224,6 +228,9 @@ func NewModel(
 	marketRepo *database.MarketRepository,
 	mailRepo *database.MailRepository,
 	socialRepo *database.SocialRepository,
+	fleetManager *fleet.Manager,
+	mailManager *mail.Manager,
+	notificationsManager *notifications.Manager,
 ) Model {
 	return Model{
 		screen:              ScreenMainMenu,
@@ -258,7 +265,9 @@ func NewModel(
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
 		chatManager:         chat.NewManager(),
-		mailManager:         mail.NewManager(socialRepo),
+		fleetManager:        fleetManager,
+		mailManager:         mailManager,
+		notificationsManager: notificationsManager,
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
 		territoryManager:    territory.NewManager(),
@@ -288,6 +297,9 @@ func NewModel(
 		navigationEnhanced:   newNavigationEnhancedModel(),
 		combatEnhanced:       newCombatEnhancedModel(),
 		questBoardEnhanced:   newQuestBoardEnhancedModel(),
+		fleet:                newFleetState(),
+		friends:              newFriendsState(),
+		notifications:        newNotificationsState(),
 	}
 }
 

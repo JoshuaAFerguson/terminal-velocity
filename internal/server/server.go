@@ -14,9 +14,12 @@ import (
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/metrics"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/ratelimit"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
@@ -43,6 +46,11 @@ type Server struct {
 	socialRepo    *database.SocialRepository
 	metricsServer *metrics.Server
 	rateLimiter   *ratelimit.Limiter
+
+	// Managers
+	fleetManager         *fleet.Manager
+	mailManager          *mail.Manager
+	notificationsManager *notifications.Manager
 }
 
 // Config holds server configuration
@@ -173,6 +181,16 @@ func (s *Server) initDatabase() error {
 	s.marketRepo = database.NewMarketRepository(s.db)
 	s.mailRepo = database.NewMailRepository(s.db)
 	s.socialRepo = database.NewSocialRepository(s.db)
+
+	// Initialize managers
+	log.Debug("Initializing game managers")
+	s.fleetManager = fleet.NewManager(s.playerRepo, s.shipRepo)
+	s.mailManager = mail.NewManager(s.socialRepo)
+	s.notificationsManager = notifications.NewManager(s.socialRepo)
+
+	// Start background workers for managers
+	s.fleetManager.Start()
+	s.notificationsManager.Start()
 
 	log.Info("Database connected successfully")
 	return nil
@@ -359,7 +377,20 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 	log.Info("Starting game session for user=%s, playerID=%s", username, playerID)
 
 	// Initialize TUI model
-	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo)
+	model := tui.NewModel(
+		playerID,
+		username,
+		s.playerRepo,
+		s.systemRepo,
+		s.sshKeyRepo,
+		s.shipRepo,
+		s.marketRepo,
+		s.mailRepo,
+		s.socialRepo,
+		s.fleetManager,
+		s.mailManager,
+		s.notificationsManager,
+	)
 
 	// Create BubbleTea program with SSH channel as input/output
 	p := tea.NewProgram(
