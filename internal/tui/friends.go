@@ -40,6 +40,13 @@ type friendsState struct {
 	usernameInput string
 }
 
+func newFriendsState() friendsState {
+	return friendsState{
+		mode:          friendsModeFriends,
+		selectedIndex: 0,
+	}
+}
+
 func (m *Model) updateFriends(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -527,13 +534,22 @@ func (m *Model) loadFriendsList() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use friends manager once integrated
-		// For now, return empty list
-		friends := []models.Friend{}
+		// Use friends manager to load friends list
+		var friends []models.Friend
+		var errStr string
+		if m.friendsManager != nil {
+			var err error
+			friends, err = m.friendsManager.GetFriends(ctx, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		} else {
+			friends = []models.Friend{}
+		}
 
 		return friendsLoadedMsg{
 			friends: friends,
-			err:     "",
+			err:     errStr,
 		}
 	}
 }
@@ -542,13 +558,22 @@ func (m *Model) loadFriendRequests() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use friends manager once integrated
-		// For now, return empty list
-		requests := []models.FriendRequest{}
+		// Use friends manager to load friend requests
+		var requests []models.FriendRequest
+		var errStr string
+		if m.friendsManager != nil {
+			var err error
+			requests, err = m.friendsManager.GetPendingFriendRequests(ctx, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		} else {
+			requests = []models.FriendRequest{}
+		}
 
 		return friendRequestsLoadedMsg{
 			requests: requests,
-			err:      "",
+			err:      errStr,
 		}
 	}
 }
@@ -557,13 +582,22 @@ func (m *Model) loadBlockedList() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use friends manager once integrated
-		// For now, return empty list
-		blocked := []models.Block{}
+		// Use friends manager to load blocked players
+		var blocked []models.Block
+		var errStr string
+		if m.friendsManager != nil {
+			var err error
+			blocked, err = m.friendsManager.GetBlockedPlayers(ctx, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		} else {
+			blocked = []models.Block{}
+		}
 
 		return blockedLoadedMsg{
 			blocked: blocked,
-			err:     "",
+			err:     errStr,
 		}
 	}
 }
@@ -572,12 +606,22 @@ func (m *Model) sendFriendRequest(username string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use friends manager once integrated
-		_ = ctx
-		_ = username
+		// Use friends manager to send friend request
+		var errStr string
+		if m.friendsManager != nil && m.playerRepo != nil {
+			// Helper function to get player by username
+			getPlayerByUsername := func(user string) (*models.Player, error) {
+				return m.playerRepo.GetByUsername(ctx, user)
+			}
+
+			err := m.friendsManager.SendFriendRequest(ctx, m.playerID, username, getPlayerByUsername)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return friendActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }
@@ -586,12 +630,17 @@ func (m *Model) acceptFriendRequest(requestID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use friends manager once integrated
-		_ = ctx
-		_ = requestID
+		// Use friends manager to accept friend request
+		var errStr string
+		if m.friendsManager != nil {
+			err := m.friendsManager.AcceptFriendRequest(ctx, requestID, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return friendActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }
@@ -600,12 +649,17 @@ func (m *Model) declineFriendRequest(requestID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use friends manager once integrated
-		_ = ctx
-		_ = requestID
+		// Use friends manager to decline friend request
+		var errStr string
+		if m.friendsManager != nil {
+			err := m.friendsManager.DeclineFriendRequest(ctx, requestID, m.playerID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return friendActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }
@@ -614,12 +668,17 @@ func (m *Model) removeFriend(friendID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use friends manager once integrated
-		_ = ctx
-		_ = friendID
+		// Use friends manager to remove friend
+		var errStr string
+		if m.friendsManager != nil {
+			err := m.friendsManager.RemoveFriend(ctx, m.playerID, friendID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return friendActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }
@@ -628,12 +687,17 @@ func (m *Model) unblockPlayer(blockedID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// TODO: Use friends manager once integrated
-		_ = ctx
-		_ = blockedID
+		// Use friends manager to unblock player
+		var errStr string
+		if m.friendsManager != nil {
+			err := m.friendsManager.UnblockPlayer(ctx, m.playerID, blockedID)
+			if err != nil {
+				errStr = err.Error()
+			}
+		}
 
 		return friendActionMsg{
-			err: "", // Success
+			err: errStr,
 		}
 	}
 }

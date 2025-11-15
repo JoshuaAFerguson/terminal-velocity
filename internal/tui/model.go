@@ -16,12 +16,16 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/friends"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/marketplace"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/missions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/outfitting"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
@@ -76,6 +80,10 @@ const (
 	ScreenQuestBoardEnhanced
 	ScreenTradeRoutes
 	ScreenMail
+	ScreenFleet
+	ScreenFriends
+	ScreenMarketplace
+	ScreenNotifications
 )
 
 // Model is the main TUI model
@@ -96,6 +104,7 @@ type Model struct {
 	shipRepo   *database.ShipRepository
 	marketRepo *database.MarketRepository
 	mailRepo   *database.MailRepository
+	socialRepo *database.SocialRepository
 
 	// Screen dimensions
 	width  int
@@ -139,6 +148,10 @@ type Model struct {
 	questBoardEnhanced    questBoardEnhancedModel
 	tradeRoutes           tradeRoutesState
 	mail                  mailState
+	fleet                 fleetState
+	friends               friendsState
+	marketplace           marketplaceState
+	notifications         notificationsState
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -158,6 +171,18 @@ type Model struct {
 
 	// Mail system
 	mailManager *mail.Manager
+
+	// Fleet system
+	fleetManager *fleet.Manager
+
+	// Friends system
+	friendsManager *friends.Manager
+
+	// Notifications system
+	notificationsManager *notifications.Manager
+
+	// Marketplace system
+	marketplaceManager *marketplace.Manager
 
 	// Faction system
 	factionManager *factions.Manager
@@ -210,6 +235,12 @@ func NewModel(
 	shipRepo *database.ShipRepository,
 	marketRepo *database.MarketRepository,
 	mailRepo *database.MailRepository,
+	socialRepo *database.SocialRepository,
+	fleetManager *fleet.Manager,
+	mailManager *mail.Manager,
+	notificationsManager *notifications.Manager,
+	friendsManager *friends.Manager,
+	marketplaceManager *marketplace.Manager,
 ) Model {
 	return Model{
 		screen:              ScreenMainMenu,
@@ -221,6 +252,7 @@ func NewModel(
 		shipRepo:            shipRepo,
 		marketRepo:          marketRepo,
 		mailRepo:            mailRepo,
+		socialRepo:          socialRepo,
 		width:               80,
 		height:              24,
 		mainMenu:            newMainMenuModel(),
@@ -243,7 +275,11 @@ func NewModel(
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
 		chatManager:         chat.NewManager(),
-		mailManager:         mail.NewManager(mailRepo),
+		fleetManager:        fleetManager,
+		mailManager:         mailManager,
+		notificationsManager: notificationsManager,
+		friendsManager:      friendsManager,
+		marketplaceManager:  marketplaceManager,
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
 		territoryManager:    territory.NewManager(),
@@ -273,6 +309,9 @@ func NewModel(
 		navigationEnhanced:   newNavigationEnhancedModel(),
 		combatEnhanced:       newCombatEnhancedModel(),
 		questBoardEnhanced:   newQuestBoardEnhancedModel(),
+		fleet:                newFleetState(),
+		friends:              newFriendsState(),
+		notifications:        newNotificationsState(),
 	}
 }
 
@@ -321,6 +360,7 @@ func NewLoginModel(
 	shipRepo *database.ShipRepository,
 	marketRepo *database.MarketRepository,
 	mailRepo *database.MailRepository,
+	socialRepo *database.SocialRepository,
 ) Model {
 	return Model{
 		screen:              ScreenLogin,
@@ -332,6 +372,7 @@ func NewLoginModel(
 		shipRepo:            shipRepo,
 		marketRepo:          marketRepo,
 		mailRepo:            mailRepo,
+		socialRepo:          socialRepo,
 		width:               80,
 		height:              24,
 		loginModel:          newLoginModel(),
@@ -355,7 +396,7 @@ func NewLoginModel(
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
 		chatManager:         chat.NewManager(),
-		mailManager:         mail.NewManager(mailRepo),
+		mailManager:         mail.NewManager(socialRepo),
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
 		territoryManager:    territory.NewManager(),
@@ -533,6 +574,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTradeRoutes(msg)
 	case ScreenMail:
 		return m.updateMail(msg)
+	case ScreenFleet:
+		return m.updateFleet(msg)
+	case ScreenFriends:
+		return m.updateFriends(msg)
+	case ScreenMarketplace:
+		return m.updateMarketplace(msg)
+	case ScreenNotifications:
+		return m.updateNotifications(msg)
 	default:
 		return m, nil
 	}
@@ -626,6 +675,14 @@ func (m Model) View() string {
 		return m.viewTradeRoutes()
 	case ScreenMail:
 		return m.viewMail()
+	case ScreenFleet:
+		return m.viewFleet()
+	case ScreenFriends:
+		return m.viewFriends()
+	case ScreenMarketplace:
+		return m.viewMarketplace()
+	case ScreenNotifications:
+		return m.viewNotifications()
 	default:
 		return "Unknown screen"
 	}

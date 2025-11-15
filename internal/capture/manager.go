@@ -1,7 +1,7 @@
 // File: internal/capture/manager.go
 // Project: Terminal Velocity
 // Description: Ship capture and boarding system manager
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
 
@@ -24,8 +24,9 @@ var log = logger.WithComponent("Capture")
 
 // Manager handles ship capture and boarding operations
 type Manager struct {
-	mu       sync.RWMutex
-	shipRepo *database.ShipRepository
+	mu         sync.RWMutex
+	shipRepo   *database.ShipRepository
+	playerRepo *database.PlayerRepository
 
 	// Active boarding attempts
 	activeBoardings map[uuid.UUID]*BoardingAttempt
@@ -103,9 +104,10 @@ type BoardingOutcome struct {
 }
 
 // NewManager creates a new capture manager
-func NewManager(shipRepo *database.ShipRepository) *Manager {
+func NewManager(shipRepo *database.ShipRepository, playerRepo *database.PlayerRepository) *Manager {
 	return &Manager{
 		shipRepo:        shipRepo,
+		playerRepo:      playerRepo,
 		activeBoardings: make(map[uuid.UUID]*BoardingAttempt),
 		config:          DefaultCaptureConfig(),
 	}
@@ -113,15 +115,21 @@ func NewManager(shipRepo *database.ShipRepository) *Manager {
 
 // CanDisable checks if a ship can be disabled (pre-boarding check)
 func (m *Manager) CanDisable(target *models.Ship) (bool, string) {
+	// Get ship type for max values
+	shipType := models.GetShipTypeByID(target.TypeID)
+	if shipType == nil {
+		return false, "Invalid ship type"
+	}
+
 	// Check shields
-	shieldPercent := float64(target.CurrentShields) / float64(target.MaxShields)
+	shieldPercent := float64(target.Shields) / float64(shipType.MaxShields)
 	if shieldPercent > m.config.DisableShieldThreshold {
 		return false, fmt.Sprintf("Target shields too high (%.0f%% > %.0f%%)",
 			shieldPercent*100, m.config.DisableShieldThreshold*100)
 	}
 
 	// Check hull
-	hullPercent := float64(target.CurrentHull) / float64(target.MaxHull)
+	hullPercent := float64(target.Hull) / float64(shipType.MaxHull)
 	if hullPercent > m.config.DisableHullThreshold {
 		return false, fmt.Sprintf("Target hull too high (%.0f%% > %.0f%%)",
 			hullPercent*100, m.config.DisableHullThreshold*100)
@@ -148,8 +156,8 @@ func (m *Manager) AttemptBoarding(ctx context.Context, attackerShip, defenderShi
 
 	// Create boarding attempt
 	attempt := &BoardingAttempt{
-		AttackerID:   attackerShip.PlayerID,
-		DefenderID:   defenderShip.PlayerID,
+		AttackerID:   attackerShip.OwnerID,
+		DefenderID:   defenderShip.OwnerID,
 		AttackerShip: attackerShip,
 		DefenderShip: defenderShip,
 		StartTime:    time.Now(),
@@ -159,6 +167,16 @@ func (m *Manager) AttemptBoarding(ctx context.Context, attackerShip, defenderShi
 	m.mu.Lock()
 	m.activeBoardings[attackerShip.ID] = attempt
 	m.mu.Unlock()
+
+	// Update player stats for boarding attempt
+	if m.playerRepo != nil {
+		if player, err := m.playerRepo.GetByID(ctx, attackerShip.OwnerID); err == nil {
+			player.RecordCaptureAttempt()
+			if err := m.playerRepo.Update(ctx, player); err != nil {
+				log.Error("Failed to update player stats for boarding attempt: %v", err)
+			}
+		}
+	}
 
 	log.Info("Boarding initiated: attacker=%s, defender=%s, crew=%d vs %d",
 		attackerShip.ID, defenderShip.ID, attackerCrew, defenderCrew)
@@ -182,6 +200,16 @@ func (m *Manager) resolveBoardingAfterDelay(ctx context.Context, attempt *Boardi
 		attempt.Status = "success"
 		log.Info("Boarding successful: attacker=%s, losses=%d/%d",
 			attempt.AttackerID, outcome.AttackerLosses, attackerCrew)
+
+		// Update player stats for successful boarding
+		if m.playerRepo != nil {
+			if player, err := m.playerRepo.GetByID(ctx, attempt.AttackerID); err == nil {
+				player.RecordSuccessfulBoard()
+				if err := m.playerRepo.Update(ctx, player); err != nil {
+					log.Error("Failed to update player stats for successful boarding: %v", err)
+				}
+			}
+		}
 
 		// Attempt to capture ship
 		if outcome.CaptureSuccess {
@@ -212,8 +240,12 @@ func (m *Manager) resolveBoarding(attempt *BoardingAttempt, attackerCrew, defend
 	chance -= float64(defenderCrew) * m.config.DefenseBonus
 
 	// Ship size modifier (larger ships easier to board)
-	sizeDiff := attempt.DefenderShip.CargoCapacity - attempt.AttackerShip.CargoCapacity
-	chance += float64(sizeDiff) / 100 * m.config.ShipSizeModifier
+	attackerType := models.GetShipTypeByID(attempt.AttackerShip.TypeID)
+	defenderType := models.GetShipTypeByID(attempt.DefenderShip.TypeID)
+	if attackerType != nil && defenderType != nil {
+		sizeDiff := defenderType.CargoSpace - attackerType.CargoSpace
+		chance += float64(sizeDiff) / 100 * m.config.ShipSizeModifier
+	}
 
 	// Clamp chance between 5% and 95%
 	if chance < 0.05 {
@@ -257,9 +289,12 @@ func (m *Manager) calculateCaptureSuccess(attempt *BoardingAttempt, attackerCrew
 	chance := m.config.BaseCaptureChance
 
 	// Damage modifier - more damage = easier to capture
-	hullPercent := float64(attempt.DefenderShip.CurrentHull) / float64(attempt.DefenderShip.MaxHull)
-	damagePercent := 1.0 - hullPercent
-	chance += damagePercent * m.config.DamageModifier
+	defenderType := models.GetShipTypeByID(attempt.DefenderShip.TypeID)
+	if defenderType != nil {
+		hullPercent := float64(attempt.DefenderShip.Hull) / float64(defenderType.MaxHull)
+		damagePercent := 1.0 - hullPercent
+		chance += damagePercent * m.config.DamageModifier
+	}
 
 	// Crew ratio modifier
 	crewRatio := float64(attackerCrew) / float64(defenderCrew)
@@ -285,14 +320,29 @@ func (m *Manager) calculateCaptureSuccess(attempt *BoardingAttempt, attackerCrew
 // captureShip transfers ownership of a ship to the attacker
 func (m *Manager) captureShip(ctx context.Context, attempt *BoardingAttempt) error {
 	// Transfer ship ownership
-	attempt.DefenderShip.PlayerID = attempt.AttackerID
-	attempt.DefenderShip.CurrentHull = int(float64(attempt.DefenderShip.MaxHull) * 0.5) // 50% hull after capture
+	attempt.DefenderShip.OwnerID = attempt.AttackerID
+
+	// Set hull to 50% after capture
+	defenderType := models.GetShipTypeByID(attempt.DefenderShip.TypeID)
+	if defenderType != nil {
+		attempt.DefenderShip.Hull = int(float64(defenderType.MaxHull) * 0.5)
+	}
 
 	// Update ship in database
 	err := m.shipRepo.Update(ctx, attempt.DefenderShip)
 	if err != nil {
 		log.Error("Failed to capture ship: %v", err)
 		return fmt.Errorf("failed to capture ship: %w", err)
+	}
+
+	// Update player stats for successful capture
+	if m.playerRepo != nil {
+		if player, err := m.playerRepo.GetByID(ctx, attempt.AttackerID); err == nil {
+			player.RecordSuccessfulCapture()
+			if err := m.playerRepo.Update(ctx, player); err != nil {
+				log.Error("Failed to update player stats for successful capture: %v", err)
+			}
+		}
 	}
 
 	log.Info("Ship captured: ship=%s, new_owner=%s",
@@ -339,8 +389,12 @@ func (m *Manager) CalculateBoardingChance(attackerShip, defenderShip *models.Shi
 	chance -= float64(defenderCrew) * m.config.DefenseBonus
 
 	// Ship size modifier
-	sizeDiff := defenderShip.CargoCapacity - attackerShip.CargoCapacity
-	chance += float64(sizeDiff) / 100 * m.config.ShipSizeModifier
+	attackerType := models.GetShipTypeByID(attackerShip.TypeID)
+	defenderType := models.GetShipTypeByID(defenderShip.TypeID)
+	if attackerType != nil && defenderType != nil {
+		sizeDiff := defenderType.CargoSpace - attackerType.CargoSpace
+		chance += float64(sizeDiff) / 100 * m.config.ShipSizeModifier
+	}
 
 	// Clamp
 	if chance < 0.05 {
@@ -358,9 +412,12 @@ func (m *Manager) CalculateCaptureChance(defenderShip *models.Ship, attackerCrew
 	chance := m.config.BaseCaptureChance
 
 	// Damage modifier
-	hullPercent := float64(defenderShip.CurrentHull) / float64(defenderShip.MaxHull)
-	damagePercent := 1.0 - hullPercent
-	chance += damagePercent * m.config.DamageModifier
+	defenderType := models.GetShipTypeByID(defenderShip.TypeID)
+	if defenderType != nil {
+		hullPercent := float64(defenderShip.Hull) / float64(defenderType.MaxHull)
+		damagePercent := 1.0 - hullPercent
+		chance += damagePercent * m.config.DamageModifier
+	}
 
 	// Crew ratio modifier
 	crewRatio := float64(attackerCrew) / float64(defenderCrew)
@@ -397,16 +454,28 @@ type CaptureStats struct {
 	SuccessfulCaptures int
 }
 
-// GetStats returns capture statistics (placeholder for now)
-func (m *Manager) GetStats() CaptureStats {
+// GetStats returns capture statistics for a specific player
+func (m *Manager) GetStats(ctx context.Context, playerID uuid.UUID) CaptureStats {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
+	activeBoardings := len(m.activeBoardings)
+	m.mu.RUnlock()
+
+	// Get player from database to retrieve stats
+	player, err := m.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		log.Error("Failed to get player stats: %v", err)
+		return CaptureStats{
+			ActiveBoardings:    activeBoardings,
+			TotalAttempts:      0,
+			SuccessfulBoards:   0,
+			SuccessfulCaptures: 0,
+		}
+	}
 
 	return CaptureStats{
-		ActiveBoardings: len(m.activeBoardings),
-		// TODO: Track these in database
-		TotalAttempts:      0,
-		SuccessfulBoards:   0,
-		SuccessfulCaptures: 0,
+		ActiveBoardings:    activeBoardings,
+		TotalAttempts:      player.TotalCaptureAttempts,
+		SuccessfulBoards:   player.SuccessfulBoards,
+		SuccessfulCaptures: player.SuccessfulCaptures,
 	}
 }

@@ -187,16 +187,19 @@ func (h *CommandHandler) handleWho(ctx context.Context, playerID uuid.UUID) *Com
 
 	for _, player := range onlinePlayers {
 		location := "Unknown"
-		if player.CurrentSystem != "" {
-			location = player.CurrentSystem
-			if player.CurrentPlanet != "" {
-				location = fmt.Sprintf("%s (%s)", player.CurrentPlanet, player.CurrentSystem)
+		if player.CurrentSystem != uuid.Nil {
+			location = player.CurrentSystem.String()
+			if player.CurrentPlanet != nil && *player.CurrentPlanet != uuid.Nil {
+				location = fmt.Sprintf("%s (%s)", player.CurrentPlanet.String(), player.CurrentSystem.String())
 			}
 		}
 
-		ship := player.CurrentShip
+		ship := player.ShipName
 		if ship == "" {
-			ship = "Unknown"
+			ship = player.ShipType
+			if ship == "" {
+				ship = "Unknown"
+			}
 		}
 
 		output.WriteString(fmt.Sprintf("• %s - %s @ %s\n", player.Username, ship, location))

@@ -1,6 +1,6 @@
 // File: internal/tui/pvp.go
 // Project: Terminal Velocity
-// Version: 1.0.0
+// Version: 1.1.0
 
 package tui
 
@@ -171,15 +171,20 @@ func (m Model) updatePvPCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		// Create the challenge
 		if m.pvpModel.createTarget != "" {
-			// TODO: In full implementation, validate target exists
-			// For now, just create the challenge
-			// Find target player ID (would come from presence system)
-			targetID := uuid.New() // Placeholder
+			// Look up target player by username to validate they exist
+			targetPlayer, err := m.playerRepo.GetByUsername(nil, m.pvpModel.createTarget)
+			if err != nil || targetPlayer == nil {
+				// Target doesn't exist - show error
+				m.pvpModel.viewMode = pvpViewChallenges
+				m.pvpModel.cursor = 0
+				return m, nil
+			}
 
+			// Create challenge with actual target ID
 			_, _ = m.pvpManager.CreateChallenge(
 				m.playerID,
 				m.username,
-				targetID,
+				targetPlayer.ID,
 				m.pvpModel.createTarget,
 				models.PvPChallengeType(m.pvpModel.createType),
 				m.player.CurrentSystem,
@@ -452,7 +457,12 @@ func (m Model) viewPvPStats() string {
 		if pilotStats.PlayerID == m.playerID {
 			name = "【" + m.username + "】"
 		} else {
-			name = "Player" // TODO: Get actual name from presence
+			// Get player name from presence manager
+			if presence := m.presenceManager.GetPresence(pilotStats.PlayerID); presence != nil {
+				name = presence.Username
+			} else {
+				name = "Player" // Fallback if not found
+			}
 		}
 
 		line := fmt.Sprintf("%s%s %s | %s | %d rating | %d-%d",

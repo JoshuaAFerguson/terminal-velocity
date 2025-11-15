@@ -296,7 +296,7 @@ func (r *SystemRepository) CreatePlanet(ctx context.Context, planet *models.Plan
 // GetPlanetByID retrieves a planet by ID
 func (r *SystemRepository) GetPlanetByID(ctx context.Context, id uuid.UUID) (*models.Planet, error) {
 	query := `
-		SELECT id, system_id, name, description, population, tech_level, services
+		SELECT id, system_id, name, description, x, y, population, tech_level, services
 		FROM planets
 		WHERE id = $1
 	`
@@ -309,6 +309,8 @@ func (r *SystemRepository) GetPlanetByID(ctx context.Context, id uuid.UUID) (*mo
 		&planet.SystemID,
 		&planet.Name,
 		&planet.Description,
+		&planet.X,
+		&planet.Y,
 		&planet.Population,
 		&planet.TechLevel,
 		&services,
@@ -330,7 +332,7 @@ func (r *SystemRepository) GetPlanetByID(ctx context.Context, id uuid.UUID) (*mo
 // GetPlanetsBySystem returns all planets in a system
 func (r *SystemRepository) GetPlanetsBySystem(ctx context.Context, systemID uuid.UUID) ([]*models.Planet, error) {
 	query := `
-		SELECT id, system_id, name, description, population, tech_level, services
+		SELECT id, system_id, name, description, x, y, population, tech_level, services
 		FROM planets
 		WHERE system_id = $1
 		ORDER BY name
@@ -352,6 +354,8 @@ func (r *SystemRepository) GetPlanetsBySystem(ctx context.Context, systemID uuid
 			&planet.SystemID,
 			&planet.Name,
 			&planet.Description,
+			&planet.X,
+			&planet.Y,
 			&planet.Population,
 			&planet.TechLevel,
 			&services,

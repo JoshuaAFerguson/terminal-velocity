@@ -16,7 +16,7 @@ import (
 // TestTransactionAtomicity tests that transactions are properly atomic
 // Regression test for money duplication exploits (61 bugs fixed)
 func TestTransactionAtomicity(t *testing.T) {
-	db, err := NewDB(DefaultTestConfig())
+	db, err := NewDB(DefaultConfig())
 	if err != nil {
 		t.Skip("Skipping database tests: failed to connect to database:", err)
 	}
@@ -123,7 +123,7 @@ func TestTransactionAtomicity(t *testing.T) {
 // TestConcurrentTransactions tests that concurrent transactions don't interfere
 // Regression test for race conditions in transaction handling
 func TestConcurrentTransactions(t *testing.T) {
-	db, err := NewDB(DefaultTestConfig())
+	db, err := NewDB(DefaultConfig())
 	if err != nil {
 		t.Skip("Skipping database tests: failed to connect to database:", err)
 	}

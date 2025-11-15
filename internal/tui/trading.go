@@ -1,7 +1,7 @@
 // File: internal/tui/trading.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for trading
-// Version: 1.0.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/game/trading"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -242,9 +243,14 @@ func (m Model) viewMarket() string {
 
 	// Cargo space info
 	if m.currentShip != nil {
-		// TODO: Get actual cargo space from ship type
+		// Get cargo space from ship type
+		cargoSpace := 100 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			cargoSpace = shipType.CargoSpace
+		}
 		cargoUsed := m.currentShip.GetCargoUsed()
-		s += fmt.Sprintf("Cargo: %s / 100\n\n", statsStyle.Render(fmt.Sprintf("%d", cargoUsed)))
+		s += fmt.Sprintf("Cargo: %s / %d\n\n", statsStyle.Render(fmt.Sprintf("%d", cargoUsed)), cargoSpace)
 	}
 
 	// Market table header
@@ -335,8 +341,14 @@ func (m Model) viewBuyInterface() string {
 
 	// Cargo space
 	if m.currentShip != nil {
+		// Get cargo space from ship type
+		cargoSpace := 100 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			cargoSpace = shipType.CargoSpace
+		}
 		cargoUsed := m.currentShip.GetCargoUsed()
-		cargoAvailable := 100 - cargoUsed // TODO: Get from ship type
+		cargoAvailable := cargoSpace - cargoUsed
 		if m.trading.quantity > cargoAvailable {
 			s += errorStyle.Render(fmt.Sprintf("Insufficient cargo space (have %d)\n", cargoAvailable))
 		}
@@ -398,12 +410,32 @@ func (m Model) viewSellInterface() string {
 // loadTradingMarket loads market data for the current location
 func (m Model) loadTradingMarket() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Determine current planet from player location
-		// For now, return placeholder
-		// In real implementation, check if player is docked at a planet
-		// and load that planet's market data
+		ctx := context.Background()
 
-		// Placeholder: return all commodities
+		// Determine current planet from player location
+		if m.player.CurrentPlanet == nil {
+			return marketLoadedMsg{
+				err: fmt.Errorf("not docked at a planet - cannot access market"),
+			}
+		}
+
+		// Load planet data
+		planet, err := m.systemRepo.GetPlanetByID(ctx, *m.player.CurrentPlanet)
+		if err != nil {
+			return marketLoadedMsg{
+				err: fmt.Errorf("failed to load planet data: %w", err),
+			}
+		}
+
+		// Load market prices for this planet
+		prices, err := m.marketRepo.GetMarketPricesForPlanet(ctx, planet.ID)
+		if err != nil {
+			return marketLoadedMsg{
+				err: fmt.Errorf("failed to load market prices: %w", err),
+			}
+		}
+
+		// Get all commodities
 		commodities := models.StandardCommodities
 
 		// Sort by category
@@ -416,6 +448,8 @@ func (m Model) loadTradingMarket() tea.Cmd {
 
 		return marketLoadedMsg{
 			commodities: commodities,
+			prices:      prices,
+			planet:      planet,
 			err:         nil,
 		}
 	}
@@ -476,8 +510,13 @@ func (m Model) executeBuy() tea.Cmd {
 		}
 
 		// Validate cargo space
+		cargoSpace := 100 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			cargoSpace = shipType.CargoSpace
+		}
 		cargoUsed := m.currentShip.GetCargoUsed()
-		cargoAvailable := 100 - cargoUsed // TODO: Get from ship type
+		cargoAvailable := cargoSpace - cargoUsed
 		if m.trading.quantity > cargoAvailable {
 			return tradeCompleteMsg{
 				success: false,
@@ -528,7 +567,7 @@ func (m Model) executeBuy() tea.Cmd {
 		err = m.marketRepo.UpdateMarketPrice(ctx, price)
 		if err != nil {
 			// Continue anyway - market update failure shouldn't block the trade
-			// TODO: Log this error
+			logger.Warn("Failed to update market price after buy: commodityID=%s, error=%v", m.trading.selectedCommodity.ID, err)
 		}
 
 		// Update local player state
@@ -635,7 +674,7 @@ func (m Model) executeSell() tea.Cmd {
 		err = m.marketRepo.UpdateMarketPrice(ctx, price)
 		if err != nil {
 			// Continue anyway - market update failure shouldn't block the trade
-			// TODO: Log this error
+			logger.Warn("Failed to update market price after sell: commodityID=%s, error=%v", m.trading.selectedCommodity.ID, err)
 		}
 
 		// Update local player state

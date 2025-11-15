@@ -1,7 +1,7 @@
 // File: internal/database/ship_repository.go
 // Project: Terminal Velocity
 // Description: Database repository for ship_repository
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -64,6 +64,12 @@ func (r *ShipRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Shi
 	ship.Weapons, err = r.loadWeapons(ctx, ship.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load weapons: %w", err)
+	}
+
+	// Load weapon ammo
+	ship.WeaponAmmo, err = r.loadWeaponAmmo(ctx, ship.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load weapon ammo: %w", err)
 	}
 
 	// Load outfits
@@ -219,6 +225,41 @@ func (r *ShipRepository) UpdateFuel(ctx context.Context, shipID uuid.UUID, fuel 
 	return nil
 }
 
+// UpdateWeaponAmmo updates the ammo count for a specific weapon slot
+func (r *ShipRepository) UpdateWeaponAmmo(ctx context.Context, shipID uuid.UUID, slotIndex, ammo int) error {
+	query := `
+		UPDATE ship_weapons
+		SET current_ammo = $1
+		WHERE ship_id = $2 AND slot_index = $3
+	`
+
+	result, err := r.db.ExecContext(ctx, query, ammo, shipID, slotIndex)
+	if err != nil {
+		return fmt.Errorf("failed to update weapon ammo: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("weapon slot not found")
+	}
+
+	return nil
+}
+
+// UpdateAllWeaponAmmo updates ammo for all weapons on a ship
+func (r *ShipRepository) UpdateAllWeaponAmmo(ctx context.Context, shipID uuid.UUID, weaponAmmo map[int]int) error {
+	for slotIndex, ammo := range weaponAmmo {
+		if err := r.UpdateWeaponAmmo(ctx, shipID, slotIndex, ammo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // UpdateHullAndShields updates a ship's hull and shields (combat damage)
 func (r *ShipRepository) UpdateHullAndShields(ctx context.Context, shipID uuid.UUID, hull, shields int) error {
 	query := `
@@ -354,7 +395,7 @@ func (r *ShipRepository) loadWeapons(ctx context.Context, shipID uuid.UUID) ([]s
 		SELECT weapon_id
 		FROM ship_weapons
 		WHERE ship_id = $1
-		ORDER BY weapon_id
+		ORDER BY slot_index
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, shipID)
@@ -377,6 +418,36 @@ func (r *ShipRepository) loadWeapons(ctx context.Context, shipID uuid.UUID) ([]s
 	}
 
 	return weapons, nil
+}
+
+// loadWeaponAmmo loads ammo counts for a ship's weapons
+func (r *ShipRepository) loadWeaponAmmo(ctx context.Context, shipID uuid.UUID) (map[int]int, error) {
+	query := `
+		SELECT slot_index, current_ammo
+		FROM ship_weapons
+		WHERE ship_id = $1
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, shipID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	ammo := make(map[int]int)
+	for rows.Next() {
+		var slotIndex, currentAmmo int
+		if err := rows.Scan(&slotIndex, &currentAmmo); err != nil {
+			return nil, err
+		}
+		ammo[slotIndex] = currentAmmo
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return ammo, nil
 }
 
 // loadOutfits loads outfits for a ship

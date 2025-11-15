@@ -1,7 +1,7 @@
 // File: internal/tui/landing.go
 // Project: Terminal Velocity
 // Description: Planetary landing screen with services menu
-// Version: 1.0.0
+// Version: 1.0.1
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -200,9 +201,11 @@ func (m Model) refuelShipCmd() tea.Cmd {
 		}
 
 		// Get ship type to determine max fuel
-		// For now, assume max fuel is 300 (we'll need to load ship type from DB later)
-		// TODO: Load ship type from database to get actual MaxFuel value
-		maxFuel := 300
+		maxFuel := 300 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			maxFuel = shipType.MaxFuel
+		}
 		currentFuel := m.currentShip.Fuel
 
 		// Calculate fuel needed
@@ -277,10 +280,13 @@ func (m Model) repairShipCmd() tea.Cmd {
 		}
 
 		// Get ship type to determine max hull/shields
-		// For now, assume max values (we'll need to load ship type from DB later)
-		// TODO: Load ship type from database to get actual MaxHull and MaxShields
-		maxHull := 100
-		maxShields := 100
+		maxHull := 100 // Default fallback
+		maxShields := 100 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			maxHull = shipType.MaxHull
+			maxShields = shipType.MaxShields
+		}
 		currentHull := m.currentShip.Hull
 		currentShields := m.currentShip.Shields
 

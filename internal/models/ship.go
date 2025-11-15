@@ -1,7 +1,7 @@
 // File: internal/models/ship.go
 // Project: Terminal Velocity
 // Description: Data models for ship
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -29,8 +29,9 @@ type Ship struct {
 	Crew int `json:"crew"`
 
 	// Installed equipment (IDs of outfits)
-	Weapons []string `json:"weapons"`
-	Outfits []string `json:"outfits"`
+	Weapons    []string   `json:"weapons"`
+	WeaponAmmo map[int]int `json:"weapon_ammo,omitempty"` // Ammo by slot index
+	Outfits    []string   `json:"outfits"`
 }
 
 // ShipType defines a class of ship
@@ -171,4 +172,87 @@ func (s *Ship) GetCommodityQuantity(commodityID string) int {
 		}
 	}
 	return 0
+}
+
+// GetOutfitSpaceUsed returns total outfit space used by installed outfits
+func (s *Ship) GetOutfitSpaceUsed() int {
+	total := 0
+	for _, outfitID := range s.Outfits {
+		outfit := GetOutfitByID(outfitID)
+		if outfit != nil {
+			total += outfit.OutfitSpace
+		}
+	}
+	// Also count weapons
+	for _, weaponID := range s.Weapons {
+		weapon := GetWeaponByID(weaponID)
+		if weapon != nil {
+			total += weapon.OutfitSpace
+		}
+	}
+	return total
+}
+
+// GetOutfitSpaceAvailable returns available outfit space
+func (s *Ship) GetOutfitSpaceAvailable(shipType *ShipType) int {
+	used := s.GetOutfitSpaceUsed()
+	return shipType.OutfitSpace - used
+}
+
+// CanAddOutfit checks if ship has space for an outfit
+func (s *Ship) CanAddOutfit(outfit *Outfit, shipType *ShipType) bool {
+	return s.GetOutfitSpaceAvailable(shipType) >= outfit.OutfitSpace
+}
+
+// CanAddWeapon checks if ship has space for a weapon and weapon slot
+func (s *Ship) CanAddWeapon(weapon *Weapon, shipType *ShipType) bool {
+	// Check weapon slots
+	if len(s.Weapons) >= shipType.WeaponSlots {
+		return false
+	}
+	// Check outfit space
+	return s.GetOutfitSpaceAvailable(shipType) >= weapon.OutfitSpace
+}
+
+// GetWeaponAmmo returns the current ammo for a weapon slot
+func (s *Ship) GetWeaponAmmo(slotIndex int) int {
+	if s.WeaponAmmo == nil {
+		return 0
+	}
+	return s.WeaponAmmo[slotIndex]
+}
+
+// SetWeaponAmmo sets the current ammo for a weapon slot
+func (s *Ship) SetWeaponAmmo(slotIndex, ammo int) {
+	if s.WeaponAmmo == nil {
+		s.WeaponAmmo = make(map[int]int)
+	}
+	s.WeaponAmmo[slotIndex] = ammo
+}
+
+// ConsumeAmmo consumes ammo from a weapon slot (returns false if insufficient)
+func (s *Ship) ConsumeAmmo(slotIndex, amount int) bool {
+	currentAmmo := s.GetWeaponAmmo(slotIndex)
+	if currentAmmo < amount {
+		return false
+	}
+	s.SetWeaponAmmo(slotIndex, currentAmmo-amount)
+	return true
+}
+
+// ReloadWeapon reloads a weapon to full capacity
+func (s *Ship) ReloadWeapon(slotIndex int) {
+	if slotIndex >= 0 && slotIndex < len(s.Weapons) {
+		weapon := GetWeaponByID(s.Weapons[slotIndex])
+		if weapon != nil {
+			s.SetWeaponAmmo(slotIndex, weapon.AmmoCapacity)
+		}
+	}
+}
+
+// ReloadAllWeapons reloads all weapons to full capacity
+func (s *Ship) ReloadAllWeapons() {
+	for i := range s.Weapons {
+		s.ReloadWeapon(i)
+	}
 }

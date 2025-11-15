@@ -468,19 +468,6 @@ func getStatusText(status string) string {
 	}
 }
 
-func formatDuration(d time.Duration) string {
-	if d < 0 {
-		return "EXPIRED"
-	}
-
-	hours := int(d.Hours())
-	if hours >= 24 {
-		days := hours / 24
-		return fmt.Sprintf("%d days", days)
-	}
-	return fmt.Sprintf("%d hours", hours)
-}
-
 func wordWrap(text string, width int) []string {
 	words := strings.Fields(text)
 	if len(words) == 0 {

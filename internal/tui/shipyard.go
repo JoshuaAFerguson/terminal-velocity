@@ -1,7 +1,7 @@
 // File: internal/tui/shipyard.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for shipyard
-// Version: 1.0.0
+// Version: 1.0.1
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -714,15 +714,48 @@ func (m Model) renderUpgradeRecommendation(ship1, ship2 *models.ShipType) string
 // loadShipyard loads available ships at the current location
 func (m Model) loadShipyard() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Determine current planet and tech level
-		// For now, show all ships
+		ctx := context.Background()
 
-		// Filter ships by player's combat rating
+		// Get current planet and tech level
+		var currentPlanet *models.Planet
+		techLevel := 0 // Default tech level if no planet
+
+		if m.player.CurrentPlanet != nil {
+			planet, err := m.systemRepo.GetPlanetByID(ctx, *m.player.CurrentPlanet)
+			if err == nil && planet != nil {
+				currentPlanet = planet
+				techLevel = planet.TechLevel
+			}
+		}
+
+		// Filter ships by player's combat rating and tech level
 		var availableShips []models.ShipType
 		for _, ship := range models.StandardShipTypes {
-			if ship.MinCombatRating <= m.player.CombatRating {
-				availableShips = append(availableShips, ship)
+			// Check combat rating requirement
+			if ship.MinCombatRating > m.player.CombatRating {
+				continue
 			}
+
+			// Check tech level requirement (assume ships have a tech level requirement)
+			// Higher tech level ships require higher tech level planets
+			// Simplified: allow all ships at tech level 7+, progressively fewer at lower levels
+			requiredTechLevel := 0
+			switch ship.Class {
+			case "capital", "cruiser":
+				requiredTechLevel = 7
+			case "destroyer", "corvette":
+				requiredTechLevel = 5
+			case "freighter":
+				requiredTechLevel = 3
+			case "fighter", "shuttle":
+				requiredTechLevel = 1
+			}
+
+			if techLevel < requiredTechLevel {
+				continue
+			}
+
+			availableShips = append(availableShips, ship)
 		}
 
 		// Sort by price
@@ -732,7 +765,7 @@ func (m Model) loadShipyard() tea.Cmd {
 
 		return shipyardLoadedMsg{
 			ships:  availableShips,
-			planet: nil, // TODO: Get current planet
+			planet: currentPlanet,
 			err:    nil,
 		}
 	}

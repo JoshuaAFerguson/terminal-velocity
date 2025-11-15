@@ -1,18 +1,20 @@
 // File: internal/api/server/converters.go
 // Project: Terminal Velocity
 // Description: Converters between database models and API types
-// Version: 1.0.0
+// Version: 1.4.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
 package server
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/api"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
@@ -35,7 +37,7 @@ func convertPlayerToAPI(player *models.Player, ship *models.Ship) *api.PlayerSta
 		Credits:       player.Credits,
 		Fuel:          0, // Fuel is on Ship, not Player
 		CurrentShipID: player.ShipID,
-		LastSave:      time.Now(), // TODO: Add UpdatedAt to Player model
+		LastSave:      player.UpdatedAt,
 	}
 
 	// Convert ship if provided
@@ -61,32 +63,118 @@ func convertShipToAPI(ship *models.Ship) *api.Ship {
 		return nil
 	}
 
+	// Load ship type for stats
+	shipType := models.GetShipTypeByID(ship.TypeID)
+
+	maxHull := int32(0)
+	maxShields := int32(0)
+	maxFuel := int32(0)
+	cargoSpace := int32(0)
+	speed := int32(0)
+	purchasePrice := int64(0)
+	currentValue := int64(0)
+
+	if shipType != nil {
+		maxHull = int32(shipType.MaxHull)
+		maxShields = int32(shipType.MaxShields)
+		maxFuel = int32(shipType.MaxFuel)
+		cargoSpace = int32(shipType.CargoSpace)
+		speed = int32(shipType.Speed)
+		purchasePrice = shipType.Price
+		// Simple depreciation: 80% of purchase price
+		currentValue = int64(float64(shipType.Price) * 0.8)
+	}
+
 	apiShip := &api.Ship{
 		ShipID:        ship.ID,
 		ShipType:      ship.TypeID,
 		CustomName:    ship.Name,
 		Hull:          int32(ship.Hull),
-		MaxHull:       0, // TODO: Get from ShipType
+		MaxHull:       maxHull,
 		Shields:       int32(ship.Shields),
-		MaxShields:    0, // TODO: Get from ShipType
+		MaxShields:    maxShields,
 		Fuel:          int32(ship.Fuel),
-		MaxFuel:       0,  // TODO: Get from ShipType
-		CargoSpace:    0,  // TODO: Get from ShipType
+		MaxFuel:       maxFuel,
+		CargoSpace:    cargoSpace,
 		CargoUsed:     int32(ship.GetCargoUsed()),
-		Speed:         0,  // TODO: Get from ShipType
-		Acceleration:  0,  // Not in model
-		TurnRate:      0,  // Not in model
-		PurchasePrice: 0,  // TODO: Get from ShipType
-		CurrentValue:  0,  // TODO: Calculate depreciation
-		Weapons:       make([]*api.Weapon, 0),
-		Outfits:       make([]*api.Outfit, 0),
+		Speed:         float64(speed),
+		Acceleration:  0, // Not currently modeled
+		TurnRate:      0, // Not currently modeled
+		PurchasePrice: purchasePrice,
+		CurrentValue:  currentValue,
+		Weapons:       convertWeaponsToAPI(ship.Weapons, ship.WeaponAmmo),
+		Outfits:       convertOutfitsToAPI(ship.Outfits),
 	}
 
-	// Ship.Weapons and Ship.Outfits are just string IDs, not full objects
-	// TODO: Load actual weapon and outfit data from repositories if needed
-	// For now, just return the basic ship info
-
 	return apiShip
+}
+
+// convertWeaponsToAPI converts weapon IDs to API Weapon objects
+func convertWeaponsToAPI(weaponIDs []string, weaponAmmo map[int]int) []*api.Weapon {
+	weapons := make([]*api.Weapon, 0, len(weaponIDs))
+	for slotIndex, weaponID := range weaponIDs {
+		weapon := models.GetWeaponByID(weaponID)
+		if weapon != nil {
+			// Get current ammo for this weapon slot
+			currentAmmo := 0
+			if weaponAmmo != nil {
+				if ammo, ok := weaponAmmo[slotIndex]; ok {
+					currentAmmo = ammo
+				}
+			}
+
+			weapons = append(weapons, &api.Weapon{
+				WeaponID:   weapon.ID,
+				WeaponType: weapon.Type,
+				Damage:     int32(weapon.Damage),
+				Range:      int32(weapon.RangeValue),
+				Accuracy:   float64(weapon.Accuracy),
+				Ammo:       int32(currentAmmo),
+				MaxAmmo:    int32(weapon.AmmoCapacity),
+				Cooldown:   int32(weapon.Cooldown),
+			})
+		}
+	}
+	return weapons
+}
+
+// convertOutfitsToAPI converts outfit IDs to API Outfit objects
+func convertOutfitsToAPI(outfitIDs []string) []*api.Outfit {
+	outfits := make([]*api.Outfit, 0, len(outfitIDs))
+	for _, outfitID := range outfitIDs {
+		outfit := models.GetOutfitByID(outfitID)
+		if outfit != nil {
+			outfits = append(outfits, &api.Outfit{
+				OutfitID:    outfit.ID,
+				OutfitType:  outfit.Type,
+				Name:        outfit.Name,
+				Description: outfit.Description,
+				Modifiers:   convertOutfitModifiers(outfit),
+			})
+		}
+	}
+	return outfits
+}
+
+// convertOutfitModifiers converts outfit bonuses to API format
+func convertOutfitModifiers(outfit *models.Outfit) map[string]int32 {
+	modifiers := make(map[string]int32)
+	if outfit.ShieldBonus > 0 {
+		modifiers["shield_bonus"] = int32(outfit.ShieldBonus)
+	}
+	if outfit.HullBonus > 0 {
+		modifiers["hull_bonus"] = int32(outfit.HullBonus)
+	}
+	if outfit.CargoBonus > 0 {
+		modifiers["cargo_bonus"] = int32(outfit.CargoBonus)
+	}
+	if outfit.FuelBonus > 0 {
+		modifiers["fuel_bonus"] = int32(outfit.FuelBonus)
+	}
+	if outfit.SpeedBonus > 0 {
+		modifiers["speed_bonus"] = int32(outfit.SpeedBonus)
+	}
+	return modifiers
 }
 
 // convertInventoryToAPI converts ship cargo to API Inventory
@@ -95,10 +183,17 @@ func convertInventoryToAPI(ship *models.Ship) *api.Inventory {
 		return nil
 	}
 
+	// Get ship type for cargo space
+	shipType := models.GetShipTypeByID(ship.TypeID)
+	totalCargoSpace := int32(0)
+	if shipType != nil {
+		totalCargoSpace = int32(shipType.CargoSpace)
+	}
+
 	inventory := &api.Inventory{
 		Cargo:           make(map[string]int32),
 		Items:           make([]*api.Item, 0),
-		TotalCargoSpace: 0, // TODO: Get from ShipType
+		TotalCargoSpace: totalCargoSpace,
 		CargoUsed:       int32(ship.GetCargoUsed()),
 	}
 
@@ -107,8 +202,7 @@ func convertInventoryToAPI(ship *models.Ship) *api.Inventory {
 		inventory.Cargo[cargoItem.CommodityID] = int32(cargoItem.Quantity)
 	}
 
-	// TODO: Convert items when item system is implemented
-	// For now, items array is empty
+	// Items array empty (item system not yet implemented)
 
 	return inventory
 }
@@ -120,15 +214,15 @@ func convertPlayerStatsToAPI(player *models.Player) *api.PlayerStats {
 	}
 
 	return &api.PlayerStats{
-		Level:              0, // TODO: Add Level to Player model
-		Experience:         0, // TODO: Add Experience to Player model
+		Level:              int32(player.Level),
+		Experience:         player.Experience,
 		TotalCreditsEarned: player.TradeProfit, // Using TradeProfit as proxy
 		CombatRating:       int32(player.CombatRating),
 		TradeRating:        int32(player.TradingRating),
 		ExplorationRating:  int32(player.ExplorationRating),
 		ShipsDestroyed:     int32(player.TotalKills),
 		MissionsCompleted:  int32(player.MissionsCompleted),
-		QuestsCompleted:    0, // TODO: Add QuestsCompleted to Player model
+		QuestsCompleted:    int32(player.QuestsCompleted),
 		SystemsVisited:     int32(player.SystemsVisited),
 		JumpsMade:          int32(player.TotalJumps),
 		AccountCreated:     player.CreatedAt,
@@ -144,8 +238,8 @@ func convertReputationToAPI(player *models.Player) *api.ReputationInfo {
 
 	reputation := &api.ReputationInfo{
 		FactionReputation: make(map[string]int32),
-		LegalStatus:       "citizen", // TODO: Add LegalStatus to Player model
-		Bounty:            0,          // TODO: Add Bounty to Player model
+		LegalStatus:       player.LegalStatus,
+		Bounty:            player.Bounty,
 	}
 
 	// Convert faction reputation (Player.Reputation is map[string]int)
@@ -153,16 +247,11 @@ func convertReputationToAPI(player *models.Player) *api.ReputationInfo {
 		reputation.FactionReputation[faction] = int32(rep)
 	}
 
-	// Criminal status
-	if player.IsCriminal {
-		reputation.LegalStatus = "criminal"
-	}
-
 	return reputation
 }
 
 // convertMarketToAPI converts database market data to API Market
-func convertMarketToAPI(prices []models.MarketPrice, commodities map[string]*models.Commodity) *api.Market {
+func convertMarketToAPI(prices []models.MarketPrice, commodities map[string]*models.Commodity, governmentID string) *api.Market {
 	market := &api.Market{
 		Commodities: make([]*api.CommodityListing, 0, len(prices)),
 		// LastUpdated will be set from latest price update
@@ -174,13 +263,24 @@ func convertMarketToAPI(prices []models.MarketPrice, commodities map[string]*mod
 			continue // Skip if commodity definition not found
 		}
 
+		// Check if commodity is illegal in this system's government
+		isIllegal := false
+		if governmentID != "" {
+			for _, illegalGov := range commodity.IllegalIn {
+				if illegalGov == governmentID {
+					isIllegal = true
+					break
+				}
+			}
+		}
+
 		market.Commodities = append(market.Commodities, &api.CommodityListing{
 			CommodityID: price.CommodityID,
 			Name:        commodity.Name,
 			BuyPrice:    int32(price.BuyPrice),
 			SellPrice:   int32(price.SellPrice),
 			Stock:       int32(price.Stock),
-			IsIllegal:   false, // TODO: Check if commodity is illegal in this system
+			IsIllegal:   isIllegal,
 		})
 	}
 
@@ -188,7 +288,7 @@ func convertMarketToAPI(prices []models.MarketPrice, commodities map[string]*mod
 }
 
 // convertPlanetToAPI converts database planet to API Planet
-func convertPlanetToAPI(planet *models.Planet) *api.Planet {
+func convertPlanetToAPI(planet *models.Planet, governmentID string) *api.Planet {
 	if planet == nil {
 		return nil
 	}
@@ -200,15 +300,37 @@ func convertPlanetToAPI(planet *models.Planet) *api.Planet {
 		SystemID:    planet.SystemID,
 		Services:    planet.Services,
 		TechLevel:   int32(planet.TechLevel),
-		Government:  "", // TODO: Get government from StarSystem
+		Government:  governmentID,
 		Population:  planet.Population,
 	}
 }
 
 // convertMissionToAPI converts database mission to API Mission
-func convertMissionToAPI(mission *models.Mission) *api.Mission {
+func convertMissionToAPI(mission *models.Mission, systemRepo *database.SystemRepository, ctx context.Context) *api.Mission {
 	if mission == nil {
 		return nil
+	}
+
+	// Calculate total reputation reward
+	var reputationTotal int32
+	for _, repChange := range mission.ReputationChange {
+		reputationTotal += int32(repChange)
+	}
+
+	// Look up origin planet to get system ID
+	originSystemID := uuid.Nil
+	if mission.OriginPlanet != uuid.Nil {
+		if originPlanet, err := systemRepo.GetPlanetByID(ctx, mission.OriginPlanet); err == nil && originPlanet != nil {
+			originSystemID = originPlanet.SystemID
+		}
+	}
+
+	// Look up destination planet to get system ID (if destination is a planet)
+	destinationSystemID := uuid.Nil
+	if mission.Destination != nil && *mission.Destination != uuid.Nil {
+		if destPlanet, err := systemRepo.GetPlanetByID(ctx, *mission.Destination); err == nil && destPlanet != nil {
+			destinationSystemID = destPlanet.SystemID
+		}
 	}
 
 	apiMission := &api.Mission{
@@ -216,9 +338,9 @@ func convertMissionToAPI(mission *models.Mission) *api.Mission {
 		Title:               mission.Title,
 		Description:         mission.Description,
 		RewardCredits:       mission.Reward,
-		RewardReputation:    0, // TODO: Sum reputation changes
-		OriginSystemID:      uuid.Nil, // TODO: Get system from OriginPlanet
-		DestinationSystemID: uuid.Nil, // TODO: Get from Destination
+		RewardReputation:    reputationTotal,
+		OriginSystemID:      originSystemID,
+		DestinationSystemID: destinationSystemID,
 		Deadline:            mission.Deadline,
 		ProgressCurrent:     int32(mission.Progress),
 		ProgressRequired:    int32(mission.Quantity),
@@ -290,11 +412,77 @@ func convertQuestToAPI(quest *models.Quest) *api.Quest {
 	// For now, assume all quests are available
 	apiQuest.Status = api.QuestStatusAvailable
 
-	// TODO: Convert objectives - Quest.Objectives structure is complex
-	// For now, return empty array as these are placeholder converters
+	// Convert objectives from quest.Objectives array
+	for _, obj := range quest.Objectives {
+		if obj != nil {
+			apiObjective := &api.QuestObjective{
+				ObjectiveID:      obj.ID,
+				Description:      obj.Description,
+				ProgressCurrent:  int32(obj.Current),
+				ProgressRequired: int32(obj.Required),
+				Completed:        obj.Completed,
+			}
 
-	// TODO: Convert rewards - Quest.Rewards is QuestReward (singular struct), not array
-	// apiQuest.Rewards should include credits from quest.Rewards.Credits, etc.
+			// Convert objective type
+			switch obj.Type {
+			case models.ObjectiveKill, models.ObjectiveDestroy:
+				apiObjective.Type = api.ObjectiveTypeDestroy
+			case models.ObjectiveDeliver:
+				apiObjective.Type = api.ObjectiveTypeDeliver
+			case models.ObjectiveTravel, models.ObjectiveInvestigate:
+				apiObjective.Type = api.ObjectiveTypeTravel
+			case models.ObjectiveCollect, models.ObjectiveMine:
+				apiObjective.Type = api.ObjectiveTypeCollect
+			default:
+				apiObjective.Type = api.ObjectiveTypeDeliver
+			}
+
+			apiQuest.Objectives = append(apiQuest.Objectives, apiObjective)
+		}
+	}
+
+	// Convert rewards from quest.Rewards (singular struct)
+	if quest.Rewards.Credits > 0 {
+		apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+			Type:  api.RewardTypeCredits,
+			Value: quest.Rewards.Credits,
+		})
+	}
+
+	if quest.Rewards.Experience > 0 {
+		apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+			Type:  api.RewardTypeExperience,
+			Value: int64(quest.Rewards.Experience),
+		})
+	}
+
+	// Add reputation rewards
+	for _, amount := range quest.Rewards.Reputation {
+		if amount != 0 {
+			apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+				Type:  api.RewardTypeReputation,
+				Value: int64(amount),
+			})
+		}
+	}
+
+	// Add item rewards
+	for itemID, quantity := range quest.Rewards.Items {
+		apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+			Type:   api.RewardTypeItem,
+			ItemID: itemID,
+			Value:  int64(quantity),
+		})
+	}
+
+	// Add special rewards
+	if quest.Rewards.ShipUnlock != "" {
+		apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+			Type:   api.RewardTypeUnlock,
+			ItemID: quest.Rewards.ShipUnlock,
+			Value:  1,
+		})
+	}
 
 	return apiQuest
 }

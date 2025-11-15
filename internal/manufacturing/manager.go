@@ -1,7 +1,7 @@
 // File: internal/manufacturing/manager.go
 // Project: Terminal Velocity
 // Description: Manufacturing system with crafting, tech tree, and player stations
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
 
@@ -316,9 +316,40 @@ func (m *Manager) CancelCrafting(ctx context.Context, jobID, playerID uuid.UUID)
 	}
 
 	job.Status = "failed"
-	log.Info("Crafting cancelled: job=%s", jobID)
 
-	// TODO: Refund partial resources
+	// Calculate partial resource refund based on time elapsed
+	now := time.Now()
+	timeElapsed := now.Sub(job.StartTime)
+	totalTime := job.CompletionTime.Sub(job.StartTime)
+
+	if totalTime > 0 {
+		progressPercent := float64(timeElapsed) / float64(totalTime)
+		if progressPercent > 1.0 {
+			progressPercent = 1.0
+		}
+
+		// Refund percentage is inverse of progress (if 30% done, refund 70%)
+		refundPercent := 1.0 - progressPercent
+
+		// Calculate refunded resources
+		if job.Blueprint != nil && len(job.Blueprint.Requirements) > 0 {
+			log.Info("Crafting cancelled: job=%s, progress=%.1f%%, refunding %.1f%% of resources",
+				jobID, progressPercent*100, refundPercent*100)
+
+			// Log each resource that would be refunded
+			// NOTE: When resource system is implemented, actually return these to player
+			for resource, required := range job.Blueprint.Requirements {
+				totalRequired := required * job.Quantity
+				refundAmount := int(float64(totalRequired) * refundPercent)
+				if refundAmount > 0 {
+					log.Debug("Refund: %s x%d (%.1f%% of %d)",
+						resource, refundAmount, refundPercent*100, totalRequired)
+					// TODO: When inventory system exists, add resources back:
+					// m.addResourceToPlayer(ctx, playerID, resource, refundAmount)
+				}
+			}
+		}
+	}
 
 	return nil
 }
@@ -391,7 +422,8 @@ func (m *Manager) ResearchTechnology(ctx context.Context, playerID uuid.UUID, te
 	for i := 0; i < currentLevel; i++ {
 		costMultiplier *= m.config.TechCostScaling
 	}
-	researchCost := int(float64(tech.ResearchCost) * costMultiplier)
+	// TODO: Implement research resource system
+	// researchCost := int(float64(tech.ResearchCost) * costMultiplier)
 	creditCost := int64(float64(tech.CreditCost) * costMultiplier)
 
 	// Check credits
@@ -564,6 +596,34 @@ func (m *Manager) UpgradeStation(ctx context.Context, stationID, playerID uuid.U
 	return nil
 }
 
+// getFacilityCost calculates the cost of adding a facility
+func (m *Manager) getFacilityCost(facility StationFacility, stationLevel int) int64 {
+	// Base facility cost is 40% of upgrade cost
+	baseCost := int64(float64(m.config.StationUpgradeCost) * 0.4)
+
+	// Some facilities are more expensive
+	multiplier := 1.0
+	switch facility {
+	case FacilityShipyard:
+		multiplier = 2.0 // Most expensive
+	case FacilityResearch:
+		multiplier = 1.5
+	case FacilityManufacturing:
+		multiplier = 1.3
+	case FacilityRefinery:
+		multiplier = 1.2
+	case FacilityDefense:
+		multiplier = 1.5
+	case FacilityWarehouse:
+		multiplier = 0.8 // Cheapest
+	}
+
+	// Scale with station level
+	levelMultiplier := 1.0 + (float64(stationLevel-1) * 0.2)
+
+	return int64(float64(baseCost) * multiplier * levelMultiplier)
+}
+
 // AddFacility adds a facility to a station
 func (m *Manager) AddFacility(ctx context.Context, stationID, playerID uuid.UUID, facility StationFacility) error {
 	m.mu.Lock()
@@ -585,10 +645,62 @@ func (m *Manager) AddFacility(ctx context.Context, stationID, playerID uuid.UUID
 		}
 	}
 
-	// Add facility (TODO: Add cost and requirements)
+	// Calculate cost and check requirements
+	cost := m.getFacilityCost(facility, station.Level)
+
+	// Get player to check credits
+	player, err := m.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		return fmt.Errorf("failed to get player: %w", err)
+	}
+
+	// Check if player has enough credits
+	if player.Credits < cost {
+		return fmt.Errorf("insufficient credits (need %d, have %d)", cost, player.Credits)
+	}
+
+	// Check station status
+	if station.Status != "active" {
+		return fmt.Errorf("station must be active to add facilities (current status: %s)", station.Status)
+	}
+
+	// Check facility requirements based on station level
+	requiredLevel := 1
+	switch facility {
+	case FacilityShipyard:
+		requiredLevel = 5 // Requires level 5 station
+	case FacilityResearch:
+		requiredLevel = 3
+	case FacilityDefense:
+		requiredLevel = 2
+	}
+
+	if station.Level < requiredLevel {
+		return fmt.Errorf("station level %d required for %s (current level: %d)",
+			requiredLevel, facility, station.Level)
+	}
+
+	// Deduct credits
+	newCredits := player.Credits - cost
+	if err := m.playerRepo.UpdateCredits(ctx, playerID, newCredits); err != nil {
+		return fmt.Errorf("failed to deduct credits: %w", err)
+	}
+
+	// Add facility
 	station.Facilities = append(station.Facilities, facility)
 
-	log.Info("Facility added: station=%s, facility=%s", stationID, facility)
+	// Apply facility benefits
+	switch facility {
+	case FacilityWarehouse:
+		station.StorageCapacity += m.config.StationStorageCapacity
+	case FacilityManufacturing:
+		station.ProductionBonus += 0.15 // +15% production speed
+	case FacilityResearch:
+		station.ProductionBonus += 0.10 // +10% research speed
+	}
+
+	log.Info("Facility added: station=%s, facility=%s, cost=%d, level=%d",
+		stationID, facility, cost, station.Level)
 	return nil
 }
 

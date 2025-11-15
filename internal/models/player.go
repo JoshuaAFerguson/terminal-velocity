@@ -67,6 +67,22 @@ type Player struct {
 	MissionsCompleted int `json:"missions_completed"`
 	MissionsFailed    int `json:"missions_failed"`
 
+	// Progression - Quests
+	QuestsCompleted int `json:"quests_completed"`
+
+	// Progression - Capture
+	TotalCaptureAttempts int `json:"total_capture_attempts"`
+	SuccessfulBoards     int `json:"successful_boards"`
+	SuccessfulCaptures   int `json:"successful_captures"`
+
+	// Progression - Mining
+	TotalMiningOps int   `json:"total_mining_ops"`
+	TotalYield     int64 `json:"total_yield"` // Total resources mined
+
+	// Progression - Overall
+	Level      int   `json:"level"`       // Overall player level (1-100)
+	Experience int64 `json:"experience"`  // Experience points for leveling
+
 	// Reputation with NPC factions (-100 to +100)
 	Reputation map[string]int `json:"reputation"`
 
@@ -74,9 +90,14 @@ type Player struct {
 	FactionID   *uuid.UUID `json:"faction_id,omitempty"`
 	FactionRank string     `json:"faction_rank,omitempty"`
 
+	// Legal status
+	LegalStatus string `json:"legal_status"` // "citizen", "outlaw", "pirate", "wanted", "hostile"
+	Bounty      int64  `json:"bounty"`       // Bounty on player's head (credits)
+
 	// Status
-	IsOnline   bool `json:"is_online"`
-	IsCriminal bool `json:"is_criminal"`
+	IsOnline   bool      `json:"is_online"`
+	IsCriminal bool      `json:"is_criminal"` // Deprecated: use LegalStatus instead
+	UpdatedAt  time.Time `json:"updated_at"`  // Last update timestamp
 }
 
 // SSHKey represents an SSH public key for player authentication
@@ -135,9 +156,31 @@ func NewPlayer(username, passwordHash string) *Player {
 		MissionsCompleted: 0,
 		MissionsFailed:    0,
 
+		// Quest progression
+		QuestsCompleted: 0,
+
+		// Capture progression
+		TotalCaptureAttempts: 0,
+		SuccessfulBoards:     0,
+		SuccessfulCaptures:   0,
+
+		// Mining progression
+		TotalMiningOps: 0,
+		TotalYield:     0,
+
+		// Overall progression
+		Level:      1,  // Start at level 1
+		Experience: 0,  // No experience yet
+
 		Reputation: make(map[string]int),
+
+		// Legal status
+		LegalStatus: "citizen",  // Start as citizen
+		Bounty:      0,           // No bounty
+
 		IsOnline:   false,
 		IsCriminal: false,
+		UpdatedAt:  now,
 	}
 }
 
@@ -431,6 +474,30 @@ func (p *Player) RecordMissionCompletion() {
 // RecordMissionFailure updates mission statistics after failing a mission.
 func (p *Player) RecordMissionFailure() {
 	p.MissionsFailed++
+}
+
+// RecordCaptureAttempt updates capture statistics when attempting to board a ship.
+func (p *Player) RecordCaptureAttempt() {
+	p.TotalCaptureAttempts++
+}
+
+// RecordSuccessfulBoard updates capture statistics after successfully boarding a ship.
+func (p *Player) RecordSuccessfulBoard() {
+	p.SuccessfulBoards++
+}
+
+// RecordSuccessfulCapture updates capture statistics after successfully capturing a ship.
+func (p *Player) RecordSuccessfulCapture() {
+	p.SuccessfulCaptures++
+}
+
+// RecordMiningOperation updates mining statistics after completing a mining operation.
+//
+// Parameters:
+//   - yield: The amount of resources mined
+func (p *Player) RecordMiningOperation(yield int64) {
+	p.TotalMiningOps++
+	p.TotalYield += yield
 }
 
 // GetOverallRank returns a combined rank based on all progression categories.

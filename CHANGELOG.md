@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (2025-11-15 - TUI Integration & Compilation Fixes)
+- **TUI Integration Complete**:
+  - Integrated Fleet screen into main TUI model with full routing
+  - Integrated Friends screen into main TUI model with full routing
+  - Integrated Marketplace screen into main TUI model with full routing
+  - Integrated Notifications screen into main TUI model with full routing
+  - Added `ScreenFleet`, `ScreenFriends`, `ScreenMarketplace`, `ScreenNotifications` to Screen enum
+  - Added fleet, friends, marketplace, and notifications state fields to Model struct
+  - All 26+ TUI screens now fully integrated and accessible
+
+- **Code Deduplication**:
+  - Created `internal/tui/utils.go` with shared helper functions
+  - Extracted `truncate()` helper (used in admin.go, marketplace.go)
+  - Extracted `formatDuration()` helper (used in marketplace.go, missions.go)
+  - Extracted `wrapText()` helper (used in marketplace.go, tutorial.go)
+  - Eliminated all duplicate function declarations
+
+- **Mail System Integration**:
+  - Fixed Mail struct field name mismatches (.To → .ReceiverID, .From → .SenderID, .Read → .IsRead)
+  - Updated all mail.go references to use correct field names
+  - Added SocialRepository to server and TUI model for proper architecture
+  - Fixed GetInbox() API call (removed offset parameter, added type conversion)
+  - Changed GetSent() to use mailRepo for specialized operations
+  - Fixed SendMail() call signature with wrapper functions for player lookup and block checking
+
+- **Repository Architecture**:
+  - Added `socialRepo *database.SocialRepository` to server struct
+  - Added `socialRepo *database.SocialRepository` to TUI Model struct
+  - Updated NewModel() signature to accept socialRepo parameter
+  - Updated NewLoginModel() signature to accept socialRepo parameter
+  - Mail manager now correctly uses SocialRepository
+  - Kept MailRepository for specialized inbox/sent operations
+
+- **Test Compilation Fixes**:
+  - **chat_test.go**: Fixed time.Time type mismatches
+    - Added missing "time" import
+    - Changed `Timestamp: 0` to `Timestamp: time.Now()`
+    - Changed `Timestamp: int64(i)` to `Timestamp: baseTime.Add(Duration)`
+    - All 4 concurrency tests now compile correctly
+  - **transaction_test.go**: Fixed undefined function
+    - Changed `DefaultTestConfig()` to `DefaultConfig()` (correct function name)
+    - Fixed both TestTransactionAtomicity and TestConcurrentTransactions
+  - **input_validation_test.go**: Fixed missing imports and type assertions
+    - Added missing `tea` (bubbletea) import
+    - Fixed type assertion: `m = updatedModel.(Model)`
+    - Properly handles tea.Model interface → Model struct conversion
+  - **fleet.go**: Fixed format specifiers
+    - Changed `%7.1f` and `%.1f` to `%7d` and `%d` for int fields
+    - Fixed Hull, Shields, Fuel formatting in 3 locations
+
+- **Build System**:
+  - All test files now compile successfully
+  - All TUI files compile with no errors
+  - Entire project builds with `go build ./...` successfully
+  - No duplicate declarations, unused imports, or type mismatches
+
+- **Test Suite Fixes (2025-11-15 - Phase 4)**:
+  - **chat_test.go**: Fixed MaxMessagesPerChannel limit in concurrency test
+    - Increased test limit to 1000 messages to accommodate all test data
+    - Test was incorrectly failing due to intentional 100-message limit
+    - All 4 chat concurrency tests now pass
+  - **input_validation_test.go**: Fixed registration and chat input tests
+    - Updated tests to capture returned Model from handleRegistrationInput()
+    - Fixed type assertions for Bubble Tea Model interface
+    - All 9 input validation tests now pass
+  - **registration.go**: Enhanced ANSI escape sequence filtering
+    - Allow escape character (27) but strip complete ANSI sequences
+    - Added validation.StripANSI() after each character addition
+    - Prevents ANSI escape code injection in email/password fields
+  - **chat.go**: Added ANSI escape sequence filtering to chat input
+    - Added validation.StripANSI() to chat inputBuffer handling
+    - Allow escape character but remove complete ANSI sequences
+    - Added validation package import
+    - Prevents ANSI escape code injection in chat messages
+  - **navigation_test.go**: Fixed Login_to_Registration screen transition test
+    - Changed from setting mainMenu.cursor to loginModel.focusedField
+    - Correctly sets register button field (index 3) for login screen
+    - All 20 screen navigation tests now pass
+  - **Test Results**: All 72 tests passing (4 models + 68 TUI)
+
 ### Added (2025-11-15 - Roadmap Features Implementation)
 - **Social Features System (Phase 9)**:
   - **Friends System**:

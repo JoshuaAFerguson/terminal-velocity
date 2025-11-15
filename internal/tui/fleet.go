@@ -8,11 +8,12 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
@@ -126,15 +127,24 @@ func (m *Model) updateFleetMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 0: // View Fleet Ships
 			m.fleet.mode = fleetModeShips
 			m.fleet.selectedIndex = 0
-			// TODO: Load fleet data from fleet manager
+			// Load fleet data from fleet manager
+			if m.fleetManager != nil {
+				m.fleet.currentFleet = m.fleetManager.GetOrCreateFleet(m.playerID)
+			}
 		case 1: // Stored Ships
 			m.fleet.mode = fleetModeStored
 			m.fleet.selectedIndex = 0
-			// TODO: Load stored ships
+			// Fleet data already includes stored ships
+			if m.fleetManager != nil {
+				m.fleet.currentFleet = m.fleetManager.GetOrCreateFleet(m.playerID)
+			}
 		case 2: // Manage Escorts
 			m.fleet.mode = fleetModeEscorts
 			m.fleet.selectedIndex = 0
-			// TODO: Load escorts
+			// Fleet data already includes escorts
+			if m.fleetManager != nil {
+				m.fleet.currentFleet = m.fleetManager.GetOrCreateFleet(m.playerID)
+			}
 		case 3: // Fleet Formation
 			m.fleet.mode = fleetModeFormation
 			m.fleet.selectedIndex = 0
@@ -143,8 +153,15 @@ func (m *Model) updateFleetMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.fleet.escortName = ""
 			m.fleet.selectedIndex = 0
 		case 5: // Pay Maintenance
-			// TODO: Pay maintenance early
-			m.fleet.message = "Maintenance paid! Escort loyalty increased."
+			// Pay maintenance early
+			if m.fleetManager != nil {
+				err := m.fleetManager.PayMaintenanceEarly(context.Background(), m.playerID)
+				if err != nil {
+					m.fleet.error = fmt.Sprintf("Failed to pay maintenance: %v", err)
+				} else {
+					m.fleet.message = "Maintenance paid! Escort loyalty increased."
+				}
+			}
 		case 6: // Back
 			m.screen = ScreenMainMenu
 		}
@@ -181,9 +198,17 @@ func (m *Model) updateFleetShips(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Switch to this ship as flagship
 		if m.fleet.selectedIndex < len(m.fleet.currentFleet.OwnedShips) {
 			shipID := m.fleet.currentFleet.OwnedShips[m.fleet.selectedIndex].ID
-			// TODO: Call fleet manager to switch flagship
-			m.fleet.message = "Switched to new flagship!"
-			_ = shipID // Placeholder
+			// Call fleet manager to switch flagship
+			if m.fleetManager != nil {
+				err := m.fleetManager.SwitchFlagship(context.Background(), m.playerID, shipID)
+				if err != nil {
+					m.fleet.error = fmt.Sprintf("Failed to switch flagship: %v", err)
+				} else {
+					m.fleet.message = "Switched to new flagship!"
+					// Reload current ship
+					m.currentShip, _ = m.shipRepo.GetByID(context.Background(), shipID)
+				}
+			}
 		}
 	case "t":
 		// Store ship at current planet
@@ -192,8 +217,17 @@ func (m *Model) updateFleetShips(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if shipID == m.fleet.currentFleet.FlagshipID {
 				m.fleet.error = "Cannot store your active flagship!"
 			} else {
-				// TODO: Call fleet manager to store ship
-				m.fleet.message = "Ship stored at current planet"
+				// Call fleet manager to store ship
+				if m.fleetManager != nil && m.player.CurrentPlanet != nil {
+					err := m.fleetManager.StoreShip(context.Background(), m.playerID, shipID, *m.player.CurrentPlanet, "Current Planet")
+					if err != nil {
+						m.fleet.error = fmt.Sprintf("Failed to store ship: %v", err)
+					} else {
+						m.fleet.message = "Ship stored at current planet"
+					}
+				} else {
+					m.fleet.error = "Must be docked at a planet to store ships"
+				}
 			}
 		}
 	case "b", "q", "esc":
@@ -223,8 +257,21 @@ func (m *Model) updateFleetStored(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Retrieve ship (must be at same planet)
 		if m.fleet.selectedIndex < len(m.fleet.currentFleet.StoredShips) {
 			storedShip := m.fleet.currentFleet.StoredShips[m.fleet.selectedIndex]
-			// TODO: Check if at correct planet and retrieve
-			m.fleet.message = fmt.Sprintf("Retrieved ship from %s", storedShip.Location)
+			// Check if at correct planet and retrieve
+			if m.fleetManager != nil && m.player.CurrentPlanet != nil {
+				if storedShip.LocationID == *m.player.CurrentPlanet {
+					err := m.fleetManager.RetrieveShip(context.Background(), m.playerID, storedShip.Ship.ID, *m.player.CurrentPlanet)
+					if err != nil {
+						m.fleet.error = fmt.Sprintf("Failed to retrieve ship: %v", err)
+					} else {
+						m.fleet.message = fmt.Sprintf("Retrieved ship from %s", storedShip.Location)
+					}
+				} else {
+					m.fleet.error = "You must be at the planet where the ship is stored"
+				}
+			} else {
+				m.fleet.error = "Must be docked at a planet to retrieve ships"
+			}
 		}
 	case "b", "q", "esc":
 		m.fleet.mode = fleetModeMenu
@@ -258,8 +305,18 @@ func (m *Model) updateFleetEscorts(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		// Dismiss escort
 		if m.fleet.selectedIndex < len(m.fleet.currentFleet.Escorts) {
-			// TODO: Call fleet manager to dismiss escort
-			m.fleet.message = "Escort dismissed"
+			// Call fleet manager to dismiss escort
+			escort := m.fleet.currentFleet.Escorts[m.fleet.selectedIndex]
+			if m.fleetManager != nil {
+				err := m.fleetManager.DismissEscort(context.Background(), m.playerID, escort.ID)
+				if err != nil {
+					m.fleet.error = fmt.Sprintf("Failed to dismiss escort: %v", err)
+				} else {
+					m.fleet.message = "Escort dismissed"
+					// Reload fleet data
+					m.fleet.currentFleet = m.fleetManager.GetOrCreateFleet(m.playerID)
+				}
+			}
 		}
 	case "1", "2", "3", "4":
 		// Change behavior: 1=Defensive, 2=Aggressive, 3=Passive, 4=Support
@@ -271,8 +328,16 @@ func (m *Model) updateFleetEscorts(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				"4": fleet.BehaviorSupport,
 			}
 			behavior := behaviors[msg.String()]
-			// TODO: Call fleet manager to set behavior
-			m.fleet.message = fmt.Sprintf("Escort behavior set to %s", behavior)
+			// Call fleet manager to set behavior
+			escort := m.fleet.currentFleet.Escorts[m.fleet.selectedIndex]
+			if m.fleetManager != nil {
+				err := m.fleetManager.SetEscortBehavior(m.playerID, escort.ID, behavior)
+				if err != nil {
+					m.fleet.error = fmt.Sprintf("Failed to set behavior: %v", err)
+				} else {
+					m.fleet.message = fmt.Sprintf("Escort behavior set to %s", behavior)
+				}
+			}
 		}
 	case "b", "q", "esc":
 		m.fleet.mode = fleetModeMenu
@@ -294,8 +359,15 @@ func (m *Model) updateFleetFormation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		formation := formationTypes[m.fleet.selectedIndex]
-		// TODO: Call fleet manager to set formation
-		m.fleet.message = fmt.Sprintf("Formation set to %s", formation)
+		// Call fleet manager to set formation
+		if m.fleetManager != nil {
+			err := m.fleetManager.SetFormation(m.playerID, formation)
+			if err != nil {
+				m.fleet.error = fmt.Sprintf("Failed to set formation: %v", err)
+			} else {
+				m.fleet.message = fmt.Sprintf("Formation set to %s", formation)
+			}
+		}
 		m.fleet.mode = fleetModeMenu
 	case "b", "q", "esc":
 		m.fleet.mode = fleetModeMenu
@@ -310,8 +382,29 @@ func (m *Model) updateFleetHireEscort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc", "q":
 		m.fleet.mode = fleetModeMenu
 	case "enter":
-		// TODO: Hire escort with selected ship and behavior
-		m.fleet.message = "Escort hired! They will follow and protect you."
+		// Hire escort with selected ship and behavior
+		if m.fleetManager != nil && m.fleet.escortName != "" {
+			// Create a basic ship for the escort (in a real implementation, this would come from a shipyard selection)
+			escortShip := &models.Ship{
+				ID:      uuid.New(),
+				OwnerID: m.playerID,
+				Name:    "Escort Fighter",
+				TypeID:  "fighter",
+				// Basic stats
+				Hull:    100,
+				Shields: 50,
+				Fuel:    100,
+			}
+			behavior := behaviorTypes[m.fleet.selectedIndex]
+			_, err := m.fleetManager.HireEscort(context.Background(), m.playerID, escortShip, m.fleet.escortName, behavior)
+			if err != nil {
+				m.fleet.error = fmt.Sprintf("Failed to hire escort: %v", err)
+			} else {
+				m.fleet.message = "Escort hired! They will follow and protect you."
+			}
+		} else {
+			m.fleet.error = "Please enter a name for your escort pilot"
+		}
 		m.fleet.mode = fleetModeMenu
 	case "up", "k":
 		if m.fleet.selectedIndex > 0 {
@@ -473,10 +566,13 @@ func (m *Model) viewFleetShips() string {
 			status = "★ FLAGSHIP"
 		}
 
-		// TODO: Get actual ship type name
-		shipType := "Unknown"
+		// Get ship type name from TypeID
+		shipType := ship.TypeID
+		if shipType == "" {
+			shipType = "Unknown"
+		}
 
-		line := fmt.Sprintf("║ %-25s %-15s %7.1f%% %7.1f%% %-10s ║",
+		line := fmt.Sprintf("║ %-25s %-15s %7d%% %7d%% %-10s ║",
 			truncateString(ship.Name, 25),
 			shipType,
 			ship.Hull,
@@ -656,9 +752,9 @@ func (m *Model) viewFleetViewShip() string {
 	b.WriteString(titleStyle.Render("║                   SHIP DETAILS                                        ║") + "\n")
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
 	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Name: %-63s ║", ship.Name)) + "\n")
-	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %.1f%%%-60s ║", ship.Hull, "")) + "\n")
-	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %.1f%%%-57s ║", ship.Shields, "")) + "\n")
-	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Fuel: %.1f%-61s ║", ship.Fuel, "")) + "\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %d%%%-60s ║", ship.Hull, "")) + "\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %d%%%-57s ║", ship.Shields, "")) + "\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Fuel: %d%-61s ║", ship.Fuel, "")) + "\n")
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
 	b.WriteString(titleStyle.Render("║ TODO: Additional ship details and stats                               ║") + "\n")
 
@@ -697,8 +793,8 @@ func (m *Model) viewFleetViewEscort() string {
 
 	if escort.Ship != nil {
 		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Ship: %-63s ║", escort.Ship.Name)) + "\n")
-		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %.1f%%%-60s ║", escort.Ship.Hull, "")) + "\n")
-		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %.1f%%%-57s ║", escort.Ship.Shields, "")) + "\n")
+		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %d%%%-60s ║", escort.Ship.Hull, "")) + "\n")
+		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %d%%%-57s ║", escort.Ship.Shields, "")) + "\n")
 	}
 
 	return b.String()
@@ -716,4 +812,6 @@ func truncateString(s string, maxLen int) string {
 var (
 	fleetCreditStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // Green
 	fleetSelectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("14")) // Cyan
+	resetStyle         = lipgloss.NewStyle()                                  // Reset to default
+	selectedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("14")) // Cyan (alias for fleet selected)
 )

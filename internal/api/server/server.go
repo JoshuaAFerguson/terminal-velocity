@@ -1,7 +1,7 @@
 // File: internal/api/server/server.go
 // Project: Terminal Velocity
 // Description: In-process API server implementation
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/api"
@@ -599,8 +600,16 @@ func (s *GameServer) Land(ctx context.Context, req *api.LandRequest) (*api.LandR
 		}, nil
 	}
 
-	// TODO: Check distance to planet (requires planet X/Y coordinates)
-	// For now, we'll allow landing from anywhere in the system
+	// Check distance to planet (max landing distance: 100 units squared = ~10 unit radius)
+	const maxLandingDistanceSquared = 10000.0
+	distanceSquared := planet.DistanceFrom(player.X, player.Y)
+	if distanceSquared > maxLandingDistanceSquared {
+		return &api.LandResponse{
+			Success: false,
+			Message: fmt.Sprintf("too far from planet (distance: %.1f units). Move closer to land.",
+				math.Sqrt(distanceSquared)),
+		}, nil
+	}
 
 	// Update player location to be docked at planet
 	err = s.playerRepo.UpdateLocation(ctx, req.PlayerID, player.CurrentSystem, &req.PlanetID)
@@ -623,11 +632,18 @@ func (s *GameServer) Land(ctx context.Context, req *api.LandRequest) (*api.LandR
 		}, nil
 	}
 
+	// Load system to get government ID
+	system, err := s.systemRepo.GetSystemByID(ctx, planet.SystemID)
+	if err != nil {
+		// If we can't load the system, use empty government
+		system = &models.StarSystem{GovernmentID: ""}
+	}
+
 	// Return success with updated state
 	return &api.LandResponse{
 		Success:  true,
 		Message:  "landed successfully",
-		Planet:   convertPlanetToAPI(planet),
+		Planet:   convertPlanetToAPI(planet, system.GovernmentID),
 		NewState: convertPlayerToAPI(player, ship),
 	}, nil
 }
@@ -693,6 +709,12 @@ func (s *GameServer) GetMarket(ctx context.Context, systemID uuid.UUID) (*api.Ma
 		return nil, api.ErrInvalidRequest
 	}
 
+	// Get system data for government ID
+	system, err := s.systemRepo.GetSystemByID(ctx, systemID)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get all market prices for planets in this system
 	prices, err := s.marketRepo.GetCommoditiesBySystemID(ctx, systemID)
 	if err != nil {
@@ -706,10 +728,10 @@ func (s *GameServer) GetMarket(ctx context.Context, systemID uuid.UUID) (*api.Ma
 		commodities[commodity.ID] = commodity
 	}
 
-	// Convert to API market
+	// Convert to API market with government ID for illegal commodity checking
 	// Note: This aggregates prices from all planets in the system
 	// In a real implementation, you might want to show the best prices or average prices
-	market := convertMarketToAPI(prices, commodities)
+	market := convertMarketToAPI(prices, commodities, system.GovernmentID)
 	market.SystemID = systemID
 
 	return market, nil
@@ -778,8 +800,23 @@ func (s *GameServer) BuyCommodity(ctx context.Context, req *api.TradeRequest) (*
 		}, nil
 	}
 
-	// TODO: Check cargo space (requires ShipType lookup)
-	// For now, just add to cargo
+	// Check cargo space
+	shipType := models.GetShipTypeByID(ship.TypeID)
+	if shipType == nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "invalid ship type",
+		}, nil
+	}
+
+	if !ship.CanAddCargo(int(req.Quantity), shipType) {
+		cargoUsed := ship.GetCargoUsed()
+		return &api.TradeResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient cargo space (used: %d/%d, need: %d more)",
+				cargoUsed, shipType.CargoSpace, req.Quantity),
+		}, nil
+	}
 
 	// Perform the trade atomically within a transaction
 	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
@@ -1277,8 +1314,27 @@ func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseReque
 		}, nil
 	}
 
-	// TODO: Check outfit space constraints
-	// For now, just add the outfits
+	// Get ship type for outfit space calculations
+	shipType := models.GetShipTypeByID(ship.TypeID)
+	if shipType == nil {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: "invalid ship type",
+		}, nil
+	}
+
+	// Check outfit space constraints
+	totalOutfitSpaceNeeded := outfit.OutfitSpace * int(req.Quantity)
+	spaceAvailable := ship.GetOutfitSpaceAvailable(shipType)
+
+	if spaceAvailable < totalOutfitSpaceNeeded {
+		spaceUsed := ship.GetOutfitSpaceUsed()
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient outfit space (used: %d/%d, need: %d more)",
+				spaceUsed, shipType.OutfitSpace, totalOutfitSpaceNeeded),
+		}, nil
+	}
 
 	// Add outfits to ship
 	for i := 0; i < int(req.Quantity); i++ {
@@ -1320,11 +1376,23 @@ func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseReque
 		}, nil
 	}
 
+	// Convert purchased outfits to API format
+	purchasedOutfits := make([]*api.Outfit, req.Quantity)
+	for i := int32(0); i < req.Quantity; i++ {
+		purchasedOutfits[i] = &api.Outfit{
+			OutfitID:    outfit.ID,
+			OutfitType:  outfit.Type,
+			Name:        outfit.Name,
+			Description: outfit.Description,
+			Modifiers:   convertOutfitModifiers(outfit),
+		}
+	}
+
 	// Return success
 	return &api.OutfitPurchaseResponse{
 		Success:     true,
 		Message:     "outfit(s) purchased successfully",
-		Outfits:     make([]*api.Outfit, 0), // TODO: Convert outfit to API format
+		Outfits:     purchasedOutfits,
 		TotalCost:   totalCost,
 		UpdatedShip: convertShipToAPI(ship),
 	}, nil
@@ -1479,7 +1547,7 @@ func (s *GameServer) GetAvailableMissions(ctx context.Context, playerID uuid.UUI
 	// Convert to API format
 	apiMissions := make([]*api.Mission, 0, len(availableMissions))
 	for _, mission := range availableMissions {
-		apiMissions = append(apiMissions, convertMissionToAPI(mission))
+		apiMissions = append(apiMissions, convertMissionToAPI(mission, s.systemRepo, ctx))
 	}
 
 	return &api.MissionList{
@@ -1536,24 +1604,24 @@ func (s *GameServer) AcceptMission(ctx context.Context, req *api.MissionAcceptRe
 		return nil, api.ErrNotFound
 	}
 
-	return convertMissionToAPI(mission), nil
+	return convertMissionToAPI(mission, s.systemRepo, ctx), nil
 }
 
 // AbandonMission abandons an active mission
 func (s *GameServer) AbandonMission(ctx context.Context, missionID uuid.UUID) error {
-	// TODO: Integrate with missions manager
-	// For now, return error as missions system needs manager integration
-	// When implemented, this should:
-	// 1. Verify mission exists and is active
-	// 2. Update mission status to "failed" or remove it
-	// 3. Apply any reputation penalties
-	// 4. Clean up mission-related state
+	if missionID == uuid.Nil {
+		return api.ErrInvalidRequest
+	}
 
-	// Placeholder: In production, use missions manager
-	// err := s.missionsManager.AbandonMission(missionID)
-	// return err
+	// Use missions manager to fail the mission
+	// Note: Passing nil for player means mission failure won't be recorded on player stats
+	// In a full implementation, the API signature should include playerID to properly track failures
+	err := s.missionMgr.FailMission(missionID, "abandoned by player", nil)
+	if err != nil {
+		return fmt.Errorf("failed to abandon mission: %w", err)
+	}
 
-	return api.ErrNotFound
+	return nil
 }
 
 // GetActiveMissions retrieves player's active missions
@@ -1576,7 +1644,7 @@ func (s *GameServer) GetActiveMissions(ctx context.Context, playerID uuid.UUID) 
 	// Convert to API format
 	apiMissions := make([]*api.Mission, 0, len(activeMissions))
 	for _, mission := range activeMissions {
-		apiMissions = append(apiMissions, convertMissionToAPI(mission))
+		apiMissions = append(apiMissions, convertMissionToAPI(mission, s.systemRepo, ctx))
 	}
 
 	return &api.MissionList{
@@ -1672,8 +1740,28 @@ func (s *GameServer) GetActiveQuests(ctx context.Context, playerID uuid.UUID) (*
 		quest := s.questMgr.GetQuest(playerQuest.QuestID)
 		if quest != nil {
 			apiQuest := convertQuestToAPI(quest)
-			// TODO: In Phase 2, add progress info from playerQuest to apiQuest
-			_ = playerQuest // Has ObjectiveProgress, CurrentObjective, etc.
+
+			// Add progress info from playerQuest
+			apiQuest.Status = api.QuestStatus(playerQuest.Status)
+
+			// Update objective progress from player's actual progress
+			for _, objective := range apiQuest.Objectives {
+				// Check if objective is completed
+				isCompleted := false
+				for _, completedID := range playerQuest.CompletedObjectives {
+					if completedID == objective.ObjectiveID {
+						isCompleted = true
+						break
+					}
+				}
+				objective.Completed = isCompleted
+
+				// Update current progress
+				if currentProgress, exists := playerQuest.Objectives[objective.ObjectiveID]; exists {
+					objective.ProgressCurrent = int32(currentProgress)
+				}
+			}
+
 			apiQuests = append(apiQuests, apiQuest)
 		}
 	}

@@ -12,7 +12,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"

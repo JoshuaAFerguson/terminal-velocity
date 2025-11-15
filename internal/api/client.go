@@ -9,8 +9,14 @@ package api
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+)
+
+var (
+	// ErrGRPCNotImplemented is returned when gRPC mode is requested but not yet implemented
+	ErrGRPCNotImplemented = errors.New("gRPC mode not yet implemented (Phase 2+)")
 )
 
 // Client provides a unified interface for communicating with the game server.
@@ -121,7 +127,7 @@ func NewClient(config *ClientConfig) (Client, error) {
 		return newInProcessClient(config)
 	}
 	// Phase 2+: return newGRPCClient(config)
-	panic("only in-process mode supported in Phase 1")
+	return nil, ErrGRPCNotImplemented
 }
 
 // ClientConfig configures the API client

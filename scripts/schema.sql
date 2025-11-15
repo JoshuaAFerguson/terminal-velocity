@@ -30,17 +30,55 @@ CREATE TABLE IF NOT EXISTS players (
     x DOUBLE PRECISION DEFAULT 0,
     y DOUBLE PRECISION DEFAULT 0,
 
-    -- Progression
+    -- Progression - Combat
     combat_rating INTEGER DEFAULT 0,
     total_kills INTEGER DEFAULT 0,
     play_time BIGINT DEFAULT 0,
 
+    -- Progression - Trading
+    trading_rating INTEGER DEFAULT 0,
+    total_trades INTEGER DEFAULT 0,
+    trade_profit BIGINT DEFAULT 0,
+    highest_profit BIGINT DEFAULT 0,
+
+    -- Progression - Exploration
+    exploration_rating INTEGER DEFAULT 0,
+    systems_visited INTEGER DEFAULT 0,
+    total_jumps INTEGER DEFAULT 0,
+
+    -- Progression - Missions
+    missions_completed INTEGER DEFAULT 0,
+    missions_failed INTEGER DEFAULT 0,
+
+    -- Progression - Quests
+    quests_completed INTEGER DEFAULT 0,
+
+    -- Progression - Capture
+    total_capture_attempts INTEGER DEFAULT 0,
+    successful_boards INTEGER DEFAULT 0,
+    successful_captures INTEGER DEFAULT 0,
+
+    -- Progression - Mining
+    total_mining_ops INTEGER DEFAULT 0,
+    total_yield BIGINT DEFAULT 0,
+
+    -- Progression - Overall
+    level INTEGER DEFAULT 1,
+    experience BIGINT DEFAULT 0,
+
+    -- Legal status
+    legal_status VARCHAR(20) DEFAULT 'citizen',
+    bounty BIGINT DEFAULT 0,
+
     -- Status
     is_online BOOLEAN DEFAULT FALSE,
     is_criminal BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     -- Metadata
-    CONSTRAINT credits_non_negative CHECK (credits >= 0)
+    CONSTRAINT credits_non_negative CHECK (credits >= 0),
+    CONSTRAINT level_range CHECK (level BETWEEN 1 AND 100),
+    CONSTRAINT bounty_non_negative CHECK (bounty >= 0)
 );
 
 -- SSH public keys for authentication
@@ -93,6 +131,8 @@ CREATE TABLE IF NOT EXISTS planets (
     system_id UUID REFERENCES star_systems(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     description TEXT,
+    x DOUBLE PRECISION DEFAULT 0,  -- X coordinate within system
+    y DOUBLE PRECISION DEFAULT 0,  -- Y coordinate within system
     services TEXT[] DEFAULT '{}',  -- Array of service types
     population BIGINT DEFAULT 0,
     tech_level INTEGER DEFAULT 5,
@@ -133,7 +173,9 @@ CREATE TABLE IF NOT EXISTS ship_weapons (
     ship_id UUID REFERENCES ships(id) ON DELETE CASCADE,
     weapon_id VARCHAR(50) NOT NULL,
     slot_index INTEGER NOT NULL,
-    PRIMARY KEY (ship_id, slot_index)
+    current_ammo INTEGER DEFAULT 0,
+    PRIMARY KEY (ship_id, slot_index),
+    CONSTRAINT ammo_non_negative CHECK (current_ammo >= 0)
 );
 
 -- Ship outfits

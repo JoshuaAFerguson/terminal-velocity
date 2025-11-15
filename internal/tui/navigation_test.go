@@ -86,9 +86,9 @@ func TestScreenTransitions(t *testing.T) {
 				msg = tea.KeyMsg{Type: tea.KeyEsc}
 			} else if tt.keyPress == "enter" {
 				msg = tea.KeyMsg{Type: tea.KeyEnter}
-				// For login test, set cursor to register button (index 4)
+				// For login test, set focused field to register button (index 3)
 				if tt.initialScreen == ScreenLogin {
-					m.mainMenu.cursor = 4
+					m.loginModel.focusedField = 3
 				}
 			}
 
