@@ -65,6 +65,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error handling for Close() operations
 - Build error fixes
 
+### Added (2025-11-15 - Enhanced Observability & Documentation)
+- **Enhanced Metrics System**:
+  - Production-grade observability with latency histograms
+  - LatencyHistogram: Track p50/p95/p99 percentiles for operations
+  - ErrorCounter: Categorize errors with recent history tracking (last 100 errors)
+  - RateCounter: Track events per time window (trades/min, combat/min, etc.)
+  - Convenience functions: RecordDatabaseQuery(), RecordTradeOperation(), RecordCombatOperation()
+  - New HTTP endpoints:
+    - `/stats/enhanced`: Latency percentiles and error tracking with HTML dashboard
+    - `/stats/performance`: Detailed profiling with color-coded health indicators
+  - Support for custom operation tracking
+
+- **Comprehensive Health Checks**:
+  - Enhanced `/health` endpoint with service status (healthy/degraded/unhealthy)
+  - Returns HTTP 503 for unhealthy status (load balancer integration)
+  - Comprehensive metrics: error rate, database latency (p99), cache hit rate
+  - Active connections and player counts
+  - RFC3339 timestamps for monitoring systems
+  - Status thresholds:
+    - Degraded: error rate > 1%, DB p99 > 500ms, cache < 50%
+    - Unhealthy: error rate > 5%, DB p99 > 2s
+
+- **Documentation Improvements**:
+  - Updated README with "Recent Updates" section highlighting 61 bug fixes
+  - Documented new observability endpoints with usage examples
+  - Added comprehensive code comments to complex functions:
+    - GetPercentiles: Detailed percentile calculation explanation with examples
+    - WithTransaction: ACID guarantees and exploit prevention documentation
+    - DecideAction (Combat AI): Full tactical decision system documentation
+  - Links to security audit and bug fix documentation
+  - Showcases production-ready improvements
+
+- **Database Performance**:
+  - 17 strategic performance indexes (documented in previous section)
+  - Expected 10-100x performance improvement on hot query paths
+
+- **Regression Testing**:
+  - 15+ regression tests ensuring bug fixes don't regress (documented in previous section)
+
 ### Added
 - **Enhanced TUI Screens Integration (Phase 8, Polish & Testing)**:
   - **Combat Loot System Integration**:
