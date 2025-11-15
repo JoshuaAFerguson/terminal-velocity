@@ -672,7 +672,8 @@ func (m *Model) sendMail(recipient, subject, body string) tea.Cmd {
 			recipient,
 			subject,
 			body,
-			0, // No credits attached
+			0,           // No credits attached
+			[]uuid.UUID{}, // No items attached (TODO: Add UI for item attachments)
 			getPlayerByUsername,
 			checkBlocked,
 		)
