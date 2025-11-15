@@ -18,6 +18,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/friends"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/marketplace"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/metrics"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
@@ -53,6 +54,7 @@ type Server struct {
 	mailManager          *mail.Manager
 	notificationsManager *notifications.Manager
 	friendsManager       *friends.Manager
+	marketplaceManager   *marketplace.Manager
 }
 
 // Config holds server configuration
@@ -190,10 +192,12 @@ func (s *Server) initDatabase() error {
 	s.mailManager = mail.NewManager(s.socialRepo)
 	s.notificationsManager = notifications.NewManager(s.socialRepo)
 	s.friendsManager = friends.NewManager(s.socialRepo)
+	s.marketplaceManager = marketplace.NewManager(s.playerRepo, s.shipRepo)
 
 	// Start background workers for managers
 	s.fleetManager.Start()
 	s.notificationsManager.Start()
+	s.marketplaceManager.Start()
 
 	log.Info("Database connected successfully")
 	return nil
@@ -394,6 +398,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		s.mailManager,
 		s.notificationsManager,
 		s.friendsManager,
+		s.marketplaceManager,
 	)
 
 	// Create BubbleTea program with SSH channel as input/output

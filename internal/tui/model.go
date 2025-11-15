@@ -21,6 +21,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/friends"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/marketplace"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/missions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
@@ -180,6 +181,9 @@ type Model struct {
 	// Notifications system
 	notificationsManager *notifications.Manager
 
+	// Marketplace system
+	marketplaceManager *marketplace.Manager
+
 	// Faction system
 	factionManager *factions.Manager
 
@@ -236,6 +240,7 @@ func NewModel(
 	mailManager *mail.Manager,
 	notificationsManager *notifications.Manager,
 	friendsManager *friends.Manager,
+	marketplaceManager *marketplace.Manager,
 ) Model {
 	return Model{
 		screen:              ScreenMainMenu,
@@ -274,6 +279,7 @@ func NewModel(
 		mailManager:         mailManager,
 		notificationsManager: notificationsManager,
 		friendsManager:      friendsManager,
+		marketplaceManager:  marketplaceManager,
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
 		territoryManager:    territory.NewManager(),
