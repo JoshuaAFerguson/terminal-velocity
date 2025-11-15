@@ -778,8 +778,23 @@ func (s *GameServer) BuyCommodity(ctx context.Context, req *api.TradeRequest) (*
 		}, nil
 	}
 
-	// TODO: Check cargo space (requires ShipType lookup)
-	// For now, just add to cargo
+	// Check cargo space
+	shipType := models.GetShipTypeByID(ship.TypeID)
+	if shipType == nil {
+		return &api.TradeResponse{
+			Success: false,
+			Message: "invalid ship type",
+		}, nil
+	}
+
+	if !ship.CanAddCargo(int(req.Quantity), shipType) {
+		cargoUsed := ship.GetCargoUsed()
+		return &api.TradeResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient cargo space (used: %d/%d, need: %d more)",
+				cargoUsed, shipType.CargoSpace, req.Quantity),
+		}, nil
+	}
 
 	// Perform the trade atomically within a transaction
 	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
@@ -1277,8 +1292,27 @@ func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseReque
 		}, nil
 	}
 
-	// TODO: Check outfit space constraints
-	// For now, just add the outfits
+	// Get ship type for outfit space calculations
+	shipType := models.GetShipTypeByID(ship.TypeID)
+	if shipType == nil {
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: "invalid ship type",
+		}, nil
+	}
+
+	// Check outfit space constraints
+	totalOutfitSpaceNeeded := outfit.OutfitSpace * int(req.Quantity)
+	spaceAvailable := ship.GetOutfitSpaceAvailable(shipType)
+
+	if spaceAvailable < totalOutfitSpaceNeeded {
+		spaceUsed := ship.GetOutfitSpaceUsed()
+		return &api.OutfitPurchaseResponse{
+			Success: false,
+			Message: fmt.Sprintf("insufficient outfit space (used: %d/%d, need: %d more)",
+				spaceUsed, shipType.OutfitSpace, totalOutfitSpaceNeeded),
+		}, nil
+	}
 
 	// Add outfits to ship
 	for i := 0; i < int(req.Quantity); i++ {

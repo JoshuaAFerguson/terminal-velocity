@@ -61,32 +61,108 @@ func convertShipToAPI(ship *models.Ship) *api.Ship {
 		return nil
 	}
 
+	// Load ship type for stats
+	shipType := models.GetShipTypeByID(ship.TypeID)
+
+	maxHull := int32(0)
+	maxShields := int32(0)
+	maxFuel := int32(0)
+	cargoSpace := int32(0)
+	speed := int32(0)
+	purchasePrice := int64(0)
+	currentValue := int64(0)
+
+	if shipType != nil {
+		maxHull = int32(shipType.MaxHull)
+		maxShields = int32(shipType.MaxShields)
+		maxFuel = int32(shipType.MaxFuel)
+		cargoSpace = int32(shipType.CargoSpace)
+		speed = int32(shipType.Speed)
+		purchasePrice = shipType.Price
+		// Simple depreciation: 80% of purchase price
+		currentValue = int64(float64(shipType.Price) * 0.8)
+	}
+
 	apiShip := &api.Ship{
 		ShipID:        ship.ID,
 		ShipType:      ship.TypeID,
 		CustomName:    ship.Name,
 		Hull:          int32(ship.Hull),
-		MaxHull:       0, // TODO: Get from ShipType
+		MaxHull:       maxHull,
 		Shields:       int32(ship.Shields),
-		MaxShields:    0, // TODO: Get from ShipType
+		MaxShields:    maxShields,
 		Fuel:          int32(ship.Fuel),
-		MaxFuel:       0,  // TODO: Get from ShipType
-		CargoSpace:    0,  // TODO: Get from ShipType
+		MaxFuel:       maxFuel,
+		CargoSpace:    cargoSpace,
 		CargoUsed:     int32(ship.GetCargoUsed()),
-		Speed:         0,  // TODO: Get from ShipType
-		Acceleration:  0,  // Not in model
-		TurnRate:      0,  // Not in model
-		PurchasePrice: 0,  // TODO: Get from ShipType
-		CurrentValue:  0,  // TODO: Calculate depreciation
-		Weapons:       make([]*api.Weapon, 0),
-		Outfits:       make([]*api.Outfit, 0),
+		Speed:         speed,
+		Acceleration:  0, // Not currently modeled
+		TurnRate:      0, // Not currently modeled
+		PurchasePrice: purchasePrice,
+		CurrentValue:  currentValue,
+		Weapons:       convertWeaponsToAPI(ship.Weapons),
+		Outfits:       convertOutfitsToAPI(ship.Outfits),
 	}
 
-	// Ship.Weapons and Ship.Outfits are just string IDs, not full objects
-	// TODO: Load actual weapon and outfit data from repositories if needed
-	// For now, just return the basic ship info
-
 	return apiShip
+}
+
+// convertWeaponsToAPI converts weapon IDs to API Weapon objects
+func convertWeaponsToAPI(weaponIDs []string) []*api.Weapon {
+	weapons := make([]*api.Weapon, 0, len(weaponIDs))
+	for _, weaponID := range weaponIDs {
+		weapon := models.GetWeaponByID(weaponID)
+		if weapon != nil {
+			weapons = append(weapons, &api.Weapon{
+				WeaponID: weapon.ID,
+				Name:     weapon.Name,
+				Damage:   int32(weapon.Damage),
+				Range:    weapon.Range,
+				Type:     weapon.Type,
+				Accuracy: int32(weapon.Accuracy),
+			})
+		}
+	}
+	return weapons
+}
+
+// convertOutfitsToAPI converts outfit IDs to API Outfit objects
+func convertOutfitsToAPI(outfitIDs []string) []*api.Outfit {
+	outfits := make([]*api.Outfit, 0, len(outfitIDs))
+	for _, outfitID := range outfitIDs {
+		outfit := models.GetOutfitByID(outfitID)
+		if outfit != nil {
+			outfits = append(outfits, &api.Outfit{
+				OutfitID:    outfit.ID,
+				Name:        outfit.Name,
+				Description: outfit.Description,
+				Type:        outfit.Type,
+				Effects:     convertOutfitEffects(outfit),
+			})
+		}
+	}
+	return outfits
+}
+
+// convertOutfitEffects converts outfit bonuses to API format
+func convertOutfitEffects(outfit *models.Outfit) map[string]int32 {
+	effects := make(map[string]int32)
+	if outfit.ShieldBonus > 0 {
+		effects["shield_bonus"] = int32(outfit.ShieldBonus)
+	}
+	if outfit.HullBonus > 0 {
+		effects["hull_bonus"] = int32(outfit.HullBonus)
+	}
+	if outfit.CargoBonus > 0 {
+		effects["cargo_bonus"] = int32(outfit.CargoBonus)
+	}
+	if outfit.FuelBonus > 0 {
+		effects["fuel_bonus"] = int32(outfit.FuelBonus)
+	}
+	if outfit.SpeedBonus > 0 {
+		effects["speed_bonus"] = int32(outfit.SpeedBonus)
+	}
+	return effects
 }
 
 // convertInventoryToAPI converts ship cargo to API Inventory
@@ -95,10 +171,17 @@ func convertInventoryToAPI(ship *models.Ship) *api.Inventory {
 		return nil
 	}
 
+	// Get ship type for cargo space
+	shipType := models.GetShipTypeByID(ship.TypeID)
+	totalCargoSpace := int32(0)
+	if shipType != nil {
+		totalCargoSpace = int32(shipType.CargoSpace)
+	}
+
 	inventory := &api.Inventory{
 		Cargo:           make(map[string]int32),
 		Items:           make([]*api.Item, 0),
-		TotalCargoSpace: 0, // TODO: Get from ShipType
+		TotalCargoSpace: totalCargoSpace,
 		CargoUsed:       int32(ship.GetCargoUsed()),
 	}
 
@@ -107,8 +190,7 @@ func convertInventoryToAPI(ship *models.Ship) *api.Inventory {
 		inventory.Cargo[cargoItem.CommodityID] = int32(cargoItem.Quantity)
 	}
 
-	// TODO: Convert items when item system is implemented
-	// For now, items array is empty
+	// Items array empty (item system not yet implemented)
 
 	return inventory
 }

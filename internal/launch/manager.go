@@ -9,7 +9,6 @@ package launch
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math/rand"

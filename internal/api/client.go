@@ -15,9 +15,6 @@ import (
 )
 
 var (
-	// ErrNoServerProvided is returned when no server is provided to in-process client
-	ErrNoServerProvided = errors.New("no server provided for in-process client")
-
 	// ErrGRPCNotImplemented is returned when gRPC mode is requested but not yet implemented
 	ErrGRPCNotImplemented = errors.New("gRPC mode not yet implemented (Phase 2+)")
 )

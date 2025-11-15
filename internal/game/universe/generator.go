@@ -245,23 +245,150 @@ func (g *Generator) assignTechLevels(systems []models.StarSystem) {
 }
 
 // generateJumpRoutes creates hyperspace routes between systems
+// Uses Prim's algorithm for MST to ensure connectivity, then adds extra routes
 func (g *Generator) generateJumpRoutes(systems []models.StarSystem) {
-	// Use a simplified minimum spanning tree approach
-	// Then add additional routes for interesting topology
+	if len(systems) == 0 {
+		return
+	}
 
-	// TODO: Implement proper MST algorithm
-	// For now, connect nearby systems
+	// Phase 1: Build MST using Prim's algorithm to ensure all systems are connected
+	mstEdges := g.buildMST(systems)
+
+	// Add MST edges to systems (bidirectional)
+	for _, edge := range mstEdges {
+		systems[edge.from].AddConnection(systems[edge.to].ID)
+		systems[edge.to].AddConnection(systems[edge.from].ID)
+	}
+
+	// Phase 2: Add extra connections for interesting topology
+	// This creates shortcuts and alternate routes
+	extraConnectionsPerSystem := 1 + g.rand.Intn(2) // 1-2 extra connections
 
 	for i := range systems {
-		// Find 2-5 nearest neighbors
-		numConnections := g.config.MinConnections + g.rand.Intn(g.config.MaxConnections-g.config.MinConnections+1)
-
-		nearest := g.findNearestSystems(&systems[i], systems, numConnections)
+		// Find nearest systems not already connected
+		nearest := g.findNearestUnconnected(&systems[i], systems, extraConnectionsPerSystem)
 
 		for _, neighborID := range nearest {
 			systems[i].AddConnection(neighborID)
+			// Find the neighbor and add reverse connection
+			for j := range systems {
+				if systems[j].ID == neighborID {
+					systems[j].AddConnection(systems[i].ID)
+					break
+				}
+			}
 		}
 	}
+}
+
+// edge represents a connection between two systems for MST
+type edge struct {
+	from     int
+	to       int
+	distance float64
+}
+
+// buildMST implements Prim's algorithm to build a Minimum Spanning Tree
+// This ensures all systems are connected with minimal total distance
+func (g *Generator) buildMST(systems []models.StarSystem) []edge {
+	if len(systems) <= 1 {
+		return []edge{}
+	}
+
+	// Track which systems are in the MST
+	inMST := make([]bool, len(systems))
+	mstEdges := make([]edge, 0, len(systems)-1)
+
+	// Start with system 0
+	inMST[0] = true
+	numInMST := 1
+
+	// Keep adding edges until all systems are connected
+	for numInMST < len(systems) {
+		var bestEdge edge
+		bestEdge.distance = -1 // -1 means no edge found yet
+
+		// Find the shortest edge from MST to a system not in MST
+		for i := range systems {
+			if !inMST[i] {
+				continue // Only consider systems already in MST
+			}
+
+			for j := range systems {
+				if inMST[j] {
+					continue // Don't connect to systems already in MST
+				}
+
+				dist := systems[i].Position.DistanceTo(systems[j].Position)
+
+				if bestEdge.distance < 0 || dist < bestEdge.distance {
+					bestEdge = edge{
+						from:     i,
+						to:       j,
+						distance: dist,
+					}
+				}
+			}
+		}
+
+		// Add the best edge to MST
+		if bestEdge.distance >= 0 {
+			mstEdges = append(mstEdges, bestEdge)
+			inMST[bestEdge.to] = true
+			numInMST++
+		} else {
+			// This shouldn't happen unless systems is empty
+			break
+		}
+	}
+
+	return mstEdges
+}
+
+// findNearestUnconnected finds nearest systems that aren't already connected
+func (g *Generator) findNearestUnconnected(system *models.StarSystem, allSystems []models.StarSystem, n int) []uuid.UUID {
+	type distPair struct {
+		id       uuid.UUID
+		distance float64
+	}
+
+	distances := make([]distPair, 0, len(allSystems))
+
+	// Build set of existing connections for quick lookup
+	connected := make(map[uuid.UUID]bool)
+	for _, connID := range system.ConnectedSystems {
+		connected[connID] = true
+	}
+
+	for i := range allSystems {
+		if allSystems[i].ID == system.ID {
+			continue // Skip self
+		}
+
+		if connected[allSystems[i].ID] {
+			continue // Skip already connected systems
+		}
+
+		dist := system.Position.DistanceTo(allSystems[i].Position)
+		distances = append(distances, distPair{allSystems[i].ID, dist})
+	}
+
+	// Sort by distance
+	for i := 0; i < len(distances)-1; i++ {
+		for j := 0; j < len(distances)-i-1; j++ {
+			if distances[j].distance > distances[j+1].distance {
+				distances[j], distances[j+1] = distances[j+1], distances[j]
+			}
+		}
+	}
+
+	// Return N nearest
+	result := make([]uuid.UUID, 0, n)
+	for i := 0; i < n && i < len(distances); i++ {
+		result = append(result, distances[i].id)
+	}
+
+	return result
 }
 
 // findNearestSystems finds the N nearest systems

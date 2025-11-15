@@ -172,3 +172,43 @@ func (s *Ship) GetCommodityQuantity(commodityID string) int {
 	}
 	return 0
 }
+
+// GetOutfitSpaceUsed returns total outfit space used by installed outfits
+func (s *Ship) GetOutfitSpaceUsed() int {
+	total := 0
+	for _, outfitID := range s.Outfits {
+		outfit := GetOutfitByID(outfitID)
+		if outfit != nil {
+			total += outfit.OutfitSpace
+		}
+	}
+	// Also count weapons
+	for _, weaponID := range s.Weapons {
+		weapon := GetWeaponByID(weaponID)
+		if weapon != nil {
+			total += weapon.OutfitSpace
+		}
+	}
+	return total
+}
+
+// GetOutfitSpaceAvailable returns available outfit space
+func (s *Ship) GetOutfitSpaceAvailable(shipType *ShipType) int {
+	used := s.GetOutfitSpaceUsed()
+	return shipType.OutfitSpace - used
+}
+
+// CanAddOutfit checks if ship has space for an outfit
+func (s *Ship) CanAddOutfit(outfit *Outfit, shipType *ShipType) bool {
+	return s.GetOutfitSpaceAvailable(shipType) >= outfit.OutfitSpace
+}
+
+// CanAddWeapon checks if ship has space for a weapon and weapon slot
+func (s *Ship) CanAddWeapon(weapon *Weapon, shipType *ShipType) bool {
+	// Check weapon slots
+	if len(s.Weapons) >= shipType.WeaponSlots {
+		return false
+	}
+	// Check outfit space
+	return s.GetOutfitSpaceAvailable(shipType) >= weapon.OutfitSpace
+}
