@@ -1367,11 +1367,23 @@ func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseReque
 		}, nil
 	}
 
+	// Convert purchased outfits to API format
+	purchasedOutfits := make([]*api.Outfit, req.Quantity)
+	for i := int32(0); i < req.Quantity; i++ {
+		purchasedOutfits[i] = &api.Outfit{
+			OutfitID:    outfit.ID,
+			OutfitType:  outfit.Type,
+			Name:        outfit.Name,
+			Description: outfit.Description,
+			Modifiers:   convertOutfitModifiers(outfit),
+		}
+	}
+
 	// Return success
 	return &api.OutfitPurchaseResponse{
 		Success:     true,
 		Message:     "outfit(s) purchased successfully",
-		Outfits:     make([]*api.Outfit, 0), // TODO: Convert outfit to API format
+		Outfits:     purchasedOutfits,
 		TotalCost:   totalCost,
 		UpdatedShip: convertShipToAPI(ship),
 	}, nil
