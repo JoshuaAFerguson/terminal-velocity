@@ -26,27 +26,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-          bundler-cache: true
-          cache-version: 0
-          working-directory: site
-
-      - name: Build Jekyll site
-        run: |
-          cd site
-          bundle exec jekyll build
-        env:
-          JEKYLL_ENV: production
-
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site/_site
+          publish_dir: ./site
           publish_branch: gh-pages
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'Deploy website from /site folder'
+          commit_message: 'Deploy static site from /site folder'

@@ -66,9 +66,3 @@ bin/
 
 # Docker
 .env.prod
-
-# Jekyll
-site/_site/
-site/.jekyll-cache/
-site/.jekyll-metadata
-.sass-cache/
