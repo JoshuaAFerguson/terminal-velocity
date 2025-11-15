@@ -256,8 +256,16 @@ func (m *Manager) StartCrafting(ctx context.Context, playerID uuid.UUID, bluepri
 		}
 	}
 
-	// Check skill level (TODO: Add actual skill system)
-	// For now, assume player has sufficient skill
+	// Fetch player to check skill level
+	player, err := m.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch player: %w", err)
+	}
+
+	// Check skill level requirement
+	if player.CraftingSkill < blueprint.SkillLevel {
+		return nil, fmt.Errorf("insufficient crafting skill: required %d, have %d", blueprint.SkillLevel, player.CraftingSkill)
+	}
 
 	// Check resources (TODO: Implement resource checking)
 	// For now, assume player has resources
@@ -265,6 +273,10 @@ func (m *Manager) StartCrafting(ctx context.Context, playerID uuid.UUID, bluepri
 	// Calculate crafting time
 	baseTime := blueprint.CraftingTime * time.Duration(quantity)
 	productionBonus := 1.0
+
+	// Skill bonus: Each skill level provides CraftingSkillBonusRate% bonus
+	skillBonus := float64(player.CraftingSkill) * m.config.CraftingSkillBonusRate
+	productionBonus += skillBonus
 
 	// Station bonus
 	if stationID != nil {
@@ -750,6 +762,25 @@ func (m *Manager) checkCraftingJobs() {
 		if job.Status == "in_progress" && now.After(job.CompletionTime) {
 			job.Status = "complete"
 			log.Info("Crafting completed: job=%s, item=%s", job.ID, job.Blueprint.Name)
+
+			// Update player progression
+			player, err := m.playerRepo.GetByID(context.Background(), job.PlayerID)
+			if err == nil {
+				player.TotalCrafts += job.Quantity
+
+				// Increase crafting skill (1 point per job, cap at 100)
+				if player.CraftingSkill < 100 {
+					player.CraftingSkill++
+					log.Info("Player %s crafting skill increased to %d", job.PlayerID, player.CraftingSkill)
+				}
+
+				// Save updated player
+				if err := m.playerRepo.Update(context.Background(), player); err != nil {
+					log.Error("Failed to update player crafting stats: %v", err)
+				}
+			} else {
+				log.Error("Failed to fetch player for crafting completion: %v", err)
+			}
 
 			// TODO: Add crafted items to player inventory
 

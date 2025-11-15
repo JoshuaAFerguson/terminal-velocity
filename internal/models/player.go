@@ -80,6 +80,10 @@ type Player struct {
 	TotalYield     int64            `json:"total_yield"`       // Total resources mined
 	ResourcesMined map[string]int64 `json:"resources_mined"`   // Resources mined by type
 
+	// Progression - Manufacturing/Crafting
+	CraftingSkill int `json:"crafting_skill"` // Crafting skill level (0-100)
+	TotalCrafts   int `json:"total_crafts"`   // Total items crafted
+
 	// Progression - Overall
 	Level      int   `json:"level"`       // Overall player level (1-100)
 	Experience int64 `json:"experience"`  // Experience points for leveling
@@ -169,6 +173,10 @@ func NewPlayer(username, passwordHash string) *Player {
 		TotalMiningOps: 0,
 		TotalYield:     0,
 		ResourcesMined: make(map[string]int64),
+
+		// Manufacturing/Crafting progression
+		CraftingSkill: 0,
+		TotalCrafts:   0,
 
 		// Overall progression
 		Level:      1,  // Start at level 1
