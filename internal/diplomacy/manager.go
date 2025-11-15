@@ -1,7 +1,7 @@
 // File: internal/diplomacy/manager.go
 // Project: Terminal Velocity
 // Description: Alliance and diplomacy system for faction relations
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
 
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/google/uuid"
 )
@@ -35,6 +36,9 @@ type Manager struct {
 
 	// Repositories
 	playerRepo *database.PlayerRepository
+
+	// Managers
+	factionManager *factions.Manager
 
 	// Callbacks
 	onAllianceFormed   func(alliance *Alliance)
@@ -97,15 +101,16 @@ func DefaultDiplomacyConfig() DiplomacyConfig {
 }
 
 // NewManager creates a new diplomacy manager
-func NewManager(playerRepo *database.PlayerRepository) *Manager {
+func NewManager(playerRepo *database.PlayerRepository, factionManager *factions.Manager) *Manager {
 	return &Manager{
-		alliances: make(map[uuid.UUID]*Alliance),
-		wars:      make(map[uuid.UUID]*War),
-		relations: make(map[string]*Relation),
-		treaties:  make(map[uuid.UUID]*Treaty),
-		config:    DefaultDiplomacyConfig(),
-		playerRepo: playerRepo,
-		stopChan:  make(chan struct{}),
+		alliances:      make(map[uuid.UUID]*Alliance),
+		wars:           make(map[uuid.UUID]*War),
+		relations:      make(map[string]*Relation),
+		treaties:       make(map[uuid.UUID]*Treaty),
+		config:         DefaultDiplomacyConfig(),
+		playerRepo:     playerRepo,
+		factionManager: factionManager,
+		stopChan:       make(chan struct{}),
 	}
 }
 
@@ -281,13 +286,34 @@ func (m *Manager) DisbandAlliance(ctx context.Context, allianceID, factionID uui
 		return fmt.Errorf("alliance is not active")
 	}
 
-	// Distribute treasury evenly
-	if alliance.Treasury > 0 {
+	// Distribute treasury evenly among all member factions
+	if alliance.Treasury > 0 && m.factionManager != nil {
 		allFactions := append([]uuid.UUID{alliance.LeaderFactionID}, alliance.MemberFactions...)
 		sharePerFaction := alliance.Treasury / int64(len(allFactions))
 
-		// TODO: Distribute credits to faction treasuries
-		_ = sharePerFaction
+		// Distribute to each faction's treasury
+		for _, factionID := range allFactions {
+			// Use a dummy player ID (first member) to satisfy Deposit signature
+			// In practice, this is an alliance action, not a player action
+			faction, err := m.factionManager.GetFaction(factionID)
+			if err != nil || faction == nil {
+				log.Warn("Failed to get faction %s for treasury distribution: %v", factionID, err)
+				continue
+			}
+
+			// Deposit to faction treasury (use leader as depositor for logging)
+			if len(faction.Members) > 0 {
+				depositErr := m.factionManager.Deposit(factionID, faction.LeaderID, sharePerFaction)
+				if depositErr != nil {
+					log.Error("Failed to distribute %d credits to faction %s: %v", sharePerFaction, factionID, depositErr)
+				} else {
+					log.Info("Distributed %d credits to faction %s from disbanded alliance", sharePerFaction, factionID)
+				}
+			}
+		}
+
+		// Clear alliance treasury
+		alliance.Treasury = 0
 	}
 
 	alliance.Status = "dissolved"
