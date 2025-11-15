@@ -223,7 +223,40 @@ func (db *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return result, err
 }
 
-// WithTransaction executes a function within a database transaction
+// WithTransaction executes a function within a database transaction with automatic rollback on error.
+//
+// This function provides ACID guarantees for multi-step database operations by wrapping
+// them in a transaction. It handles:
+//   - Automatic commit on success
+//   - Automatic rollback on error
+//   - Panic recovery with rollback
+//   - Error metrics tracking
+//   - Comprehensive logging
+//
+// Usage:
+//
+//	err := db.WithTransaction(ctx, func(tx *sql.Tx) error {
+//	    // Step 1: Deduct credits
+//	    _, err := tx.ExecContext(ctx, "UPDATE players SET credits = credits - $1 WHERE id = $2", cost, playerID)
+//	    if err != nil {
+//	        return err  // Will trigger rollback
+//	    }
+//
+//	    // Step 2: Add item to inventory
+//	    _, err = tx.ExecContext(ctx, "INSERT INTO inventory (player_id, item_id) VALUES ($1, $2)", playerID, itemID)
+//	    if err != nil {
+//	        return err  // Will trigger rollback
+//	    }
+//
+//	    return nil  // Will commit
+//	})
+//
+// Critical for preventing exploits:
+//   - Money duplication bugs: Ensures all credit transfers are atomic
+//   - Inventory inconsistencies: Ensures item creation and payment happen together
+//   - Race conditions: Database-level locking prevents concurrent modification
+//
+// Thread-safe: Each transaction gets its own connection from the pool.
 func (db *DB) WithTransaction(ctx context.Context, fn func(*sql.Tx) error) error {
 	log.Debug("Beginning database transaction")
 	tx, err := db.BeginTx(ctx, nil)

@@ -89,7 +89,55 @@ func NewAIState(level AILevel) *AIState {
 	return state
 }
 
-// DecideAction determines what action the AI should take this turn
+// DecideAction determines the AI's actions for the current combat turn.
+//
+// This is the main AI decision-making function that evaluates the tactical situation
+// and returns a prioritized list of actions for the AI ship to perform. The AI considers:
+//
+// Tactical Factors:
+//   - Ship condition (hull, shields, fuel)
+//   - Morale state (affects retreat threshold)
+//   - Target selection and tracking
+//   - Weapon availability and cooldowns
+//   - Distance to enemies
+//   - Formation positioning (if in a fleet)
+//
+// AI Difficulty Levels:
+//   - Easy: Basic combat, poor target selection
+//   - Medium: Improved tactics, considers ship condition
+//   - Hard: Smart weapon usage, formation awareness
+//   - Expert: Advanced target prioritization, optimal weapon selection
+//   - Ace: Perfect decision making, adaptive tactics
+//
+// Decision Flow:
+//   1. Update morale based on damage taken
+//   2. Check retreat conditions (low hull, low morale)
+//   3. Select or update target (every 3 seconds)
+//   4. Choose weapons and engage target
+//   5. Maintain formation position (if applicable)
+//
+// Returns:
+//
+//	A slice of AIAction with priority values (0.0 to 1.0), where higher
+//	priority actions should be executed first. Returns empty slice if no
+//	valid actions are available.
+//
+// Parameters:
+//   - ai: The AI state tracking current target, morale, cooldowns
+//   - self: The AI ship's current state (hull, shields, position, weapons)
+//   - selfType: Ship type data (mass, thrust, weapon slots)
+//   - enemies: All enemy ships in combat
+//   - enemyTypes: Ship type data for all enemies (for threat assessment)
+//   - allies: Friendly ships (for formation and coordination)
+//   - deltaTime: Time since last decision (used for cooldown tracking)
+//
+// Example Action Priority:
+//   - Retreat: 1.0 (highest - survival)
+//   - Target enemy: 0.8 (high - focus fire)
+//   - Attack target: 0.7 (high - damage dealing)
+//   - Maintain formation: 0.4 (medium - positioning)
+//
+// Thread-safe: No shared state modification, safe for concurrent calls.
 func DecideAction(
 	ai *AIState,
 	self *models.Ship,

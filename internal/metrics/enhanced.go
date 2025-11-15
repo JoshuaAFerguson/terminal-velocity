@@ -46,7 +46,23 @@ func (h *LatencyHistogram) Record(operation string, duration time.Duration) {
 	}
 }
 
-// GetPercentiles returns p50, p95, p99 for an operation
+// GetPercentiles returns p50, p95, p99 latency values for an operation.
+//
+// Percentiles are calculated from the recorded latency samples:
+// - p50 (median): 50% of requests complete faster than this
+// - p95: 95% of requests complete faster than this
+// - p99: 99% of requests complete faster than this (worst case indicator)
+//
+// Returns (0, 0, 0) if no samples have been recorded for the operation.
+//
+// Example usage:
+//
+//	p50, p95, p99 := histogram.GetPercentiles("database_query")
+//	if p99 > 500*time.Millisecond {
+//	    log.Warn("Database queries are slow (p99: %v)", p99)
+//	}
+//
+// Thread-safe: Uses read lock to prevent concurrent modification.
 func (h *LatencyHistogram) GetPercentiles(operation string) (p50, p95, p99 time.Duration) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -56,13 +72,14 @@ func (h *LatencyHistogram) GetPercentiles(operation string) (p50, p95, p99 time.
 		return 0, 0, 0
 	}
 
-	// Make a copy and sort
+	// Make a copy and sort (we don't want to modify the original slice)
 	sorted := make([]time.Duration, len(durations))
 	copy(sorted, durations)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i] < sorted[j]
 	})
 
+	// Calculate percentile indexes (using simple division)
 	p50 = sorted[len(sorted)*50/100]
 	p95 = sorted[len(sorted)*95/100]
 	p99 = sorted[len(sorted)*99/100]
