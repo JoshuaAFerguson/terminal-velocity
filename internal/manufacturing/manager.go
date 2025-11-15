@@ -15,6 +15,7 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
 
@@ -36,6 +37,7 @@ type Manager struct {
 
 	// Repositories
 	playerRepo *database.PlayerRepository
+	shipRepo   *database.ShipRepository
 
 	// Callbacks
 	onCraftingComplete  func(job *CraftingJob)
@@ -90,7 +92,7 @@ func DefaultManufacturingConfig() ManufacturingConfig {
 }
 
 // NewManager creates a new manufacturing manager
-func NewManager(playerRepo *database.PlayerRepository) *Manager {
+func NewManager(playerRepo *database.PlayerRepository, shipRepo *database.ShipRepository) *Manager {
 	m := &Manager{
 		blueprints:   make(map[uuid.UUID]*Blueprint),
 		craftingJobs: make(map[uuid.UUID]*CraftingJob),
@@ -99,6 +101,7 @@ func NewManager(playerRepo *database.PlayerRepository) *Manager {
 		playerTech:   make(map[uuid.UUID]map[string]int),
 		config:       DefaultManufacturingConfig(),
 		playerRepo:   playerRepo,
+		shipRepo:     shipRepo,
 		stopChan:     make(chan struct{}),
 	}
 
@@ -267,8 +270,28 @@ func (m *Manager) StartCrafting(ctx context.Context, playerID uuid.UUID, bluepri
 		return nil, fmt.Errorf("insufficient crafting skill: required %d, have %d", blueprint.SkillLevel, player.CraftingSkill)
 	}
 
-	// Check resources (TODO: Implement resource checking)
-	// For now, assume player has resources
+	// Check and deduct resources from player's ship cargo
+	if len(blueprint.Requirements) > 0 {
+		ship, err := m.shipRepo.GetByID(ctx, player.ShipID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch player ship: %w", err)
+		}
+
+		// Check if player has all required resources
+		totalRequired := make(map[string]int)
+		for resource, qty := range blueprint.Requirements {
+			totalRequired[resource] = qty * quantity
+		}
+
+		if err := m.checkResources(ship, totalRequired); err != nil {
+			return nil, err
+		}
+
+		// Deduct resources from cargo
+		if err := m.deductResources(ctx, ship, totalRequired); err != nil {
+			return nil, fmt.Errorf("failed to deduct resources: %w", err)
+		}
+	}
 
 	// Calculate crafting time
 	baseTime := blueprint.CraftingTime * time.Duration(quantity)
@@ -343,21 +366,37 @@ func (m *Manager) CancelCrafting(ctx context.Context, jobID, playerID uuid.UUID)
 		// Refund percentage is inverse of progress (if 30% done, refund 70%)
 		refundPercent := 1.0 - progressPercent
 
-		// Calculate refunded resources
+		// Calculate and refund resources
 		if job.Blueprint != nil && len(job.Blueprint.Requirements) > 0 {
 			log.Info("Crafting cancelled: job=%s, progress=%.1f%%, refunding %.1f%% of resources",
 				jobID, progressPercent*100, refundPercent*100)
 
-			// Log each resource that would be refunded
-			// NOTE: When resource system is implemented, actually return these to player
+			// Calculate refunded amounts for each resource
+			refundItems := make(map[string]int)
 			for resource, required := range job.Blueprint.Requirements {
 				totalRequired := required * job.Quantity
 				refundAmount := int(float64(totalRequired) * refundPercent)
 				if refundAmount > 0 {
+					refundItems[resource] = refundAmount
 					log.Debug("Refund: %s x%d (%.1f%% of %d)",
 						resource, refundAmount, refundPercent*100, totalRequired)
-					// TODO: When inventory system exists, add resources back:
-					// m.addResourceToPlayer(ctx, playerID, resource, refundAmount)
+				}
+			}
+
+			// Add refunded resources back to player's ship cargo
+			if len(refundItems) > 0 {
+				player, err := m.playerRepo.GetByID(context.Background(), playerID)
+				if err == nil {
+					ship, err := m.shipRepo.GetByID(context.Background(), player.ShipID)
+					if err == nil {
+						if err := m.addItemsToCargo(context.Background(), ship, refundItems); err != nil {
+							log.Error("Failed to refund resources to cargo: %v", err)
+						}
+					} else {
+						log.Error("Failed to fetch player ship for refund: %v", err)
+					}
+				} else {
+					log.Error("Failed to fetch player for refund: %v", err)
 				}
 			}
 		}
@@ -778,11 +817,28 @@ func (m *Manager) checkCraftingJobs() {
 				if err := m.playerRepo.Update(context.Background(), player); err != nil {
 					log.Error("Failed to update player crafting stats: %v", err)
 				}
+
+				// Add crafted items to player's ship cargo
+				if len(job.Blueprint.Produces) > 0 {
+					ship, err := m.shipRepo.GetByID(context.Background(), player.ShipID)
+					if err == nil {
+						// Calculate total produced items
+						producedItems := make(map[string]int)
+						for itemID, qty := range job.Blueprint.Produces {
+							producedItems[itemID] = qty * job.Quantity
+						}
+
+						// Add items to cargo
+						if err := m.addItemsToCargo(context.Background(), ship, producedItems); err != nil {
+							log.Error("Failed to add crafted items to cargo: %v", err)
+						}
+					} else {
+						log.Error("Failed to fetch player ship for crafting completion: %v", err)
+					}
+				}
 			} else {
 				log.Error("Failed to fetch player for crafting completion: %v", err)
 			}
-
-			// TODO: Add crafted items to player inventory
 
 			if m.onCraftingComplete != nil {
 				go m.onCraftingComplete(job)
@@ -934,4 +990,98 @@ func (m *Manager) GetStats() ManufacturingStats {
 type ManufacturingStats struct {
 	ActiveCraftingJobs int `json:"active_crafting_jobs"`
 	PlayerStations     int `json:"player_stations"`
+}
+
+// ============================================================================
+// RESOURCE MANAGEMENT
+// ============================================================================
+
+// checkResources verifies that a ship has the required resources in cargo
+func (m *Manager) checkResources(ship *models.Ship, required map[string]int) error {
+	// Build a map of available resources from cargo
+	available := make(map[string]int)
+	for _, cargoItem := range ship.Cargo {
+		available[cargoItem.CommodityID] += cargoItem.Quantity
+	}
+
+	// Check each required resource
+	var missing []string
+	for resource, needed := range required {
+		have := available[resource]
+		if have < needed {
+			missing = append(missing, fmt.Sprintf("%s (need %d, have %d)", resource, needed, have))
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("insufficient resources: %v", missing)
+	}
+
+	return nil
+}
+
+// deductResources removes resources from ship cargo and saves to database
+func (m *Manager) deductResources(ctx context.Context, ship *models.Ship, toDeduct map[string]int) error {
+	// Create a new cargo list with deducted quantities
+	newCargo := make([]models.CargoItem, 0, len(ship.Cargo))
+
+	for _, item := range ship.Cargo {
+		if deductQty, shouldDeduct := toDeduct[item.CommodityID]; shouldDeduct {
+			remaining := item.Quantity - deductQty
+			if remaining > 0 {
+				// Keep item with reduced quantity
+				newCargo = append(newCargo, models.CargoItem{
+					CommodityID: item.CommodityID,
+					Quantity:    remaining,
+				})
+			}
+			// If remaining <= 0, item is completely removed (not added to newCargo)
+		} else {
+			// Item not being deducted, keep as-is
+			newCargo = append(newCargo, item)
+		}
+	}
+
+	// Update ship cargo
+	ship.Cargo = newCargo
+
+	// Save to database
+	if err := m.shipRepo.Update(ctx, ship); err != nil {
+		return fmt.Errorf("failed to update ship cargo: %w", err)
+	}
+
+	log.Info("Deducted resources from ship %s: %v", ship.ID, toDeduct)
+	return nil
+}
+
+// addItemsToCargo adds produced items to ship cargo and saves to database
+func (m *Manager) addItemsToCargo(ctx context.Context, ship *models.Ship, items map[string]int) error {
+	// Add each produced item to cargo
+	for itemID, quantity := range items {
+		// Check if item already exists in cargo
+		found := false
+		for i := range ship.Cargo {
+			if ship.Cargo[i].CommodityID == itemID {
+				ship.Cargo[i].Quantity += quantity
+				found = true
+				break
+			}
+		}
+
+		// If not found, add new cargo item
+		if !found {
+			ship.Cargo = append(ship.Cargo, models.CargoItem{
+				CommodityID: itemID,
+				Quantity:    quantity,
+			})
+		}
+	}
+
+	// Save to database
+	if err := m.shipRepo.Update(ctx, ship); err != nil {
+		return fmt.Errorf("failed to update ship cargo: %w", err)
+	}
+
+	log.Info("Added crafted items to ship %s: %v", ship.ID, items)
+	return nil
 }
