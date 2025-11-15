@@ -41,7 +41,12 @@ type mailState struct {
 	recipientInput string
 	subjectInput   string
 	bodyInput      string
-	composeField   int // 0=recipient, 1=subject, 2=body
+	composeField   int // 0=recipient, 1=subject, 2=body, 3=attachments
+
+	// Item attachment
+	itemPicker      *ItemPickerModel
+	showItemPicker  bool
+	attachedItems   []uuid.UUID
 }
 
 func (m *Model) updateMail(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -84,7 +89,15 @@ func (m *Model) updateMail(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mail.subjectInput = ""
 			m.mail.bodyInput = ""
 			m.mail.composeField = 0
-			return m, nil
+			m.mail.attachedItems = []uuid.UUID{}
+			m.mail.showItemPicker = false
+			// Initialize item picker
+			m.mail.itemPicker = NewItemPicker(m.itemRepo, m.playerID)
+			m.mail.itemPicker.SetMode(ItemPickerModeMulti)
+			m.mail.itemPicker.SetFilter(FilterAvailable)
+			m.mail.itemPicker.SetTitle("Attach Items to Mail")
+			m.mail.itemPicker.SetMaxSelection(10) // Max 10 attachments
+			return m, m.mail.itemPicker.LoadItems()
 
 		case "up", "k":
 			if m.mail.mode == mailModeInbox && len(m.mail.inbox) > 0 {
@@ -174,12 +187,50 @@ func (m *Model) updateMail(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.loadSent()
 		}
 		m.mail.error = msg.err
+
+	case mailClaimedMsg:
+		m.mail.loading = false
+		if msg.err == "" {
+			// Update player credits if any were claimed
+			if msg.credits > 0 {
+				m.player.Credits += msg.credits
+			}
+			// Reload mail to show updated attachment status
+			m.mail.error = fmt.Sprintf("Claimed %d credits and items successfully", msg.credits)
+			// Reload the current mail
+			if m.mail.currentMail != nil {
+				return m, m.loadMail(m.mail.currentMail.ID)
+			}
+		} else {
+			m.mail.error = msg.err
+		}
 	}
 
 	return m, nil
 }
 
 func (m *Model) updateMailCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// If item picker is showing, route input to it
+	if m.mail.showItemPicker {
+		switch msg.String() {
+		case "esc":
+			// Close item picker without saving
+			m.mail.showItemPicker = false
+			return m, nil
+
+		case "enter":
+			// Save selected items and close picker
+			m.mail.attachedItems = m.mail.itemPicker.GetSelectedItems()
+			m.mail.showItemPicker = false
+			m.mail.error = ""
+			return m, nil
+
+		default:
+			// Route to item picker
+			return m, m.mail.itemPicker.Update(msg)
+		}
+	}
+
 	switch msg.String() {
 	case "esc":
 		// Cancel compose
@@ -187,8 +238,8 @@ func (m *Model) updateMailCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "tab":
-		// Cycle through fields
-		m.mail.composeField = (m.mail.composeField + 1) % 3
+		// Cycle through fields (4 fields: recipient, subject, body, attachments)
+		m.mail.composeField = (m.mail.composeField + 1) % 4
 
 	case "ctrl+s":
 		// Send mail
@@ -209,6 +260,18 @@ func (m *Model) updateMailCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mail.error = ""
 		return m, m.sendMail(m.mail.recipientInput, m.mail.subjectInput, m.mail.bodyInput)
 
+	case "a":
+		// If on attachments field, open item picker
+		if m.mail.composeField == 3 {
+			m.mail.showItemPicker = true
+			// Clear selection when opening picker
+			m.mail.itemPicker.ClearSelection()
+			// Note: Pre-selecting already attached items would require finding
+			// them in the picker's item list and updating the selected map.
+			// This is left as a future enhancement for better UX.
+			return m, nil
+		}
+
 	case "backspace":
 		switch m.mail.composeField {
 		case 0: // recipient
@@ -223,6 +286,8 @@ func (m *Model) updateMailCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if len(m.mail.bodyInput) > 0 {
 				m.mail.bodyInput = m.mail.bodyInput[:len(m.mail.bodyInput)-1]
 			}
+		case 3: // attachments - clear all attachments
+			m.mail.attachedItems = []uuid.UUID{}
 		}
 
 	default:
@@ -241,6 +306,7 @@ func (m *Model) updateMailCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if len(m.mail.bodyInput) < 5000 {
 					m.mail.bodyInput += msg.String()
 				}
+			// case 3: attachments field - only 'a' key opens picker
 			}
 		}
 	}
@@ -280,6 +346,30 @@ func (m *Model) updateMailRead(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.mail.subjectInput = "Re: " + m.mail.currentMail.Subject
 				m.mail.bodyInput = ""
 				m.mail.composeField = 2 // Start in body
+			}
+		}
+		return m, nil
+
+	case "c":
+		// Claim attachments (only if receiver and has unclaimed items/credits)
+		if m.mail.currentMail.ReceiverID == m.playerID {
+			// Check if there are attachments to claim
+			hasUnclaimedItems := false
+			ctx := context.Background()
+			for _, itemID := range m.mail.currentMail.AttachedItems {
+				item, err := m.itemRepo.GetItemByID(ctx, itemID)
+				if err == nil && item.Location == models.LocationMail {
+					hasUnclaimedItems = true
+					break
+				}
+			}
+
+			if hasUnclaimedItems || m.mail.currentMail.AttachedCredits > 0 {
+				m.mail.loading = true
+				m.mail.error = ""
+				return m, m.claimMailAttachments(m.mail.currentMail.ID)
+			} else {
+				m.mail.error = "No attachments to claim"
 			}
 		}
 		return m, nil
@@ -484,6 +574,17 @@ func (m *Model) renderSent() string {
 func (m *Model) renderCompose() string {
 	var b strings.Builder
 
+	// If item picker is showing, render it instead
+	if m.mail.showItemPicker {
+		b.WriteString(lipgloss.NewStyle().Bold(true).Render("Compose New Message - Attach Items") + "\n\n")
+		b.WriteString(m.mail.itemPicker.View())
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")).
+			Render("[Space] Toggle  [Enter] Confirm  [Esc] Cancel\n"))
+		return b.String()
+	}
+
 	composeStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("14")).
 		Border(lipgloss.RoundedBorder()).
@@ -520,11 +621,48 @@ func (m *Model) renderCompose() string {
 		compose.WriteString(bodyStyle.Render(line) + "\n")
 	}
 
+	compose.WriteString("\n")
+
+	// Attachments field
+	attachStyle := lipgloss.NewStyle()
+	if m.mail.composeField == 3 {
+		attachStyle = attachStyle.Foreground(lipgloss.Color("11")).Bold(true)
+	}
+
+	attachmentCount := len(m.mail.attachedItems)
+	if attachmentCount > 0 {
+		compose.WriteString(attachStyle.Render(fmt.Sprintf("Attachments: %d item(s) attached\n", attachmentCount)))
+		// Show attached item names (up to 5)
+		ctx := context.Background()
+		displayCount := attachmentCount
+		if displayCount > 5 {
+			displayCount = 5
+		}
+		for i := 0; i < displayCount; i++ {
+			item, err := m.itemRepo.GetItemByID(ctx, m.mail.attachedItems[i])
+			if err == nil {
+				itemName := item.GetDisplayName()
+				compose.WriteString(attachStyle.Render(fmt.Sprintf("  • %s\n", itemName)))
+			}
+		}
+		if attachmentCount > 5 {
+			compose.WriteString(attachStyle.Render(fmt.Sprintf("  ... and %d more\n", attachmentCount-5)))
+		}
+	} else {
+		compose.WriteString(attachStyle.Render("Attachments: None (press 'A' to attach items)\n"))
+	}
+
 	b.WriteString(composeStyle.Render(compose.String()))
 	b.WriteString("\n\n")
+
+	// Help text
+	helpText := "[Tab] Next Field  [A] Attach Items  [Ctrl+S] Send  [Esc] Cancel"
+	if m.mail.composeField == 3 && attachmentCount > 0 {
+		helpText = "[Tab] Next Field  [A] Attach Items  [Backspace] Clear All  [Ctrl+S] Send  [Esc] Cancel"
+	}
 	b.WriteString(lipgloss.NewStyle().
 		Foreground(lipgloss.Color("8")).
-		Render("[Tab] Next Field  [Ctrl+S] Send  [Esc] Cancel\n"))
+		Render(helpText + "\n"))
 
 	return b.String()
 }
@@ -576,13 +714,78 @@ func (m *Model) renderRead() string {
 		content.WriteString(line + "\n")
 	}
 
+	// Display attachments if any
+	hasAttachments := len(msg.AttachedItems) > 0 || msg.AttachedCredits > 0
+	if hasAttachments {
+		content.WriteString("\n")
+		content.WriteString("─────────────────────────────────────────────────────────────────────────\n")
+		content.WriteString("Attachments:\n")
+
+		// Show attached credits
+		if msg.AttachedCredits > 0 {
+			content.WriteString(fmt.Sprintf("  💰 %d credits\n", msg.AttachedCredits))
+		}
+
+		// Show attached items
+		if len(msg.AttachedItems) > 0 {
+			for i, itemID := range msg.AttachedItems {
+				item, err := m.itemRepo.GetItemByID(ctx, itemID)
+				if err == nil {
+					itemName := item.GetDisplayName()
+					location := item.GetLocationName()
+					content.WriteString(fmt.Sprintf("  %d. %s (%s)\n", i+1, itemName, location))
+				} else {
+					content.WriteString(fmt.Sprintf("  %d. Unknown item\n", i+1))
+				}
+			}
+		}
+
+		// Show claim status for receiver
+		if msg.ReceiverID == m.playerID {
+			// Check if any items are in mail location (not yet claimed)
+			hasUnclaimedItems := false
+			for _, itemID := range msg.AttachedItems {
+				item, err := m.itemRepo.GetItemByID(ctx, itemID)
+				if err == nil && item.Location == models.LocationMail {
+					hasUnclaimedItems = true
+					break
+				}
+			}
+
+			if hasUnclaimedItems || msg.AttachedCredits > 0 {
+				content.WriteString("\n")
+				content.WriteString("⚠ Press [C] to claim attachments\n")
+			} else if len(msg.AttachedItems) > 0 {
+				content.WriteString("\n")
+				content.WriteString("✓ Attachments already claimed\n")
+			}
+		}
+	}
+
 	b.WriteString(readStyle.Render(content.String()))
 	b.WriteString("\n\n")
 
+	// Help text
 	if msg.ReceiverID == m.playerID {
-		b.WriteString(lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")).
-			Render("[R] Reply  [D] Delete  [Q] Back\n"))
+		// Check if there are items to claim
+		hasUnclaimedItems := false
+		for _, itemID := range msg.AttachedItems {
+			item, err := m.itemRepo.GetItemByID(ctx, itemID)
+			if err == nil && item.Location == models.LocationMail {
+				hasUnclaimedItems = true
+				break
+			}
+		}
+
+		if hasUnclaimedItems || msg.AttachedCredits > 0 {
+			b.WriteString(lipgloss.NewStyle().
+				Foreground(lipgloss.Color("8")).
+				Render("[C] Claim  [R] Reply  [D] Delete  [Q] Back\n"))
+		} else {
+			b.WriteString(lipgloss.NewStyle().
+				Foreground(lipgloss.Color("8")).
+				Render("[R] Reply  [D] Delete  [Q] Back\n"))
+		}
 	} else {
 		b.WriteString(lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
@@ -672,8 +875,8 @@ func (m *Model) sendMail(recipient, subject, body string) tea.Cmd {
 			recipient,
 			subject,
 			body,
-			0,           // No credits attached
-			[]uuid.UUID{}, // No items attached (TODO: Add UI for item attachments)
+			0,                    // No credits attached (TODO: Add UI for credit attachments)
+			m.mail.attachedItems, // Items attached via item picker
 			getPlayerByUsername,
 			checkBlocked,
 		)
@@ -711,6 +914,38 @@ func (m *Model) deleteMail(mailID uuid.UUID, reloadInbox bool) tea.Cmd {
 	}
 }
 
+func (m *Model) claimMailAttachments(mailID uuid.UUID) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		credits, err := m.mailManager.ClaimAttachments(ctx, mailID, m.playerID)
+
+		errStr := ""
+		if err != nil {
+			errStr = err.Error()
+		}
+
+		return mailClaimedMsg{
+			credits: credits,
+			err:     errStr,
+		}
+	}
+}
+
+func (m *Model) loadMail(mailID uuid.UUID) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		mail, err := m.mailRepo.GetMail(ctx, mailID)
+		if err != nil {
+			return nil
+		}
+
+		m.mail.currentMail = mail
+		return nil
+	}
+}
+
 // Messages
 
 type mailLoadedMsg struct {
@@ -727,4 +962,9 @@ type mailSentMsg struct {
 type mailDeletedMsg struct {
 	reloadInbox bool
 	err         string
+}
+
+type mailClaimedMsg struct {
+	credits int64
+	err     string
 }

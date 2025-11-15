@@ -8,6 +8,7 @@ terminal-velocity
 /server
 /genmap
 /accounts
+/loadtest
 
 # Test binary
 *.test

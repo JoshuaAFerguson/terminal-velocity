@@ -105,6 +105,7 @@ type Model struct {
 	marketRepo *database.MarketRepository
 	mailRepo   *database.MailRepository
 	socialRepo *database.SocialRepository
+	itemRepo   *database.ItemRepository
 
 	// Screen dimensions
 	width  int
@@ -236,6 +237,7 @@ func NewModel(
 	marketRepo *database.MarketRepository,
 	mailRepo *database.MailRepository,
 	socialRepo *database.SocialRepository,
+	itemRepo *database.ItemRepository,
 	fleetManager *fleet.Manager,
 	mailManager *mail.Manager,
 	notificationsManager *notifications.Manager,
@@ -253,6 +255,7 @@ func NewModel(
 		marketRepo:          marketRepo,
 		mailRepo:            mailRepo,
 		socialRepo:          socialRepo,
+		itemRepo:            itemRepo,
 		width:               80,
 		height:              24,
 		mainMenu:            newMainMenuModel(),
