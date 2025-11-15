@@ -1538,7 +1538,7 @@ func (s *GameServer) GetAvailableMissions(ctx context.Context, playerID uuid.UUI
 	// Convert to API format
 	apiMissions := make([]*api.Mission, 0, len(availableMissions))
 	for _, mission := range availableMissions {
-		apiMissions = append(apiMissions, convertMissionToAPI(mission))
+		apiMissions = append(apiMissions, convertMissionToAPI(mission, s.systemRepo, ctx))
 	}
 
 	return &api.MissionList{
@@ -1595,7 +1595,7 @@ func (s *GameServer) AcceptMission(ctx context.Context, req *api.MissionAcceptRe
 		return nil, api.ErrNotFound
 	}
 
-	return convertMissionToAPI(mission), nil
+	return convertMissionToAPI(mission, s.systemRepo, ctx), nil
 }
 
 // AbandonMission abandons an active mission
@@ -1635,7 +1635,7 @@ func (s *GameServer) GetActiveMissions(ctx context.Context, playerID uuid.UUID) 
 	// Convert to API format
 	apiMissions := make([]*api.Mission, 0, len(activeMissions))
 	for _, mission := range activeMissions {
-		apiMissions = append(apiMissions, convertMissionToAPI(mission))
+		apiMissions = append(apiMissions, convertMissionToAPI(mission, s.systemRepo, ctx))
 	}
 
 	return &api.MissionList{

@@ -1,18 +1,20 @@
 // File: internal/api/server/converters.go
 // Project: Terminal Velocity
 // Description: Converters between database models and API types
-// Version: 1.1.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
 package server
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/api"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
@@ -301,7 +303,7 @@ func convertPlanetToAPI(planet *models.Planet, governmentID string) *api.Planet 
 }
 
 // convertMissionToAPI converts database mission to API Mission
-func convertMissionToAPI(mission *models.Mission) *api.Mission {
+func convertMissionToAPI(mission *models.Mission, systemRepo *database.SystemRepository, ctx context.Context) *api.Mission {
 	if mission == nil {
 		return nil
 	}
@@ -312,14 +314,30 @@ func convertMissionToAPI(mission *models.Mission) *api.Mission {
 		reputationTotal += int32(repChange)
 	}
 
+	// Look up origin planet to get system ID
+	originSystemID := uuid.Nil
+	if mission.OriginPlanet != uuid.Nil {
+		if originPlanet, err := systemRepo.GetPlanetByID(ctx, mission.OriginPlanet); err == nil && originPlanet != nil {
+			originSystemID = originPlanet.SystemID
+		}
+	}
+
+	// Look up destination planet to get system ID (if destination is a planet)
+	destinationSystemID := uuid.Nil
+	if mission.Destination != nil && *mission.Destination != uuid.Nil {
+		if destPlanet, err := systemRepo.GetPlanetByID(ctx, *mission.Destination); err == nil && destPlanet != nil {
+			destinationSystemID = destPlanet.SystemID
+		}
+	}
+
 	apiMission := &api.Mission{
 		MissionID:           mission.ID,
 		Title:               mission.Title,
 		Description:         mission.Description,
 		RewardCredits:       mission.Reward,
 		RewardReputation:    reputationTotal,
-		OriginSystemID:      uuid.Nil, // TODO: Requires planet lookup - pass planetRepo to get SystemID
-		DestinationSystemID: uuid.Nil, // TODO: Requires planet lookup - pass planetRepo to get SystemID
+		OriginSystemID:      originSystemID,
+		DestinationSystemID: destinationSystemID,
 		Deadline:            mission.Deadline,
 		ProgressCurrent:     int32(mission.Progress),
 		ProgressRequired:    int32(mission.Quantity),
