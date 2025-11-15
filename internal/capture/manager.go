@@ -1,7 +1,7 @@
 // File: internal/capture/manager.go
 // Project: Terminal Velocity
 // Description: Ship capture and boarding system manager
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
 
@@ -24,8 +24,9 @@ var log = logger.WithComponent("Capture")
 
 // Manager handles ship capture and boarding operations
 type Manager struct {
-	mu       sync.RWMutex
-	shipRepo *database.ShipRepository
+	mu         sync.RWMutex
+	shipRepo   *database.ShipRepository
+	playerRepo *database.PlayerRepository
 
 	// Active boarding attempts
 	activeBoardings map[uuid.UUID]*BoardingAttempt
@@ -103,9 +104,10 @@ type BoardingOutcome struct {
 }
 
 // NewManager creates a new capture manager
-func NewManager(shipRepo *database.ShipRepository) *Manager {
+func NewManager(shipRepo *database.ShipRepository, playerRepo *database.PlayerRepository) *Manager {
 	return &Manager{
 		shipRepo:        shipRepo,
+		playerRepo:      playerRepo,
 		activeBoardings: make(map[uuid.UUID]*BoardingAttempt),
 		config:          DefaultCaptureConfig(),
 	}
@@ -166,6 +168,16 @@ func (m *Manager) AttemptBoarding(ctx context.Context, attackerShip, defenderShi
 	m.activeBoardings[attackerShip.ID] = attempt
 	m.mu.Unlock()
 
+	// Update player stats for boarding attempt
+	if m.playerRepo != nil {
+		if player, err := m.playerRepo.GetByID(ctx, attackerShip.OwnerID); err == nil {
+			player.RecordCaptureAttempt()
+			if err := m.playerRepo.Update(ctx, player); err != nil {
+				log.Error("Failed to update player stats for boarding attempt: %v", err)
+			}
+		}
+	}
+
 	log.Info("Boarding initiated: attacker=%s, defender=%s, crew=%d vs %d",
 		attackerShip.ID, defenderShip.ID, attackerCrew, defenderCrew)
 
@@ -188,6 +200,16 @@ func (m *Manager) resolveBoardingAfterDelay(ctx context.Context, attempt *Boardi
 		attempt.Status = "success"
 		log.Info("Boarding successful: attacker=%s, losses=%d/%d",
 			attempt.AttackerID, outcome.AttackerLosses, attackerCrew)
+
+		// Update player stats for successful boarding
+		if m.playerRepo != nil {
+			if player, err := m.playerRepo.GetByID(ctx, attempt.AttackerID); err == nil {
+				player.RecordSuccessfulBoard()
+				if err := m.playerRepo.Update(ctx, player); err != nil {
+					log.Error("Failed to update player stats for successful boarding: %v", err)
+				}
+			}
+		}
 
 		// Attempt to capture ship
 		if outcome.CaptureSuccess {
@@ -313,6 +335,16 @@ func (m *Manager) captureShip(ctx context.Context, attempt *BoardingAttempt) err
 		return fmt.Errorf("failed to capture ship: %w", err)
 	}
 
+	// Update player stats for successful capture
+	if m.playerRepo != nil {
+		if player, err := m.playerRepo.GetByID(ctx, attempt.AttackerID); err == nil {
+			player.RecordSuccessfulCapture()
+			if err := m.playerRepo.Update(ctx, player); err != nil {
+				log.Error("Failed to update player stats for successful capture: %v", err)
+			}
+		}
+	}
+
 	log.Info("Ship captured: ship=%s, new_owner=%s",
 		attempt.DefenderShip.ID, attempt.AttackerID)
 
@@ -422,16 +454,28 @@ type CaptureStats struct {
 	SuccessfulCaptures int
 }
 
-// GetStats returns capture statistics (placeholder for now)
-func (m *Manager) GetStats() CaptureStats {
+// GetStats returns capture statistics for a specific player
+func (m *Manager) GetStats(ctx context.Context, playerID uuid.UUID) CaptureStats {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
+	activeBoardings := len(m.activeBoardings)
+	m.mu.RUnlock()
+
+	// Get player from database to retrieve stats
+	player, err := m.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		log.Error("Failed to get player stats: %v", err)
+		return CaptureStats{
+			ActiveBoardings:    activeBoardings,
+			TotalAttempts:      0,
+			SuccessfulBoards:   0,
+			SuccessfulCaptures: 0,
+		}
+	}
 
 	return CaptureStats{
-		ActiveBoardings: len(m.activeBoardings),
-		// TODO: Track these in database
-		TotalAttempts:      0,
-		SuccessfulBoards:   0,
-		SuccessfulCaptures: 0,
+		ActiveBoardings:    activeBoardings,
+		TotalAttempts:      player.TotalCaptureAttempts,
+		SuccessfulBoards:   player.SuccessfulBoards,
+		SuccessfulCaptures: player.SuccessfulCaptures,
 	}
 }

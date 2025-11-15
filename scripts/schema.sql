@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS players (
     -- Progression - Quests
     quests_completed INTEGER DEFAULT 0,
 
+    -- Progression - Capture
+    total_capture_attempts INTEGER DEFAULT 0,
+    successful_boards INTEGER DEFAULT 0,
+    successful_captures INTEGER DEFAULT 0,
+
+    -- Progression - Mining
+    total_mining_ops INTEGER DEFAULT 0,
+    total_yield BIGINT DEFAULT 0,
+
     -- Progression - Overall
     level INTEGER DEFAULT 1,
     experience BIGINT DEFAULT 0,

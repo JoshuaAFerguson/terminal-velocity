@@ -1,7 +1,7 @@
 // File: internal/mining/manager.go
 // Project: Terminal Velocity
 // Description: Mining and salvage operations manager
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
 
@@ -34,6 +34,7 @@ type Manager struct {
 	// Repositories
 	systemRepo *database.SystemRepository
 	shipRepo   *database.ShipRepository
+	playerRepo *database.PlayerRepository
 }
 
 // MiningConfig defines mining system parameters
@@ -125,12 +126,13 @@ const (
 )
 
 // NewManager creates a new mining and salvage manager
-func NewManager(systemRepo *database.SystemRepository, shipRepo *database.ShipRepository) *Manager {
+func NewManager(systemRepo *database.SystemRepository, shipRepo *database.ShipRepository, playerRepo *database.PlayerRepository) *Manager {
 	return &Manager{
 		activeOperations: make(map[uuid.UUID]*MiningOperation),
 		config:           DefaultMiningConfig(),
 		systemRepo:       systemRepo,
 		shipRepo:         shipRepo,
+		playerRepo:       playerRepo,
 	}
 }
 
@@ -335,6 +337,16 @@ func (m *Manager) runMiningCycles(ctx context.Context, operation *MiningOperatio
 	log.Info("Mining completed: player=%s, total_yield=%.1f",
 		operation.PlayerID, operation.CurrentYield)
 
+	// Update player stats for completed mining operation
+	if m.playerRepo != nil {
+		if player, err := m.playerRepo.GetByID(ctx, operation.PlayerID); err == nil {
+			player.RecordMiningOperation(int64(operation.CurrentYield))
+			if err := m.playerRepo.Update(ctx, player); err != nil {
+				log.Error("Failed to update player stats for mining operation: %v", err)
+			}
+		}
+	}
+
 	// Clean up after 60 seconds
 	time.Sleep(60 * time.Second)
 	m.mu.Lock()
@@ -429,16 +441,28 @@ type MiningStats struct {
 	MostCommonResource string
 }
 
-// GetStats returns mining statistics (placeholder)
-func (m *Manager) GetStats() MiningStats {
+// GetStats returns mining statistics for a specific player
+func (m *Manager) GetStats(ctx context.Context, playerID uuid.UUID) MiningStats {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
+	activeOperations := len(m.activeOperations)
+	m.mu.RUnlock()
+
+	// Get player from database to retrieve stats
+	player, err := m.playerRepo.GetByID(ctx, playerID)
+	if err != nil {
+		log.Error("Failed to get player stats: %v", err)
+		return MiningStats{
+			ActiveOperations:   activeOperations,
+			TotalOperations:    0,
+			TotalYield:         0,
+			MostCommonResource: string(ResourceIron),
+		}
+	}
 
 	return MiningStats{
-		ActiveOperations: len(m.activeOperations),
-		// TODO: Track these in database
-		TotalOperations:    0,
-		TotalYield:         0,
-		MostCommonResource: string(ResourceIron),
+		ActiveOperations:   activeOperations,
+		TotalOperations:    player.TotalMiningOps,
+		TotalYield:         float64(player.TotalYield),
+		MostCommonResource: string(ResourceIron), // TODO: Track most common resource
 	}
 }

@@ -70,6 +70,15 @@ type Player struct {
 	// Progression - Quests
 	QuestsCompleted int `json:"quests_completed"`
 
+	// Progression - Capture
+	TotalCaptureAttempts int `json:"total_capture_attempts"`
+	SuccessfulBoards     int `json:"successful_boards"`
+	SuccessfulCaptures   int `json:"successful_captures"`
+
+	// Progression - Mining
+	TotalMiningOps int   `json:"total_mining_ops"`
+	TotalYield     int64 `json:"total_yield"` // Total resources mined
+
 	// Progression - Overall
 	Level      int   `json:"level"`       // Overall player level (1-100)
 	Experience int64 `json:"experience"`  // Experience points for leveling
@@ -149,6 +158,15 @@ func NewPlayer(username, passwordHash string) *Player {
 
 		// Quest progression
 		QuestsCompleted: 0,
+
+		// Capture progression
+		TotalCaptureAttempts: 0,
+		SuccessfulBoards:     0,
+		SuccessfulCaptures:   0,
+
+		// Mining progression
+		TotalMiningOps: 0,
+		TotalYield:     0,
 
 		// Overall progression
 		Level:      1,  // Start at level 1
@@ -456,6 +474,30 @@ func (p *Player) RecordMissionCompletion() {
 // RecordMissionFailure updates mission statistics after failing a mission.
 func (p *Player) RecordMissionFailure() {
 	p.MissionsFailed++
+}
+
+// RecordCaptureAttempt updates capture statistics when attempting to board a ship.
+func (p *Player) RecordCaptureAttempt() {
+	p.TotalCaptureAttempts++
+}
+
+// RecordSuccessfulBoard updates capture statistics after successfully boarding a ship.
+func (p *Player) RecordSuccessfulBoard() {
+	p.SuccessfulBoards++
+}
+
+// RecordSuccessfulCapture updates capture statistics after successfully capturing a ship.
+func (p *Player) RecordSuccessfulCapture() {
+	p.SuccessfulCaptures++
+}
+
+// RecordMiningOperation updates mining statistics after completing a mining operation.
+//
+// Parameters:
+//   - yield: The amount of resources mined
+func (p *Player) RecordMiningOperation(yield int64) {
+	p.TotalMiningOps++
+	p.TotalYield += yield
 }
 
 // GetOverallRank returns a combined rank based on all progression categories.
