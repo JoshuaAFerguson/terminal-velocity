@@ -496,6 +496,53 @@ ALTER TABLE players
 ADD COLUMN faction_id UUID REFERENCES player_factions(id) ON DELETE SET NULL,
 ADD COLUMN faction_rank VARCHAR(20);
 
+-- Player Items (UUID-based inventory for equipment/weapons)
+CREATE TABLE IF NOT EXISTS player_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+
+    -- Item type and reference
+    item_type VARCHAR(50) NOT NULL CHECK (item_type IN ('weapon', 'outfit', 'special', 'quest')),
+    equipment_id VARCHAR(100) NOT NULL, -- References equipment definition (e.g., "laser_cannon")
+
+    -- Current location
+    location VARCHAR(50) NOT NULL CHECK (location IN ('ship', 'station_storage', 'mail', 'escrow', 'auction')),
+    location_id UUID, -- ship_id, planet_id, mail_id, auction_id, etc.
+
+    -- Item properties (for modifications, upgrades, etc.)
+    properties JSONB DEFAULT '{}',
+
+    -- Metadata
+    acquired_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Item Transfers (audit trail for item movements)
+CREATE TABLE IF NOT EXISTS item_transfers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    item_id UUID NOT NULL REFERENCES player_items(id) ON DELETE CASCADE,
+
+    from_player_id UUID REFERENCES players(id) ON DELETE SET NULL,
+    to_player_id UUID REFERENCES players(id) ON DELETE SET NULL,
+
+    transfer_type VARCHAR(50) NOT NULL CHECK (transfer_type IN ('trade', 'mail', 'auction', 'contract', 'admin')),
+    transfer_id UUID, -- trade_id, mail_id, auction_id, etc.
+
+    -- Metadata
+    transferred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for player_items
+CREATE INDEX idx_player_items_player ON player_items(player_id);
+CREATE INDEX idx_player_items_location ON player_items(location, location_id);
+CREATE INDEX idx_player_items_type ON player_items(item_type, equipment_id);
+
+-- Indexes for item_transfers
+CREATE INDEX idx_item_transfers_item ON item_transfers(item_id);
+CREATE INDEX idx_item_transfers_players ON item_transfers(from_player_id, to_player_id);
+CREATE INDEX idx_item_transfers_type ON item_transfers(transfer_type, transfer_id);
+
 -- Comments
 COMMENT ON TABLE players IS 'Player accounts and game state';
 COMMENT ON TABLE player_ssh_keys IS 'SSH public keys for player authentication';
@@ -515,3 +562,5 @@ COMMENT ON TABLE server_settings IS 'Server configuration (single row)';
 COMMENT ON TABLE player_mail IS 'Player-to-player mail messages with soft delete';
 COMMENT ON TABLE shared_loadouts IS 'Shared ship loadout configurations with stats tracking';
 COMMENT ON TABLE loadout_favorites IS 'Player favorites for shared loadouts';
+COMMENT ON TABLE player_items IS 'UUID-based inventory for weapons, outfits, and special items';
+COMMENT ON TABLE item_transfers IS 'Audit log of all item movements between players';
