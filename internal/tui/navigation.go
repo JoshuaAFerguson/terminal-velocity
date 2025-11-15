@@ -1,7 +1,7 @@
 // File: internal/tui/navigation.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for navigation
-// Version: 1.0.0
+// Version: 1.0.1
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -235,9 +235,15 @@ func (m Model) viewNavigation() string {
 
 	// Ship status (fuel)
 	if m.currentShip != nil {
+		// Get max fuel from ship type
+		maxFuel := 100 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			maxFuel = shipType.MaxFuel
+		}
 		fuelInfo := fmt.Sprintf("Fuel: %s / %d",
 			statsStyle.Render(fmt.Sprintf("%d", m.currentShip.Fuel)),
-			100) // TODO: Get max fuel from ship type when we have ship types loaded
+			maxFuel)
 		s += fuelInfo + "\n\n"
 	} else {
 		s += helpStyle.Render("No ship available\n\n")

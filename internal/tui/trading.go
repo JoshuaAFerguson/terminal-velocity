@@ -1,7 +1,7 @@
 // File: internal/tui/trading.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for trading
-// Version: 1.0.1
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -243,9 +243,14 @@ func (m Model) viewMarket() string {
 
 	// Cargo space info
 	if m.currentShip != nil {
-		// TODO: Get actual cargo space from ship type
+		// Get cargo space from ship type
+		cargoSpace := 100 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			cargoSpace = shipType.CargoSpace
+		}
 		cargoUsed := m.currentShip.GetCargoUsed()
-		s += fmt.Sprintf("Cargo: %s / 100\n\n", statsStyle.Render(fmt.Sprintf("%d", cargoUsed)))
+		s += fmt.Sprintf("Cargo: %s / %d\n\n", statsStyle.Render(fmt.Sprintf("%d", cargoUsed)), cargoSpace)
 	}
 
 	// Market table header
@@ -336,8 +341,14 @@ func (m Model) viewBuyInterface() string {
 
 	// Cargo space
 	if m.currentShip != nil {
+		// Get cargo space from ship type
+		cargoSpace := 100 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			cargoSpace = shipType.CargoSpace
+		}
 		cargoUsed := m.currentShip.GetCargoUsed()
-		cargoAvailable := 100 - cargoUsed // TODO: Get from ship type
+		cargoAvailable := cargoSpace - cargoUsed
 		if m.trading.quantity > cargoAvailable {
 			s += errorStyle.Render(fmt.Sprintf("Insufficient cargo space (have %d)\n", cargoAvailable))
 		}
@@ -477,8 +488,13 @@ func (m Model) executeBuy() tea.Cmd {
 		}
 
 		// Validate cargo space
+		cargoSpace := 100 // Default fallback
+		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
+		if shipType != nil {
+			cargoSpace = shipType.CargoSpace
+		}
 		cargoUsed := m.currentShip.GetCargoUsed()
-		cargoAvailable := 100 - cargoUsed // TODO: Get from ship type
+		cargoAvailable := cargoSpace - cargoUsed
 		if m.trading.quantity > cargoAvailable {
 			return tradeCompleteMsg{
 				success: false,
