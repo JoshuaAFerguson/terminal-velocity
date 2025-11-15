@@ -63,6 +63,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Entire project builds with `go build ./...` successfully
   - No duplicate declarations, unused imports, or type mismatches
 
+- **Test Suite Fixes (2025-11-15 - Phase 4)**:
+  - **chat_test.go**: Fixed MaxMessagesPerChannel limit in concurrency test
+    - Increased test limit to 1000 messages to accommodate all test data
+    - Test was incorrectly failing due to intentional 100-message limit
+    - All 4 chat concurrency tests now pass
+  - **input_validation_test.go**: Fixed registration and chat input tests
+    - Updated tests to capture returned Model from handleRegistrationInput()
+    - Fixed type assertions for Bubble Tea Model interface
+    - All 9 input validation tests now pass
+  - **registration.go**: Enhanced ANSI escape sequence filtering
+    - Allow escape character (27) but strip complete ANSI sequences
+    - Added validation.StripANSI() after each character addition
+    - Prevents ANSI escape code injection in email/password fields
+  - **chat.go**: Added ANSI escape sequence filtering to chat input
+    - Added validation.StripANSI() to chat inputBuffer handling
+    - Allow escape character but remove complete ANSI sequences
+    - Added validation package import
+    - Prevents ANSI escape code injection in chat messages
+  - **navigation_test.go**: Fixed Login_to_Registration screen transition test
+    - Changed from setting mainMenu.cursor to loginModel.focusedField
+    - Correctly sets register button field (index 3) for login screen
+    - All 20 screen navigation tests now pass
+  - **Test Results**: All 72 tests passing (4 models + 68 TUI)
+
 ### Added (2025-11-15 - Roadmap Features Implementation)
 - **Social Features System (Phase 9)**:
   - **Friends System**:
