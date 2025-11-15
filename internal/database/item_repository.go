@@ -9,23 +9,22 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 // ItemRepository handles database operations for player items
 type ItemRepository struct {
-	conn *pgxpool.Pool
+	db *DB
 }
 
 // NewItemRepository creates a new ItemRepository
-func NewItemRepository(conn *pgxpool.Pool) *ItemRepository {
-	return &ItemRepository{conn: conn}
+func NewItemRepository(db *DB) *ItemRepository {
+	return &ItemRepository{db: db}
 }
 
 // GetPlayerItems returns all items owned by a player
@@ -38,7 +37,7 @@ func (r *ItemRepository) GetPlayerItems(ctx context.Context, playerID uuid.UUID)
 		ORDER BY acquired_at DESC
 	`
 
-	rows, err := r.conn.Query(ctx, query, playerID)
+	rows, err := r.db.QueryContext(ctx, query, playerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query player items: %w", err)
 	}
@@ -70,7 +69,7 @@ func (r *ItemRepository) GetAvailableItems(ctx context.Context, playerID uuid.UU
 		ORDER BY item_type, equipment_id
 	`
 
-	rows, err := r.conn.Query(ctx, query, playerID)
+	rows, err := r.db.QueryContext(ctx, query, playerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query available items: %w", err)
 	}
@@ -102,7 +101,7 @@ func (r *ItemRepository) GetItemsByLocation(ctx context.Context, playerID uuid.U
 		ORDER BY item_type, equipment_id
 	`
 
-	rows, err := r.conn.Query(ctx, query, playerID, location, locationID)
+	rows, err := r.db.QueryContext(ctx, query, playerID, location, locationID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query items by location: %w", err)
 	}
@@ -134,7 +133,7 @@ func (r *ItemRepository) GetItemsByType(ctx context.Context, playerID uuid.UUID,
 		ORDER BY equipment_id
 	`
 
-	rows, err := r.conn.Query(ctx, query, playerID, itemType)
+	rows, err := r.db.QueryContext(ctx, query, playerID, itemType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query items by type: %w", err)
 	}
@@ -165,10 +164,10 @@ func (r *ItemRepository) GetItemByID(ctx context.Context, itemID uuid.UUID) (*mo
 		WHERE id = $1
 	`
 
-	row := r.conn.QueryRow(ctx, query, itemID)
+	row := r.db.QueryRowContext(ctx, query, itemID)
 	item, err := scanPlayerItemRow(row)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("item not found: %s", itemID)
 		}
 		return nil, err
@@ -191,7 +190,7 @@ func (r *ItemRepository) GetItemsByIDs(ctx context.Context, itemIDs []uuid.UUID)
 		ORDER BY item_type, equipment_id
 	`
 
-	rows, err := r.conn.Query(ctx, query, itemIDs)
+	rows, err := r.db.QueryContext(ctx, query, itemIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query items by IDs: %w", err)
 	}
@@ -226,7 +225,7 @@ func (r *ItemRepository) CreateItem(ctx context.Context, item *models.PlayerItem
 		RETURNING id, acquired_at, created_at, updated_at
 	`
 
-	err := r.conn.QueryRow(ctx, query,
+	err := r.db.QueryRowContext(ctx, query,
 		item.PlayerID, item.ItemType, item.EquipmentID,
 		item.Location, item.LocationID, item.Properties,
 	).Scan(&item.ID, &item.AcquiredAt, &item.CreatedAt, &item.UpdatedAt)
@@ -244,11 +243,11 @@ func (r *ItemRepository) CreateItems(ctx context.Context, items []*models.Player
 		return nil
 	}
 
-	tx, err := r.conn.Begin(ctx)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback()
 
 	query := `
 		INSERT INTO player_items (player_id, item_type, equipment_id, location, location_id, properties)
@@ -261,7 +260,7 @@ func (r *ItemRepository) CreateItems(ctx context.Context, items []*models.Player
 			return fmt.Errorf("invalid item in batch: %w", err)
 		}
 
-		err := tx.QueryRow(ctx, query,
+		err := tx.QueryRowContext(ctx, query,
 			item.PlayerID, item.ItemType, item.EquipmentID,
 			item.Location, item.LocationID, item.Properties,
 		).Scan(&item.ID, &item.AcquiredAt, &item.CreatedAt, &item.UpdatedAt)
@@ -271,7 +270,7 @@ func (r *ItemRepository) CreateItems(ctx context.Context, items []*models.Player
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit batch item creation: %w", err)
 	}
 
@@ -290,12 +289,17 @@ func (r *ItemRepository) UpdateItemLocation(ctx context.Context, itemID uuid.UUI
 		WHERE id = $3
 	`
 
-	result, err := r.conn.Exec(ctx, query, location, locationID, itemID)
+	result, err := r.db.ExecContext(ctx, query, location, locationID, itemID)
 	if err != nil {
 		return fmt.Errorf("failed to update item location: %w", err)
 	}
 
-	if result.RowsAffected() == 0 {
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
 		return fmt.Errorf("item not found: %s", itemID)
 	}
 
@@ -315,12 +319,17 @@ func (r *ItemRepository) UpdateItemProperties(ctx context.Context, itemID uuid.U
 		WHERE id = $2
 	`
 
-	result, err := r.conn.Exec(ctx, query, item.Properties, itemID)
+	result, err := r.db.ExecContext(ctx, query, item.Properties, itemID)
 	if err != nil {
 		return fmt.Errorf("failed to update item properties: %w", err)
 	}
 
-	if result.RowsAffected() == 0 {
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
 		return fmt.Errorf("item not found: %s", itemID)
 	}
 
@@ -333,24 +342,24 @@ func (r *ItemRepository) TransferItem(ctx context.Context, itemID uuid.UUID, toP
 		return fmt.Errorf("invalid transfer type: %s", transferType)
 	}
 
-	tx, err := r.conn.Begin(ctx)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback()
 
 	// Get current owner
 	var fromPlayerID uuid.UUID
-	err = tx.QueryRow(ctx, "SELECT player_id FROM player_items WHERE id = $1", itemID).Scan(&fromPlayerID)
+	err = tx.QueryRowContext(ctx, "SELECT player_id FROM player_items WHERE id = $1", itemID).Scan(&fromPlayerID)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if err == sql.ErrNoRows {
 			return fmt.Errorf("item not found: %s", itemID)
 		}
 		return fmt.Errorf("failed to get item owner: %w", err)
 	}
 
 	// Update ownership
-	_, err = tx.Exec(ctx,
+	_, err = tx.ExecContext(ctx,
 		"UPDATE player_items SET player_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
 		toPlayerID, itemID)
 	if err != nil {
@@ -358,7 +367,7 @@ func (r *ItemRepository) TransferItem(ctx context.Context, itemID uuid.UUID, toP
 	}
 
 	// Create audit log entry
-	_, err = tx.Exec(ctx,
+	_, err = tx.ExecContext(ctx,
 		"INSERT INTO item_transfers (item_id, from_player_id, to_player_id, transfer_type, transfer_id) VALUES ($1, $2, $3, $4, $5)",
 		itemID, fromPlayerID, toPlayerID, transferType, transferID,
 	)
@@ -366,7 +375,7 @@ func (r *ItemRepository) TransferItem(ctx context.Context, itemID uuid.UUID, toP
 		return fmt.Errorf("failed to log transfer: %w", err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
@@ -383,25 +392,25 @@ func (r *ItemRepository) TransferItems(ctx context.Context, itemIDs []uuid.UUID,
 		return fmt.Errorf("invalid transfer type: %s", transferType)
 	}
 
-	tx, err := r.conn.Begin(ctx)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback()
 
 	for _, itemID := range itemIDs {
 		// Get current owner
 		var fromPlayerID uuid.UUID
-		err = tx.QueryRow(ctx, "SELECT player_id FROM player_items WHERE id = $1", itemID).Scan(&fromPlayerID)
+		err = tx.QueryRowContext(ctx, "SELECT player_id FROM player_items WHERE id = $1", itemID).Scan(&fromPlayerID)
 		if err != nil {
-			if err == pgx.ErrNoRows {
+			if err == sql.ErrNoRows {
 				return fmt.Errorf("item not found: %s", itemID)
 			}
 			return fmt.Errorf("failed to get item owner: %w", err)
 		}
 
 		// Update ownership
-		_, err = tx.Exec(ctx,
+		_, err = tx.ExecContext(ctx,
 			"UPDATE player_items SET player_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
 			toPlayerID, itemID)
 		if err != nil {
@@ -409,7 +418,7 @@ func (r *ItemRepository) TransferItems(ctx context.Context, itemIDs []uuid.UUID,
 		}
 
 		// Create audit log entry
-		_, err = tx.Exec(ctx,
+		_, err = tx.ExecContext(ctx,
 			"INSERT INTO item_transfers (item_id, from_player_id, to_player_id, transfer_type, transfer_id) VALUES ($1, $2, $3, $4, $5)",
 			itemID, fromPlayerID, toPlayerID, transferType, transferID,
 		)
@@ -418,7 +427,7 @@ func (r *ItemRepository) TransferItems(ctx context.Context, itemIDs []uuid.UUID,
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit batch transfer: %w", err)
 	}
 
@@ -428,12 +437,17 @@ func (r *ItemRepository) TransferItems(ctx context.Context, itemIDs []uuid.UUID,
 // DeleteItem removes an item (e.g., consumed, destroyed)
 func (r *ItemRepository) DeleteItem(ctx context.Context, itemID uuid.UUID) error {
 	query := "DELETE FROM player_items WHERE id = $1"
-	result, err := r.conn.Exec(ctx, query, itemID)
+	result, err := r.db.ExecContext(ctx, query, itemID)
 	if err != nil {
 		return fmt.Errorf("failed to delete item: %w", err)
 	}
 
-	if result.RowsAffected() == 0 {
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
 		return fmt.Errorf("item not found: %s", itemID)
 	}
 
@@ -447,13 +461,18 @@ func (r *ItemRepository) DeleteItems(ctx context.Context, itemIDs []uuid.UUID) e
 	}
 
 	query := "DELETE FROM player_items WHERE id = ANY($1)"
-	result, err := r.conn.Exec(ctx, query, itemIDs)
+	result, err := r.db.ExecContext(ctx, query, itemIDs)
 	if err != nil {
 		return fmt.Errorf("failed to delete items: %w", err)
 	}
 
-	if result.RowsAffected() != int64(len(itemIDs)) {
-		return fmt.Errorf("expected to delete %d items, deleted %d", len(itemIDs), result.RowsAffected())
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected != int64(len(itemIDs)) {
+		return fmt.Errorf("expected to delete %d items, deleted %d", len(itemIDs), rowsAffected)
 	}
 
 	return nil
@@ -468,7 +487,7 @@ func (r *ItemRepository) GetItemTransferHistory(ctx context.Context, itemID uuid
 		ORDER BY transferred_at DESC
 	`
 
-	rows, err := r.conn.Query(ctx, query, itemID)
+	rows, err := r.db.QueryContext(ctx, query, itemID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query transfer history: %w", err)
 	}
@@ -509,7 +528,7 @@ func (r *ItemRepository) GetPlayerTransfers(ctx context.Context, playerID uuid.U
 		LIMIT $2
 	`
 
-	rows, err := r.conn.Query(ctx, query, playerID, limit)
+	rows, err := r.db.QueryContext(ctx, query, playerID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query player transfers: %w", err)
 	}
@@ -540,7 +559,7 @@ func (r *ItemRepository) GetPlayerTransfers(ctx context.Context, playerID uuid.U
 func (r *ItemRepository) CountPlayerItems(ctx context.Context, playerID uuid.UUID) (int, error) {
 	var count int
 	query := "SELECT COUNT(*) FROM player_items WHERE player_id = $1"
-	err := r.conn.QueryRow(ctx, query, playerID).Scan(&count)
+	err := r.db.QueryRowContext(ctx, query, playerID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count player items: %w", err)
 	}
@@ -551,7 +570,7 @@ func (r *ItemRepository) CountPlayerItems(ctx context.Context, playerID uuid.UUI
 func (r *ItemRepository) CountItemsByType(ctx context.Context, playerID uuid.UUID, itemType models.ItemType) (int, error) {
 	var count int
 	query := "SELECT COUNT(*) FROM player_items WHERE player_id = $1 AND item_type = $2"
-	err := r.conn.QueryRow(ctx, query, playerID, itemType).Scan(&count)
+	err := r.db.QueryRowContext(ctx, query, playerID, itemType).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count items by type: %w", err)
 	}
@@ -561,7 +580,7 @@ func (r *ItemRepository) CountItemsByType(ctx context.Context, playerID uuid.UUI
 // Helper functions
 
 // scanPlayerItem scans a row into a PlayerItem struct
-func scanPlayerItem(rows pgx.Rows) (*models.PlayerItem, error) {
+func scanPlayerItem(rows *sql.Rows) (*models.PlayerItem, error) {
 	var item models.PlayerItem
 	err := rows.Scan(
 		&item.ID, &item.PlayerID, &item.ItemType, &item.EquipmentID,
@@ -575,7 +594,7 @@ func scanPlayerItem(rows pgx.Rows) (*models.PlayerItem, error) {
 }
 
 // scanPlayerItemRow scans a QueryRow result into a PlayerItem struct
-func scanPlayerItemRow(row pgx.Row) (*models.PlayerItem, error) {
+func scanPlayerItemRow(row *sql.Row) (*models.PlayerItem, error) {
 	var item models.PlayerItem
 	err := row.Scan(
 		&item.ID, &item.PlayerID, &item.ItemType, &item.EquipmentID,
