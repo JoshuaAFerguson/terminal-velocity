@@ -10,6 +10,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -792,7 +793,7 @@ func (s *GameServer) BuyCommodity(ctx context.Context, req *api.TradeRequest) (*
 
 		// 2. Add cargo to ship
 		ship.AddCargo(req.CommodityID, int(req.Quantity))
-		cargoJSON, err := ship.CargoToJSON()
+		cargoJSON, err := json.Marshal(ship.Cargo)
 		if err != nil {
 			return fmt.Errorf("failed to serialize cargo: %w", err)
 		}
@@ -914,7 +915,7 @@ func (s *GameServer) SellCommodity(ctx context.Context, req *api.TradeRequest) (
 		if !ship.RemoveCargo(req.CommodityID, int(req.Quantity)) {
 			return fmt.Errorf("failed to remove cargo from ship")
 		}
-		cargoJSON, err := ship.CargoToJSON()
+		cargoJSON, err := json.Marshal(ship.Cargo)
 		if err != nil {
 			return fmt.Errorf("failed to serialize cargo: %w", err)
 		}
@@ -1058,9 +1059,9 @@ func (s *GameServer) BuyShip(ctx context.Context, req *api.ShipPurchaseRequest) 
 	// Perform ship purchase atomically within a transaction
 	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
 		// 1. Create the ship in database
-		cargoJSON, _ := newShip.CargoToJSON()
-		weaponsJSON, _ := newShip.WeaponsToJSON()
-		outfitsJSON, _ := newShip.OutfitsToJSON()
+		cargoJSON, _ := json.Marshal(newShip.Cargo)
+		weaponsJSON, _ := json.Marshal(newShip.Weapons)
+		outfitsJSON, _ := json.Marshal(newShip.Outfits)
 
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO ships (id, owner_id, type_id, name, hull, shields, fuel, cargo, crew, weapons, outfits)
@@ -1287,7 +1288,7 @@ func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseReque
 	// Perform outfit purchase atomically within a transaction
 	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
 		// 1. Update ship with new outfits
-		outfitsJSON, err := ship.OutfitsToJSON()
+		outfitsJSON, err := json.Marshal(ship.Outfits)
 		if err != nil {
 			return fmt.Errorf("failed to serialize outfits: %w", err)
 		}
@@ -1408,7 +1409,7 @@ func (s *GameServer) SellOutfit(ctx context.Context, req *api.OutfitSaleRequest)
 	// Perform outfit sale atomically within a transaction
 	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
 		// 1. Update ship (remove outfits)
-		outfitsJSON, err := ship.OutfitsToJSON()
+		outfitsJSON, err := json.Marshal(ship.Outfits)
 		if err != nil {
 			return fmt.Errorf("failed to serialize outfits: %w", err)
 		}

@@ -9,6 +9,7 @@ package traderoutes
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"sort"
 
