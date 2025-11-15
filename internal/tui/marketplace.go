@@ -1450,7 +1450,10 @@ func (m *Model) viewMarketplaceCreateAuction() string {
 func (m *Model) viewMarketplaceCreateContract() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("POST CONTRACT") + "\n\n")
+	// Header with box drawing
+	b.WriteString(titleStyle.Render("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓") + "\n")
+	b.WriteString(titleStyle.Render("┃                         POST CONTRACT                                ┃") + "\n")
+	b.WriteString(titleStyle.Render("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛") + "\n\n")
 
 	// Contract type names
 	contractTypeNames := []string{"Courier", "Assassination", "Escort", "Bounty Hunt"}
@@ -1476,24 +1479,33 @@ func (m *Model) viewMarketplaceCreateContract() string {
 		titleStyle = titleStyle.Foreground(lipgloss.Color("11")).Bold(true)
 	}
 	title := m.marketplace.createForm["title"]
+	titleLen := len(title)
 	if m.marketplace.formField == 1 {
 		title += "_"
 	}
-	b.WriteString(titleStyle.Render(fmt.Sprintf("Title: %s", title)) + "\n\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("Title: %s", title)) + "\n")
+	if m.marketplace.formField == 1 {
+		b.WriteString(helpStyle.Render(fmt.Sprintf("  (%d/50 characters)", titleLen)) + "\n")
+	}
+	b.WriteString("\n")
 
 	// Field 2: Description
 	descStyle := lipgloss.NewStyle()
 	if m.marketplace.formField == 2 {
 		descStyle = descStyle.Foreground(lipgloss.Color("11")).Bold(true)
 	}
-	b.WriteString(descStyle.Render("Description:\n"))
 	desc := m.marketplace.createForm["description"]
+	descLen := len(desc)
+	b.WriteString(descStyle.Render("Description:\n"))
 	if m.marketplace.formField == 2 {
 		desc += "_"
 	}
 	descLines := wrapText(desc, 70)
 	for _, line := range descLines {
 		b.WriteString(descStyle.Render(line) + "\n")
+	}
+	if m.marketplace.formField == 2 {
+		b.WriteString(helpStyle.Render(fmt.Sprintf("(%d/200 characters)", descLen)) + "\n")
 	}
 	b.WriteString("\n")
 
@@ -1514,10 +1526,15 @@ func (m *Model) viewMarketplaceCreateContract() string {
 		targetStyle = targetStyle.Foreground(lipgloss.Color("11")).Bold(true)
 	}
 	targetName := m.marketplace.createForm["target_name"]
+	targetLen := len(targetName)
 	if m.marketplace.formField == 4 {
 		targetName += "_"
 	}
-	b.WriteString(targetStyle.Render(fmt.Sprintf("Target: %s", targetName)) + "\n\n")
+	b.WriteString(targetStyle.Render(fmt.Sprintf("Target: %s", targetName)) + "\n")
+	if m.marketplace.formField == 4 {
+		b.WriteString(helpStyle.Render(fmt.Sprintf("  (%d/50 characters)", targetLen)) + "\n")
+	}
+	b.WriteString("\n")
 
 	// Field 5: Duration
 	durationStyle := lipgloss.NewStyle()
@@ -1545,7 +1562,10 @@ func (m *Model) viewMarketplaceCreateContract() string {
 func (m *Model) viewMarketplacePostBounty() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("POST BOUNTY") + "\n\n")
+	// Header with box drawing
+	b.WriteString(titleStyle.Render("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓") + "\n")
+	b.WriteString(titleStyle.Render("┃                         POST BOUNTY                                  ┃") + "\n")
+	b.WriteString(titleStyle.Render("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛") + "\n\n")
 
 	// Field 0: Target Name
 	targetStyle := lipgloss.NewStyle()
@@ -1553,10 +1573,15 @@ func (m *Model) viewMarketplacePostBounty() string {
 		targetStyle = targetStyle.Foreground(lipgloss.Color("11")).Bold(true)
 	}
 	targetName := m.marketplace.createForm["target_name"]
+	targetLen := len(targetName)
 	if m.marketplace.formField == 0 {
 		targetName += "_"
 	}
-	b.WriteString(targetStyle.Render(fmt.Sprintf("Target Player: %s", targetName)) + "\n\n")
+	b.WriteString(targetStyle.Render(fmt.Sprintf("Target Player: %s", targetName)) + "\n")
+	if m.marketplace.formField == 0 {
+		b.WriteString(helpStyle.Render(fmt.Sprintf("  (%d/50 characters)", targetLen)) + "\n")
+	}
+	b.WriteString("\n")
 
 	// Field 1: Amount
 	amountStyle := lipgloss.NewStyle()
@@ -1583,14 +1608,18 @@ func (m *Model) viewMarketplacePostBounty() string {
 	if m.marketplace.formField == 2 {
 		reasonStyle = reasonStyle.Foreground(lipgloss.Color("11")).Bold(true)
 	}
-	b.WriteString(reasonStyle.Render("Reason:\n"))
 	reason := m.marketplace.createForm["reason"]
+	reasonLen := len(reason)
+	b.WriteString(reasonStyle.Render("Reason:\n"))
 	if m.marketplace.formField == 2 {
 		reason += "_"
 	}
 	reasonLines := wrapText(reason, 70)
 	for _, line := range reasonLines {
 		b.WriteString(reasonStyle.Render(line) + "\n")
+	}
+	if m.marketplace.formField == 2 {
+		b.WriteString(helpStyle.Render(fmt.Sprintf("(%d/200 characters)", reasonLen)) + "\n")
 	}
 	b.WriteString("\n")
 
