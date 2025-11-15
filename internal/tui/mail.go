@@ -1,7 +1,7 @@
 // File: internal/tui/mail.go
 // Project: Terminal Velocity
 // Description: Player mail system TUI screen
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -649,10 +649,20 @@ func (m *Model) sendMail(recipient, subject, body string) tea.Cmd {
 			return m.playerRepo.GetByUsername(ctx, username)
 		}
 
-		// Simple check blocked function (returns false for now, no blocking system integrated yet)
+		// Check if sender is blocked by receiver using friends manager
 		checkBlocked := func(receiverID, senderID uuid.UUID) (bool, error) {
-			// TODO: Integrate with friends/blocking system when available
-			return false, nil
+			if m.friendsManager == nil {
+				// Friends manager not available, allow mail
+				return false, nil
+			}
+
+			// Check if senderID is blocked by receiverID
+			blocked, err := m.friendsManager.IsBlocked(ctx, receiverID, senderID)
+			if err != nil {
+				// On error, default to not blocked to avoid blocking legitimate mail
+				return false, nil
+			}
+			return blocked, nil
 		}
 
 		err := m.mailManager.SendMail(
