@@ -67,6 +67,13 @@ type Player struct {
 	MissionsCompleted int `json:"missions_completed"`
 	MissionsFailed    int `json:"missions_failed"`
 
+	// Progression - Quests
+	QuestsCompleted int `json:"quests_completed"`
+
+	// Progression - Overall
+	Level      int   `json:"level"`       // Overall player level (1-100)
+	Experience int64 `json:"experience"`  // Experience points for leveling
+
 	// Reputation with NPC factions (-100 to +100)
 	Reputation map[string]int `json:"reputation"`
 
@@ -74,9 +81,14 @@ type Player struct {
 	FactionID   *uuid.UUID `json:"faction_id,omitempty"`
 	FactionRank string     `json:"faction_rank,omitempty"`
 
+	// Legal status
+	LegalStatus string `json:"legal_status"` // "citizen", "outlaw", "pirate", "wanted", "hostile"
+	Bounty      int64  `json:"bounty"`       // Bounty on player's head (credits)
+
 	// Status
-	IsOnline   bool `json:"is_online"`
-	IsCriminal bool `json:"is_criminal"`
+	IsOnline   bool      `json:"is_online"`
+	IsCriminal bool      `json:"is_criminal"` // Deprecated: use LegalStatus instead
+	UpdatedAt  time.Time `json:"updated_at"`  // Last update timestamp
 }
 
 // SSHKey represents an SSH public key for player authentication
@@ -135,9 +147,22 @@ func NewPlayer(username, passwordHash string) *Player {
 		MissionsCompleted: 0,
 		MissionsFailed:    0,
 
+		// Quest progression
+		QuestsCompleted: 0,
+
+		// Overall progression
+		Level:      1,  // Start at level 1
+		Experience: 0,  // No experience yet
+
 		Reputation: make(map[string]int),
+
+		// Legal status
+		LegalStatus: "citizen",  // Start as citizen
+		Bounty:      0,           // No bounty
+
 		IsOnline:   false,
 		IsCriminal: false,
+		UpdatedAt:  now,
 	}
 }
 

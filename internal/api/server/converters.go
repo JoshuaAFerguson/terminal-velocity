@@ -1,7 +1,7 @@
 // File: internal/api/server/converters.go
 // Project: Terminal Velocity
 // Description: Converters between database models and API types
-// Version: 1.2.0
+// Version: 1.3.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -37,7 +37,7 @@ func convertPlayerToAPI(player *models.Player, ship *models.Ship) *api.PlayerSta
 		Credits:       player.Credits,
 		Fuel:          0, // Fuel is on Ship, not Player
 		CurrentShipID: player.ShipID,
-		LastSave:      time.Now(), // TODO: Add UpdatedAt to Player model
+		LastSave:      player.UpdatedAt,
 	}
 
 	// Convert ship if provided
@@ -206,15 +206,15 @@ func convertPlayerStatsToAPI(player *models.Player) *api.PlayerStats {
 	}
 
 	return &api.PlayerStats{
-		Level:              0, // TODO: Add Level to Player model
-		Experience:         0, // TODO: Add Experience to Player model
+		Level:              int32(player.Level),
+		Experience:         player.Experience,
 		TotalCreditsEarned: player.TradeProfit, // Using TradeProfit as proxy
 		CombatRating:       int32(player.CombatRating),
 		TradeRating:        int32(player.TradingRating),
 		ExplorationRating:  int32(player.ExplorationRating),
 		ShipsDestroyed:     int32(player.TotalKills),
 		MissionsCompleted:  int32(player.MissionsCompleted),
-		QuestsCompleted:    0, // TODO: Add QuestsCompleted to Player model
+		QuestsCompleted:    int32(player.QuestsCompleted),
 		SystemsVisited:     int32(player.SystemsVisited),
 		JumpsMade:          int32(player.TotalJumps),
 		AccountCreated:     player.CreatedAt,
@@ -230,18 +230,13 @@ func convertReputationToAPI(player *models.Player) *api.ReputationInfo {
 
 	reputation := &api.ReputationInfo{
 		FactionReputation: make(map[string]int32),
-		LegalStatus:       "citizen", // TODO: Add LegalStatus to Player model
-		Bounty:            0,          // TODO: Add Bounty to Player model
+		LegalStatus:       player.LegalStatus,
+		Bounty:            player.Bounty,
 	}
 
 	// Convert faction reputation (Player.Reputation is map[string]int)
 	for faction, rep := range player.Reputation {
 		reputation.FactionReputation[faction] = int32(rep)
-	}
-
-	// Criminal status
-	if player.IsCriminal {
-		reputation.LegalStatus = "criminal"
 	}
 
 	return reputation
