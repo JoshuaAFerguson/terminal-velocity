@@ -387,7 +387,7 @@ func (s *Server) startAnonymousSession(channel ssh.Channel) {
 	log.Debug("startAnonymousSession called")
 
 	// Initialize TUI model with login screen
-	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo)
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo)
 
 	// Create BubbleTea program with SSH channel as input/output
 	p := tea.NewProgram(
