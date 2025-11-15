@@ -171,7 +171,9 @@ CREATE TABLE IF NOT EXISTS ship_weapons (
     ship_id UUID REFERENCES ships(id) ON DELETE CASCADE,
     weapon_id VARCHAR(50) NOT NULL,
     slot_index INTEGER NOT NULL,
-    PRIMARY KEY (ship_id, slot_index)
+    current_ammo INTEGER DEFAULT 0,
+    PRIMARY KEY (ship_id, slot_index),
+    CONSTRAINT ammo_non_negative CHECK (current_ammo >= 0)
 );
 
 -- Ship outfits

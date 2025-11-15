@@ -1,7 +1,7 @@
 // File: internal/api/server/converters.go
 // Project: Terminal Velocity
 // Description: Converters between database models and API types
-// Version: 1.3.0
+// Version: 1.4.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -102,7 +102,7 @@ func convertShipToAPI(ship *models.Ship) *api.Ship {
 		TurnRate:      0, // Not currently modeled
 		PurchasePrice: purchasePrice,
 		CurrentValue:  currentValue,
-		Weapons:       convertWeaponsToAPI(ship.Weapons),
+		Weapons:       convertWeaponsToAPI(ship.Weapons, ship.WeaponAmmo),
 		Outfits:       convertOutfitsToAPI(ship.Outfits),
 	}
 
@@ -110,18 +110,26 @@ func convertShipToAPI(ship *models.Ship) *api.Ship {
 }
 
 // convertWeaponsToAPI converts weapon IDs to API Weapon objects
-func convertWeaponsToAPI(weaponIDs []string) []*api.Weapon {
+func convertWeaponsToAPI(weaponIDs []string, weaponAmmo map[int]int) []*api.Weapon {
 	weapons := make([]*api.Weapon, 0, len(weaponIDs))
-	for _, weaponID := range weaponIDs {
+	for slotIndex, weaponID := range weaponIDs {
 		weapon := models.GetWeaponByID(weaponID)
 		if weapon != nil {
+			// Get current ammo for this weapon slot
+			currentAmmo := 0
+			if weaponAmmo != nil {
+				if ammo, ok := weaponAmmo[slotIndex]; ok {
+					currentAmmo = ammo
+				}
+			}
+
 			weapons = append(weapons, &api.Weapon{
 				WeaponID:   weapon.ID,
 				WeaponType: weapon.Type,
 				Damage:     int32(weapon.Damage),
 				Range:      int32(weapon.RangeValue),
 				Accuracy:   float64(weapon.Accuracy),
-				Ammo:       0,       // TODO: Track current ammo on ship
+				Ammo:       int32(currentAmmo),
 				MaxAmmo:    int32(weapon.AmmoCapacity),
 				Cooldown:   int32(weapon.Cooldown),
 			})
