@@ -167,14 +167,16 @@ func (m Model) handleRegistrationBackspace() (Model, tea.Cmd) {
 func (m Model) handleRegistrationInput(input string) (Model, tea.Cmd) {
 	reg := &m.registration
 
-	// Only handle printable characters
+	// Only handle single characters
 	if len(input) != 1 {
 		return m, nil
 	}
 
-	// Filter out control characters and non-printable characters
+	// Filter out dangerous control characters but allow escape sequences for ANSI stripping
+	// We allow \x1b (escape) because StripANSI will remove the full ANSI sequence
 	char := input[0]
-	if char < 32 || char == 127 {
+	if (char < 32 && char != 27) || char == 127 {
+		// Filter: null byte, backspace, DEL, etc. but NOT escape (\x1b = 27)
 		return m, nil
 	}
 
@@ -183,18 +185,24 @@ func (m Model) handleRegistrationInput(input string) (Model, tea.Cmd) {
 		// Limit email length to prevent memory exhaustion (RFC 5321 max is 254)
 		if len(reg.email) < 254 {
 			reg.email += input
+			// Strip ANSI escape codes to prevent injection attacks
+			reg.email = validation.StripANSI(reg.email)
 			reg.error = ""
 		}
 	case 2: // Password
 		// Limit password length to prevent memory exhaustion (reasonable max is 128)
 		if len(reg.password) < 128 {
 			reg.password += input
+			// Strip ANSI escape codes to prevent injection attacks
+			reg.password = validation.StripANSI(reg.password)
 			reg.error = ""
 		}
 	case 3: // Confirm password
 		// Limit confirm password length to match password max
 		if len(reg.confirmPass) < 128 {
 			reg.confirmPass += input
+			// Strip ANSI escape codes to prevent injection attacks
+			reg.confirmPass = validation.StripANSI(reg.confirmPass)
 			reg.error = ""
 		}
 	}

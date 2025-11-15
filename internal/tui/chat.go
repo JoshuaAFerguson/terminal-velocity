@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/validation"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
@@ -67,10 +68,12 @@ func (m Model) updateChat(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				// Add character to buffer with sanitization
 				if len(msg.String()) == 1 && len(m.chatModel.inputBuffer) < 200 {
-					// Filter out control characters and non-printable characters
+					// Filter out control characters (except escape for ANSI sequences)
 					char := msg.String()[0]
-					if char >= 32 && char != 127 {
+					if (char >= 32 && char != 127) || char == 27 {
 						m.chatModel.inputBuffer += msg.String()
+						// Strip ANSI escape codes to prevent injection attacks
+						m.chatModel.inputBuffer = validation.StripANSI(m.chatModel.inputBuffer)
 					}
 				}
 			}

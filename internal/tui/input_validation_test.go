@@ -56,7 +56,7 @@ func TestRegistrationInputLengthLimits(t *testing.T) {
 
 			// Simulate typing each character
 			for _, char := range tt.input {
-				m.handleRegistrationInput(string(char))
+				m, _ = m.handleRegistrationInput(string(char))
 			}
 
 			var actual string
@@ -124,7 +124,7 @@ func TestRegistrationControlCharacterFiltering(t *testing.T) {
 
 			// Simulate typing each character
 			for _, char := range tt.input {
-				m.handleRegistrationInput(string(char))
+				m, _ = m.handleRegistrationInput(string(char))
 			}
 
 			if m.registration.email != tt.expected {

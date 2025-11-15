@@ -21,6 +21,9 @@ func TestChatHistoryConcurrency(t *testing.T) {
 	playerID := uuid.New()
 	history := NewChatHistory(playerID)
 
+	// Increase limit to accommodate all test messages
+	history.MaxMessagesPerChannel = 1000
+
 	const numGoroutines = 100
 	const messagesPerGoroutine = 10
 
