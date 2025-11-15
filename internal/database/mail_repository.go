@@ -30,19 +30,20 @@ func NewMailRepository(db *DB) *MailRepository {
 // CreateMail inserts a new mail message
 func (r *MailRepository) CreateMail(ctx context.Context, mail *models.Mail) error {
 	query := `
-		INSERT INTO player_mail (id, from_player, to_player, subject, body, sent_at, read, deleted_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO player_mail (id, sender_id, sender_name, receiver_id, subject, body, sent_at, is_read, is_deleted)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
 		mail.ID,
-		mail.From,
-		mail.To,
+		mail.SenderID,
+		mail.SenderName,
+		mail.ReceiverID,
 		mail.Subject,
 		mail.Body,
 		mail.SentAt,
-		mail.Read,
-		mail.DeletedBy,
+		mail.IsRead,
+		mail.IsDeleted,
 	)
 
 	if err != nil {
@@ -55,25 +56,26 @@ func (r *MailRepository) CreateMail(ctx context.Context, mail *models.Mail) erro
 // GetMail retrieves a specific mail message
 func (r *MailRepository) GetMail(ctx context.Context, mailID uuid.UUID) (*models.Mail, error) {
 	query := `
-		SELECT id, from_player, to_player, subject, body, sent_at, read, read_at, deleted_by
+		SELECT id, sender_id, sender_name, receiver_id, subject, body, sent_at, is_read, read_at, is_deleted
 		FROM player_mail
 		WHERE id = $1
 	`
 
 	var mail models.Mail
 	var readAt sql.NullTime
-	var deletedBy []uuid.UUID
+	var senderID sql.NullString
 
 	err := r.db.QueryRowContext(ctx, query, mailID).Scan(
 		&mail.ID,
-		&mail.From,
-		&mail.To,
+		&senderID,
+		&mail.SenderName,
+		&mail.ReceiverID,
 		&mail.Subject,
 		&mail.Body,
 		&mail.SentAt,
-		&mail.Read,
+		&mail.IsRead,
 		&readAt,
-		&deletedBy,
+		&mail.IsDeleted,
 	)
 
 	if err != nil {
@@ -83,10 +85,16 @@ func (r *MailRepository) GetMail(ctx context.Context, mailID uuid.UUID) (*models
 		return nil, fmt.Errorf("failed to query mail: %w", err)
 	}
 
+	if senderID.Valid {
+		id, err := uuid.Parse(senderID.String)
+		if err == nil {
+			mail.SenderID = &id
+		}
+	}
+
 	if readAt.Valid {
 		mail.ReadAt = &readAt.Time
 	}
-	mail.DeletedBy = deletedBy
 
 	return &mail, nil
 }
@@ -94,9 +102,9 @@ func (r *MailRepository) GetMail(ctx context.Context, mailID uuid.UUID) (*models
 // GetInbox retrieves inbox messages for a player
 func (r *MailRepository) GetInbox(ctx context.Context, playerID uuid.UUID, limit, offset int) ([]*models.Mail, error) {
 	query := `
-		SELECT id, from_player, to_player, subject, body, sent_at, read, read_at, deleted_by
+		SELECT id, sender_id, sender_name, receiver_id, subject, body, sent_at, is_read, read_at, is_deleted
 		FROM player_mail
-		WHERE to_player = $1 AND NOT ($1 = ANY(deleted_by))
+		WHERE receiver_id = $1 AND is_deleted = false
 		ORDER BY sent_at DESC
 		LIMIT $2 OFFSET $3
 	`
@@ -111,28 +119,35 @@ func (r *MailRepository) GetInbox(ctx context.Context, playerID uuid.UUID, limit
 	for rows.Next() {
 		var mail models.Mail
 		var readAt sql.NullTime
-		var deletedBy []uuid.UUID
+		var senderID sql.NullString
 
 		err := rows.Scan(
 			&mail.ID,
-			&mail.From,
-			&mail.To,
+			&senderID,
+			&mail.SenderName,
+			&mail.ReceiverID,
 			&mail.Subject,
 			&mail.Body,
 			&mail.SentAt,
-			&mail.Read,
+			&mail.IsRead,
 			&readAt,
-			&deletedBy,
+			&mail.IsDeleted,
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan mail: %w", err)
 		}
 
+		if senderID.Valid {
+			id, err := uuid.Parse(senderID.String)
+			if err == nil {
+				mail.SenderID = &id
+			}
+		}
+
 		if readAt.Valid {
 			mail.ReadAt = &readAt.Time
 		}
-		mail.DeletedBy = deletedBy
 
 		messages = append(messages, &mail)
 	}
@@ -147,9 +162,9 @@ func (r *MailRepository) GetInbox(ctx context.Context, playerID uuid.UUID, limit
 // GetSent retrieves sent messages for a player
 func (r *MailRepository) GetSent(ctx context.Context, playerID uuid.UUID, limit, offset int) ([]*models.Mail, error) {
 	query := `
-		SELECT id, from_player, to_player, subject, body, sent_at, read, read_at, deleted_by
+		SELECT id, sender_id, sender_name, receiver_id, subject, body, sent_at, is_read, read_at, is_deleted
 		FROM player_mail
-		WHERE from_player = $1 AND NOT ($1 = ANY(deleted_by))
+		WHERE sender_id = $1 AND is_deleted = false
 		ORDER BY sent_at DESC
 		LIMIT $2 OFFSET $3
 	`
@@ -164,28 +179,35 @@ func (r *MailRepository) GetSent(ctx context.Context, playerID uuid.UUID, limit,
 	for rows.Next() {
 		var mail models.Mail
 		var readAt sql.NullTime
-		var deletedBy []uuid.UUID
+		var senderID sql.NullString
 
 		err := rows.Scan(
 			&mail.ID,
-			&mail.From,
-			&mail.To,
+			&senderID,
+			&mail.SenderName,
+			&mail.ReceiverID,
 			&mail.Subject,
 			&mail.Body,
 			&mail.SentAt,
-			&mail.Read,
+			&mail.IsRead,
 			&readAt,
-			&deletedBy,
+			&mail.IsDeleted,
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan mail: %w", err)
 		}
 
+		if senderID.Valid {
+			id, err := uuid.Parse(senderID.String)
+			if err == nil {
+				mail.SenderID = &id
+			}
+		}
+
 		if readAt.Valid {
 			mail.ReadAt = &readAt.Time
 		}
-		mail.DeletedBy = deletedBy
 
 		messages = append(messages, &mail)
 	}
@@ -201,8 +223,8 @@ func (r *MailRepository) GetSent(ctx context.Context, playerID uuid.UUID, limit,
 func (r *MailRepository) MarkAsRead(ctx context.Context, mailID uuid.UUID) error {
 	query := `
 		UPDATE player_mail
-		SET read = true, read_at = $1
-		WHERE id = $2 AND read = false
+		SET is_read = true, read_at = $1
+		WHERE id = $2 AND is_read = false
 	`
 
 	_, err := r.db.ExecContext(ctx, query, time.Now(), mailID)
@@ -213,15 +235,15 @@ func (r *MailRepository) MarkAsRead(ctx context.Context, mailID uuid.UUID) error
 	return nil
 }
 
-// MarkAsDeleted adds a player to the deleted list
+// MarkAsDeleted marks a mail as deleted
 func (r *MailRepository) MarkAsDeleted(ctx context.Context, mailID, playerID uuid.UUID) error {
 	query := `
 		UPDATE player_mail
-		SET deleted_by = array_append(deleted_by, $1)
-		WHERE id = $2 AND NOT ($1 = ANY(deleted_by))
+		SET is_deleted = true
+		WHERE id = $1 AND (sender_id = $2 OR receiver_id = $2)
 	`
 
-	_, err := r.db.ExecContext(ctx, query, playerID, mailID)
+	_, err := r.db.ExecContext(ctx, query, mailID, playerID)
 	if err != nil {
 		return fmt.Errorf("failed to mark mail as deleted: %w", err)
 	}
@@ -234,7 +256,7 @@ func (r *MailRepository) GetUnreadCount(ctx context.Context, playerID uuid.UUID)
 	query := `
 		SELECT COUNT(*)
 		FROM player_mail
-		WHERE to_player = $1 AND read = false AND NOT ($1 = ANY(deleted_by))
+		WHERE receiver_id = $1 AND is_read = false AND is_deleted = false
 	`
 
 	var count int
@@ -250,9 +272,9 @@ func (r *MailRepository) GetUnreadCount(ctx context.Context, playerID uuid.UUID)
 func (r *MailRepository) GetMailStats(ctx context.Context, playerID uuid.UUID) (*models.MailStats, error) {
 	query := `
 		SELECT
-			COUNT(*) FILTER (WHERE to_player = $1 AND NOT ($1 = ANY(deleted_by))) as received,
-			COUNT(*) FILTER (WHERE from_player = $1 AND NOT ($1 = ANY(deleted_by))) as sent,
-			COUNT(*) FILTER (WHERE to_player = $1 AND read = false AND NOT ($1 = ANY(deleted_by))) as unread
+			COUNT(*) FILTER (WHERE receiver_id = $1 AND is_deleted = false) as received,
+			COUNT(*) FILTER (WHERE sender_id = $1 AND is_deleted = false) as sent,
+			COUNT(*) FILTER (WHERE receiver_id = $1 AND is_read = false AND is_deleted = false) as unread
 		FROM player_mail
 	`
 
@@ -290,12 +312,11 @@ func (r *MailRepository) DeleteOldMail(ctx context.Context, before time.Time) (i
 	return int(rowsAffected), nil
 }
 
-// HardDeleteMail permanently deletes mail deleted by both parties
+// HardDeleteMail permanently deletes mail marked as deleted
 func (r *MailRepository) HardDeleteMail(ctx context.Context) (int, error) {
 	query := `
 		DELETE FROM player_mail
-		WHERE array_length(deleted_by, 1) = 2
-		OR (from_player = ANY(deleted_by) AND to_player = ANY(deleted_by))
+		WHERE is_deleted = true
 	`
 
 	result, err := r.db.ExecContext(ctx, query)
