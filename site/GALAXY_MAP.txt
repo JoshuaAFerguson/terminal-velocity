@@ -1,0 +1,183 @@
+═══════════════════════════════════════════════════════════════════════
+                     TERMINAL VELOCITY - GALAXY MAP
+                         (Simplified 2D View)
+═══════════════════════════════════════════════════════════════════════
+
+Legend:
+  ⊕  United Earth Federation (UEF)
+  ♂  Republic of Mars (ROM)
+  ¤  Free Traders Guild (FTG)
+  ⚑  Frontier Worlds Alliance (FWA)
+  ☠  Crimson Collective (hidden bases)
+  ⧈  Auroran Empire (alien)
+  ·  Independent/Unaligned
+  ═  Major trade route
+  ─  Standard jump route
+
+
+                        Edge Systems (~100+ LY from Sol)
+    ⧈────⧈                                                    ⧈
+     \    \                                                  /
+      \    ⧈────⧈                                      ⧈───⧈
+       \    \     \                                    /
+        \    \     \          [AURORAN EMPIRE]       /
+         \    ⧈     ⧈                              ⧈
+          \    \   /                                \
+           \    \ /                                  \
+            \    ⧈                                    ⧈
+             \    \                                  /
+              \    \_______________  ______________/
+               \                   \/
+                \              [THE EDGE]
+    ─────────────\────────────────────────────────────────────────
+                  \
+                   \    Outer Systems (~60-100 LY from Sol)
+                    \
+      ☠               \
+       \               ⚑────⚑────⚑
+        \───·           |     \    \
+         \   \          ⚑      ·    ⚑
+          ☠   ·         |       \    \
+           \   \        |        ⚑    ·───☠
+            \   ·───⚑───⚑         \   |
+             \   \   |             ⚑  |
+              \   \ ⚑               \ |
+               ☠   \|    [FRONTIER]  ⚑────·
+                \   ⚑                 |     \
+                 \  |                 |      ☠
+                  \ |                 ·       \
+                   \|                  \       \
+    ─────────────── ⚑ ─────────────────·───────────────────────
+                     \                   \
+                      \                   \
+                       \   Mid Systems (~30-60 LY from Sol)
+                        \
+                         \
+                          ·────¤────·
+                           \   |   /
+                            ·──¤──·
+                             \ | /\
+                              \|/  ¤────·
+                               ¤    |    \
+                              /|    |     ·
+                             / ¤────·      \
+                            /  |     \      ·
+                           /   |      ¤      \
+                          ·────¤       \      ·
+                         /     |        ·      \
+                        /      |         \      ¤
+                       /  [FREE TRADERS]  \      \
+                      /        |           \      \
+    ─────────────────·─────────¤────────────·──────────────────
+                    /           |             \
+                   /            |              \
+                  /   Core Systems (0-30 LY from Sol)
+                 /              |                \
+                /               |                 \
+               ⊕════════════════¤══════════════════⊕
+              / \               |               /   \
+             /   \              |              /     \
+            ⊕     ⊕             |             ⊕       ⊕
+           / \   / \            |            / \     / \
+          /   \ /   \           |           /   \   /   \
+         ⊕     ⊕     ⊕          |          ⊕     ⊕ /     ⊕
+          \   / \   /           |           \   / ⊕     /
+           \ /   ⊕ /            |            \ /   \   /
+            ⊕─────⊕═════════════⊕══════════════⊕     ⊕
+             \   /          (♂) SOL           / \   /
+              \ /           Earth/Mars       /   \ /
+               ⊕           [UEF CAPITAL]    ⊕     ⊕
+                \             |  |         /
+                 \            |  |        /
+                  ⊕───────────⊕══⊕═══════⊕
+                             / [ROM]
+                            /     |
+                           ⊕      ⊕
+
+═══════════════════════════════════════════════════════════════════════
+
+REGIONAL CHARACTERISTICS:
+
+CORE (0-30 LY from Sol):
+  • Controlled by: UEF (70%), ROM (30%)
+  • Tech Level: 7-9
+  • Population: Very High
+  • Security: Maximum (Patrol Strength 7-8)
+  • Trade: Stable prices, low margins
+  • Features: Best shipyards, excellent outfitters
+  • Danger: Minimal (safe for new players)
+
+MID (30-60 LY from Sol):
+  • Controlled by: FTG hubs (25%), UEF influence (25%), Independent (50%)
+  • Tech Level: 5-7
+  • Population: Medium-High
+  • Security: Moderate (Patrol Strength 5-6)
+  • Trade: Good opportunities, medium margins
+  • Features: Trading stations, moderate selection
+  • Danger: Low (occasional pirate activity)
+
+OUTER (60-100 LY from Sol):
+  • Controlled by: FWA (40%), Independent (50%), Crimson bases (10%)
+  • Tech Level: 3-6
+  • Population: Low-Medium
+  • Security: Weak (Patrol Strength 3-4)
+  • Trade: High margins, volatile prices
+  • Features: Basic facilities, limited selection
+  • Danger: High (heavy pirate presence)
+  • Player Faction Zone: Primary area for player territory
+
+EDGE (100+ LY from Sol):
+  • Controlled by: Auroran Empire (100%)
+  • Tech Level: 10 (alien technology)
+  • Population: Unknown
+  • Security: Maximum (Patrol Strength 9)
+  • Trade: Very limited, exotic goods
+  • Features: Alien stations, mysterious technology
+  • Danger: Extreme (unknown threats)
+  • Lore: First contact zone, mysteries
+
+═══════════════════════════════════════════════════════════════════════
+
+MAJOR TRADE ROUTES:
+
+1. SOL (⊕) ══ Alpha Centauri (⊕) ══ Sirius (¤) ══ Outer colonies
+   "The Main Line" - Safest and most traveled route
+
+2. SOL (⊕) ── Tau Ceti (⊕) ── FTG Hub (¤) ── Frontier (⚑)
+   "The Merchant Road" - High volume trading
+
+3. ROM stations (♂) ── UEF space (⊕) ── FTG hubs (¤)
+   "The Industrial Corridor" - Ship and equipment trade
+
+4. FTG hubs (¤) ─ Frontier systems (⚑) ─ Edge (⧈)
+   "The Explorer's Route" - Dangerous but profitable
+
+5. Outer systems (·) ─☠─ Lawless space ─☠─ Black markets
+   "The Smuggler's Run" - Illegal but lucrative
+
+═══════════════════════════════════════════════════════════════════════
+
+STRATEGIC CHOKEPOINTS:
+
+• Sirius (¤) - Major FTG hub, controls trade to outer systems
+• Epsilon Eridani (⊕/⚑) - Border between UEF and Frontier space
+• Crimson bases (☠) - Control access to valuable outer routes
+• Auroran border - Single entry point to alien space
+
+═══════════════════════════════════════════════════════════════════════
+
+PLAYER FACTION TERRITORIES:
+
+Player factions typically claim systems in:
+  • Mid-Outer border (best for new factions)
+  • Outer independent systems (most available)
+  • Contested FWA systems (with permission)
+
+Strategic considerations:
+  ✓ Proximity to trade routes
+  ✓ Defensibility (few connections)
+  ✓ Resources (tech level, population)
+  ✗ Too close to Crimson bases (constant attacks)
+  ✗ Too remote (no trade, no recruits)
+
+═══════════════════════════════════════════════════════════════════════
