@@ -84,6 +84,9 @@ type Player struct {
 	CraftingSkill int `json:"crafting_skill"` // Crafting skill level (0-100)
 	TotalCrafts   int `json:"total_crafts"`   // Total items crafted
 
+	// Progression - Research
+	ResearchPoints int `json:"research_points"` // Available research points for technology unlocks
+
 	// Progression - Overall
 	Level      int   `json:"level"`       // Overall player level (1-100)
 	Experience int64 `json:"experience"`  // Experience points for leveling
@@ -177,6 +180,9 @@ func NewPlayer(username, passwordHash string) *Player {
 		// Manufacturing/Crafting progression
 		CraftingSkill: 0,
 		TotalCrafts:   0,
+
+		// Research progression
+		ResearchPoints: 100, // Starting research points
 
 		// Overall progression
 		Level:      1,  // Start at level 1

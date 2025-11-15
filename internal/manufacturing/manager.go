@@ -473,23 +473,30 @@ func (m *Manager) ResearchTechnology(ctx context.Context, playerID uuid.UUID, te
 	for i := 0; i < currentLevel; i++ {
 		costMultiplier *= m.config.TechCostScaling
 	}
-	// TODO: Implement research resource system
-	// researchCost := int(float64(tech.ResearchCost) * costMultiplier)
+	researchCost := int(float64(tech.ResearchCost) * costMultiplier)
 	creditCost := int64(float64(tech.CreditCost) * costMultiplier)
 
-	// Check credits
+	// Get player and check resources
 	player, err := m.playerRepo.GetByID(ctx, playerID)
 	if err != nil {
 		return fmt.Errorf("failed to get player: %v", err)
 	}
-	if player.Credits < creditCost {
-		return fmt.Errorf("insufficient credits (need %d)", creditCost)
+
+	// Check research points
+	if player.ResearchPoints < researchCost {
+		return fmt.Errorf("insufficient research points (need %d, have %d)", researchCost, player.ResearchPoints)
 	}
 
-	// Deduct credits
+	// Check credits
+	if player.Credits < creditCost {
+		return fmt.Errorf("insufficient credits (need %d, have %d)", creditCost, player.Credits)
+	}
+
+	// Deduct costs
+	player.ResearchPoints -= researchCost
 	player.Credits -= creditCost
 	if err := m.playerRepo.Update(ctx, player); err != nil {
-		return fmt.Errorf("failed to deduct credits: %v", err)
+		return fmt.Errorf("failed to deduct costs: %v", err)
 	}
 
 	// Research technology (instant for now, could be time-based)
