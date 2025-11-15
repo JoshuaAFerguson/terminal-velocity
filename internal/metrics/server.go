@@ -91,10 +91,58 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, s.collector.PrometheusFormat())
 }
 
-// handleHealth serves a simple health check
+// handleHealth serves a comprehensive health check with service status
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	snap := s.collector.Snapshot()
+	enhanced := GetEnhanced()
+
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"status":"ok","uptime":"%v"}`, time.Since(s.collector.startTime))
+
+	// Calculate error rate
+	errorRate := 0.0
+	if snap.DatabaseQueries > 0 {
+		errorRate = (float64(snap.DatabaseErrors) / float64(snap.DatabaseQueries)) * 100
+	}
+
+	// Get latency metrics
+	dbP99, _, _ := enhanced.OperationLatency.GetPercentiles("database")
+
+	// Determine overall health status
+	status := "healthy"
+	statusCode := 200
+
+	// Degraded if:
+	// - Error rate > 1%
+	// - Database p99 latency > 500ms
+	// - Cache hit rate < 50%
+	if errorRate > 1 || dbP99 > 500*time.Millisecond || snap.CacheHitRate < 50 {
+		status = "degraded"
+		statusCode = 200 // Still return 200 for degraded
+	}
+
+	// Unhealthy if:
+	// - Error rate > 5%
+	// - Database p99 latency > 2s
+	// - Database errors in last check
+	if errorRate > 5 || dbP99 > 2*time.Second {
+		status = "unhealthy"
+		statusCode = 503 // Service Unavailable
+	}
+
+	w.WriteHeader(statusCode)
+
+	// Write JSON health response
+	fmt.Fprintf(w, `{"status":"%s","uptime":"%s","active_connections":%d,"active_players":%d,"database_p99_latency":"%s","error_rate_percent":%.2f,"cache_hit_rate_percent":%.2f,"database_errors":%d,"timestamp":"%s"}`,
+		status,
+		snap.Uptime.Round(time.Second).String(),
+		snap.ActiveConnections,
+		snap.ActivePlayers,
+		dbP99.Round(time.Millisecond).String(),
+		errorRate,
+		snap.CacheHitRate,
+		snap.DatabaseErrors,
+		time.Now().Format(time.RFC3339),
+	)
 }
 
 // handleStats serves human-readable statistics
