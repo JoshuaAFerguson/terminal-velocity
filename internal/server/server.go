@@ -1,7 +1,7 @@
 // File: internal/server/server.go
 // Project: Terminal Velocity
 // Description: SSH server implementation with anonymous login and application-layer authentication
-// Version: 2.0.1
+// Version: 2.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
@@ -27,6 +28,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/yaml.v3"
 )
 
 var log = logger.WithComponent("server")
@@ -83,15 +85,13 @@ type Config struct {
 	RequireEmailVerify bool // Require email verification (future)
 }
 
-// NewServer creates a new game server
-func NewServer(configFile string, port int) (*Server, error) {
-	log.Debug("NewServer called with configFile=%s, port=%d", configFile, port)
-
-	// TODO: Load config from file
+// loadConfig loads configuration from YAML file if it exists, otherwise uses defaults
+func loadConfig(configFile string, port int) (*Config, error) {
+	// Start with defaults
 	config := &Config{
 		Host:        "0.0.0.0",
 		Port:        port,
-		HostKeyPath: "data/ssh_host_key", // Persistent SSH host key (writable in Docker)
+		HostKeyPath: "data/ssh_host_key",
 		MaxPlayers:  100,
 		TickRate:    10,
 		Database:    database.DefaultConfig(),
@@ -105,11 +105,99 @@ func NewServer(configFile string, port int) (*Server, error) {
 		RateLimit:        ratelimit.DefaultConfig(),
 
 		// Default authentication settings
-		AllowPasswordAuth:  true,  // Allow password auth
-		AllowPublicKeyAuth: false, // SSH key auth disabled - password only
-		AllowRegistration:  true,  // Allow new user registration
-		RequireEmail:       true,  // Require email for new accounts
-		RequireEmailVerify: false, // Email verification not yet implemented
+		AllowPasswordAuth:  true,
+		AllowPublicKeyAuth: false,
+		AllowRegistration:  true,
+		RequireEmail:       true,
+		RequireEmailVerify: false,
+	}
+
+	// If no config file specified or file doesn't exist, use defaults
+	if configFile == "" {
+		log.Info("No config file specified, using defaults")
+		return config, nil
+	}
+
+	// Check if config file exists
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		log.Warn("Config file %s not found, using defaults", configFile)
+		return config, nil
+	}
+
+	// Read config file
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file %s: %w", configFile, err)
+	}
+
+	// Parse YAML
+	var fileConfig Config
+	if err := yaml.Unmarshal(data, &fileConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse config file %s: %w", configFile, err)
+	}
+
+	// Merge file config with defaults (file config takes precedence for non-zero values)
+	if fileConfig.Host != "" {
+		config.Host = fileConfig.Host
+	}
+	if fileConfig.Port != 0 {
+		config.Port = fileConfig.Port
+	}
+	if fileConfig.HostKeyPath != "" {
+		config.HostKeyPath = fileConfig.HostKeyPath
+	}
+	if fileConfig.MaxPlayers != 0 {
+		config.MaxPlayers = fileConfig.MaxPlayers
+	}
+	if fileConfig.TickRate != 0 {
+		config.TickRate = fileConfig.TickRate
+	}
+
+	// Merge database config
+	if fileConfig.Database.Host != "" {
+		config.Database.Host = fileConfig.Database.Host
+	}
+	if fileConfig.Database.Port != 0 {
+		config.Database.Port = fileConfig.Database.Port
+	}
+	if fileConfig.Database.User != "" {
+		config.Database.User = fileConfig.Database.User
+	}
+	if fileConfig.Database.Password != "" {
+		config.Database.Password = fileConfig.Database.Password
+	}
+	if fileConfig.Database.Database != "" {
+		config.Database.Database = fileConfig.Database.Database
+	}
+
+	// Merge metrics config
+	config.MetricsEnabled = fileConfig.MetricsEnabled
+	if fileConfig.MetricsPort != 0 {
+		config.MetricsPort = fileConfig.MetricsPort
+	}
+
+	// Merge rate limit config
+	config.RateLimitEnabled = fileConfig.RateLimitEnabled
+
+	// Merge auth settings
+	config.AllowPasswordAuth = fileConfig.AllowPasswordAuth
+	config.AllowPublicKeyAuth = fileConfig.AllowPublicKeyAuth
+	config.AllowRegistration = fileConfig.AllowRegistration
+	config.RequireEmail = fileConfig.RequireEmail
+	config.RequireEmailVerify = fileConfig.RequireEmailVerify
+
+	log.Info("Loaded configuration from %s", configFile)
+	return config, nil
+}
+
+// NewServer creates a new game server
+func NewServer(configFile string, port int) (*Server, error) {
+	log.Debug("NewServer called with configFile=%s, port=%d", configFile, port)
+
+	// Load configuration from file or use defaults
+	config, err := loadConfig(configFile, port)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	log.Info("Server configuration: host=%s, port=%d, maxPlayers=%d, tickRate=%d, metricsEnabled=%t, rateLimitEnabled=%t",
