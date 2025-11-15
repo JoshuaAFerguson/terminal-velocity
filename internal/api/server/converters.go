@@ -246,7 +246,7 @@ func convertReputationToAPI(player *models.Player) *api.ReputationInfo {
 }
 
 // convertMarketToAPI converts database market data to API Market
-func convertMarketToAPI(prices []models.MarketPrice, commodities map[string]*models.Commodity) *api.Market {
+func convertMarketToAPI(prices []models.MarketPrice, commodities map[string]*models.Commodity, governmentID string) *api.Market {
 	market := &api.Market{
 		Commodities: make([]*api.CommodityListing, 0, len(prices)),
 		// LastUpdated will be set from latest price update
@@ -258,13 +258,24 @@ func convertMarketToAPI(prices []models.MarketPrice, commodities map[string]*mod
 			continue // Skip if commodity definition not found
 		}
 
+		// Check if commodity is illegal in this system's government
+		isIllegal := false
+		if governmentID != "" {
+			for _, illegalGov := range commodity.IllegalIn {
+				if illegalGov == governmentID {
+					isIllegal = true
+					break
+				}
+			}
+		}
+
 		market.Commodities = append(market.Commodities, &api.CommodityListing{
 			CommodityID: price.CommodityID,
 			Name:        commodity.Name,
 			BuyPrice:    int32(price.BuyPrice),
 			SellPrice:   int32(price.SellPrice),
 			Stock:       int32(price.Stock),
-			IsIllegal:   false, // TODO: Check if commodity is illegal in this system
+			IsIllegal:   isIllegal,
 		})
 	}
 

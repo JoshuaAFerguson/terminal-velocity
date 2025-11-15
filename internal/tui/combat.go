@@ -1,13 +1,14 @@
 // File: internal/tui/combat.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for combat
-// Version: 1.1.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -383,7 +384,64 @@ func (m Model) executeEndTurn() (tea.Model, tea.Cmd) {
 	// Check combat end conditions
 	if m.combat.playerShip != nil && m.combat.playerShip.Hull <= 0 {
 		m.addCombatLog("Your ship has been destroyed!")
-		// TODO: Handle player defeat
+		m.addCombatLog("You eject from your ship and are rescued...")
+
+		// Handle player defeat
+		ctx := context.Background()
+
+		// Calculate penalty (10% of credits, minimum 100)
+		penalty := m.player.Credits / 10
+		if penalty < 100 {
+			penalty = 100
+		}
+		if penalty > m.player.Credits {
+			penalty = m.player.Credits
+		}
+
+		newCredits := m.player.Credits - penalty
+		if newCredits < 0 {
+			newCredits = 0
+		}
+
+		// Deduct credits
+		if err := m.playerRepo.UpdateCredits(ctx, m.player.ID, newCredits); err == nil {
+			m.player.Credits = newCredits
+			m.addCombatLog(fmt.Sprintf("Rescue costs: -%d credits", penalty))
+		}
+
+		// Restore ship to minimal hull (10% of max)
+		if m.combat.playerType != nil {
+			newHull := m.combat.playerType.MaxHull / 10
+			m.combat.playerShip.Hull = newHull
+			m.combat.playerShip.Shields = 0
+
+			// Update ship in database
+			if err := m.shipRepo.UpdateHullAndShields(ctx, m.combat.playerShip.ID, newHull, 0); err == nil {
+				m.addCombatLog("Ship repaired to minimal condition")
+			}
+		}
+
+		m.addCombatLog("Combat ended - Defeat")
+		m.addCombatLog("Press ESC to return to main menu")
+
+		// Don't start player's turn - combat is over
+		return m, nil
+	}
+
+	// Check for enemy defeat
+	allEnemiesDestroyed := true
+	for _, enemy := range m.combat.enemyShips {
+		if enemy.Hull > 0 {
+			allEnemiesDestroyed = false
+			break
+		}
+	}
+
+	if allEnemiesDestroyed && len(m.combat.enemyShips) > 0 {
+		m.addCombatLog("All enemies destroyed - Victory!")
+		m.addCombatLog("Press ESC to return to main menu")
+		// Don't start player's turn - combat is over
+		return m, nil
 	}
 
 	// Start player's turn again

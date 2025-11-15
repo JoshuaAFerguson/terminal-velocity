@@ -1,7 +1,7 @@
 // File: internal/tui/trading.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for trading
-// Version: 1.1.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -410,12 +410,32 @@ func (m Model) viewSellInterface() string {
 // loadTradingMarket loads market data for the current location
 func (m Model) loadTradingMarket() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Determine current planet from player location
-		// For now, return placeholder
-		// In real implementation, check if player is docked at a planet
-		// and load that planet's market data
+		ctx := context.Background()
 
-		// Placeholder: return all commodities
+		// Determine current planet from player location
+		if m.player.CurrentPlanet == nil {
+			return marketLoadedMsg{
+				err: fmt.Errorf("not docked at a planet - cannot access market"),
+			}
+		}
+
+		// Load planet data
+		planet, err := m.systemRepo.GetPlanetByID(ctx, *m.player.CurrentPlanet)
+		if err != nil {
+			return marketLoadedMsg{
+				err: fmt.Errorf("failed to load planet data: %w", err),
+			}
+		}
+
+		// Load market prices for this planet
+		prices, err := m.marketRepo.GetMarketPricesForPlanet(ctx, planet.ID)
+		if err != nil {
+			return marketLoadedMsg{
+				err: fmt.Errorf("failed to load market prices: %w", err),
+			}
+		}
+
+		// Get all commodities
 		commodities := models.StandardCommodities
 
 		// Sort by category
@@ -428,6 +448,8 @@ func (m Model) loadTradingMarket() tea.Cmd {
 
 		return marketLoadedMsg{
 			commodities: commodities,
+			prices:      prices,
+			planet:      planet,
 			err:         nil,
 		}
 	}

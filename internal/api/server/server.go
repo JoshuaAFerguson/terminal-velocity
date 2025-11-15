@@ -693,6 +693,12 @@ func (s *GameServer) GetMarket(ctx context.Context, systemID uuid.UUID) (*api.Ma
 		return nil, api.ErrInvalidRequest
 	}
 
+	// Get system data for government ID
+	system, err := s.systemRepo.GetSystemByID(ctx, systemID)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get all market prices for planets in this system
 	prices, err := s.marketRepo.GetCommoditiesBySystemID(ctx, systemID)
 	if err != nil {
@@ -706,10 +712,10 @@ func (s *GameServer) GetMarket(ctx context.Context, systemID uuid.UUID) (*api.Ma
 		commodities[commodity.ID] = commodity
 	}
 
-	// Convert to API market
+	// Convert to API market with government ID for illegal commodity checking
 	// Note: This aggregates prices from all planets in the system
 	// In a real implementation, you might want to show the best prices or average prices
-	market := convertMarketToAPI(prices, commodities)
+	market := convertMarketToAPI(prices, commodities, system.GovernmentID)
 	market.SystemID = systemID
 
 	return market, nil
