@@ -10,7 +10,6 @@ package arena
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 

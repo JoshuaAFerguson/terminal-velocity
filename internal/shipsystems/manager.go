@@ -226,12 +226,12 @@ func (m *Manager) ActivateCloak(ctx context.Context, shipID uuid.UUID, ship *mod
 	}
 
 	// Check energy (using shields as energy for now)
-	if ship.Shields < m.config.CloakActivationCost {
+	if float64(ship.Shields) < m.config.CloakActivationCost {
 		return fmt.Errorf("insufficient energy (need %.1f)", m.config.CloakActivationCost)
 	}
 
 	// Deduct activation cost
-	ship.Shields -= m.config.CloakActivationCost
+	ship.Shields -= int(m.config.CloakActivationCost)
 	if err := m.shipRepo.Update(ctx, ship); err != nil {
 		return fmt.Errorf("failed to update ship: %v", err)
 	}
@@ -422,12 +422,12 @@ func (m *Manager) ExecuteJump(ctx context.Context, shipID, fromSystemID, toSyste
 
 	// Calculate fuel cost
 	fuelCost := distance * m.config.JumpDriveFuelCost
-	if ship.Fuel < fuelCost {
+	if float64(ship.Fuel) < fuelCost {
 		return fmt.Errorf("insufficient fuel (need %.1f)", fuelCost)
 	}
 
 	// Deduct fuel
-	ship.Fuel -= fuelCost
+	ship.Fuel -= int(fuelCost)
 	if err := m.shipRepo.Update(ctx, ship); err != nil {
 		return fmt.Errorf("failed to update ship: %v", err)
 	}

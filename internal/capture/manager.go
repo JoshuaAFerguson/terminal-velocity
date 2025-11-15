@@ -113,15 +113,21 @@ func NewManager(shipRepo *database.ShipRepository) *Manager {
 
 // CanDisable checks if a ship can be disabled (pre-boarding check)
 func (m *Manager) CanDisable(target *models.Ship) (bool, string) {
+	// Get ship type for max values
+	shipType := models.GetShipTypeByID(target.TypeID)
+	if shipType == nil {
+		return false, "Invalid ship type"
+	}
+
 	// Check shields
-	shieldPercent := float64(target.CurrentShields) / float64(target.MaxShields)
+	shieldPercent := float64(target.Shields) / float64(shipType.MaxShields)
 	if shieldPercent > m.config.DisableShieldThreshold {
 		return false, fmt.Sprintf("Target shields too high (%.0f%% > %.0f%%)",
 			shieldPercent*100, m.config.DisableShieldThreshold*100)
 	}
 
 	// Check hull
-	hullPercent := float64(target.CurrentHull) / float64(target.MaxHull)
+	hullPercent := float64(target.Hull) / float64(shipType.MaxHull)
 	if hullPercent > m.config.DisableHullThreshold {
 		return false, fmt.Sprintf("Target hull too high (%.0f%% > %.0f%%)",
 			hullPercent*100, m.config.DisableHullThreshold*100)
@@ -148,8 +154,8 @@ func (m *Manager) AttemptBoarding(ctx context.Context, attackerShip, defenderShi
 
 	// Create boarding attempt
 	attempt := &BoardingAttempt{
-		AttackerID:   attackerShip.PlayerID,
-		DefenderID:   defenderShip.PlayerID,
+		AttackerID:   attackerShip.OwnerID,
+		DefenderID:   defenderShip.OwnerID,
 		AttackerShip: attackerShip,
 		DefenderShip: defenderShip,
 		StartTime:    time.Now(),
@@ -212,8 +218,12 @@ func (m *Manager) resolveBoarding(attempt *BoardingAttempt, attackerCrew, defend
 	chance -= float64(defenderCrew) * m.config.DefenseBonus
 
 	// Ship size modifier (larger ships easier to board)
-	sizeDiff := attempt.DefenderShip.CargoCapacity - attempt.AttackerShip.CargoCapacity
-	chance += float64(sizeDiff) / 100 * m.config.ShipSizeModifier
+	attackerType := models.GetShipTypeByID(attempt.AttackerShip.TypeID)
+	defenderType := models.GetShipTypeByID(attempt.DefenderShip.TypeID)
+	if attackerType != nil && defenderType != nil {
+		sizeDiff := defenderType.CargoSpace - attackerType.CargoSpace
+		chance += float64(sizeDiff) / 100 * m.config.ShipSizeModifier
+	}
 
 	// Clamp chance between 5% and 95%
 	if chance < 0.05 {
@@ -257,9 +267,12 @@ func (m *Manager) calculateCaptureSuccess(attempt *BoardingAttempt, attackerCrew
 	chance := m.config.BaseCaptureChance
 
 	// Damage modifier - more damage = easier to capture
-	hullPercent := float64(attempt.DefenderShip.CurrentHull) / float64(attempt.DefenderShip.MaxHull)
-	damagePercent := 1.0 - hullPercent
-	chance += damagePercent * m.config.DamageModifier
+	defenderType := models.GetShipTypeByID(attempt.DefenderShip.TypeID)
+	if defenderType != nil {
+		hullPercent := float64(attempt.DefenderShip.Hull) / float64(defenderType.MaxHull)
+		damagePercent := 1.0 - hullPercent
+		chance += damagePercent * m.config.DamageModifier
+	}
 
 	// Crew ratio modifier
 	crewRatio := float64(attackerCrew) / float64(defenderCrew)
@@ -285,8 +298,13 @@ func (m *Manager) calculateCaptureSuccess(attempt *BoardingAttempt, attackerCrew
 // captureShip transfers ownership of a ship to the attacker
 func (m *Manager) captureShip(ctx context.Context, attempt *BoardingAttempt) error {
 	// Transfer ship ownership
-	attempt.DefenderShip.PlayerID = attempt.AttackerID
-	attempt.DefenderShip.CurrentHull = int(float64(attempt.DefenderShip.MaxHull) * 0.5) // 50% hull after capture
+	attempt.DefenderShip.OwnerID = attempt.AttackerID
+
+	// Set hull to 50% after capture
+	defenderType := models.GetShipTypeByID(attempt.DefenderShip.TypeID)
+	if defenderType != nil {
+		attempt.DefenderShip.Hull = int(float64(defenderType.MaxHull) * 0.5)
+	}
 
 	// Update ship in database
 	err := m.shipRepo.Update(ctx, attempt.DefenderShip)
@@ -339,8 +357,12 @@ func (m *Manager) CalculateBoardingChance(attackerShip, defenderShip *models.Shi
 	chance -= float64(defenderCrew) * m.config.DefenseBonus
 
 	// Ship size modifier
-	sizeDiff := defenderShip.CargoCapacity - attackerShip.CargoCapacity
-	chance += float64(sizeDiff) / 100 * m.config.ShipSizeModifier
+	attackerType := models.GetShipTypeByID(attackerShip.TypeID)
+	defenderType := models.GetShipTypeByID(defenderShip.TypeID)
+	if attackerType != nil && defenderType != nil {
+		sizeDiff := defenderType.CargoSpace - attackerType.CargoSpace
+		chance += float64(sizeDiff) / 100 * m.config.ShipSizeModifier
+	}
 
 	// Clamp
 	if chance < 0.05 {
@@ -358,9 +380,12 @@ func (m *Manager) CalculateCaptureChance(defenderShip *models.Ship, attackerCrew
 	chance := m.config.BaseCaptureChance
 
 	// Damage modifier
-	hullPercent := float64(defenderShip.CurrentHull) / float64(defenderShip.MaxHull)
-	damagePercent := 1.0 - hullPercent
-	chance += damagePercent * m.config.DamageModifier
+	defenderType := models.GetShipTypeByID(defenderShip.TypeID)
+	if defenderType != nil {
+		hullPercent := float64(defenderShip.Hull) / float64(defenderType.MaxHull)
+		damagePercent := 1.0 - hullPercent
+		chance += damagePercent * m.config.DamageModifier
+	}
 
 	// Crew ratio modifier
 	crewRatio := float64(attackerCrew) / float64(defenderCrew)

@@ -391,7 +391,8 @@ func (m *Manager) ResearchTechnology(ctx context.Context, playerID uuid.UUID, te
 	for i := 0; i < currentLevel; i++ {
 		costMultiplier *= m.config.TechCostScaling
 	}
-	researchCost := int(float64(tech.ResearchCost) * costMultiplier)
+	// TODO: Implement research resource system
+	// researchCost := int(float64(tech.ResearchCost) * costMultiplier)
 	creditCost := int64(float64(tech.CreditCost) * costMultiplier)
 
 	// Check credits

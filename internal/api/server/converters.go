@@ -95,7 +95,7 @@ func convertShipToAPI(ship *models.Ship) *api.Ship {
 		MaxFuel:       maxFuel,
 		CargoSpace:    cargoSpace,
 		CargoUsed:     int32(ship.GetCargoUsed()),
-		Speed:         speed,
+		Speed:         float64(speed),
 		Acceleration:  0, // Not currently modeled
 		TurnRate:      0, // Not currently modeled
 		PurchasePrice: purchasePrice,
@@ -114,12 +114,14 @@ func convertWeaponsToAPI(weaponIDs []string) []*api.Weapon {
 		weapon := models.GetWeaponByID(weaponID)
 		if weapon != nil {
 			weapons = append(weapons, &api.Weapon{
-				WeaponID: weapon.ID,
-				Name:     weapon.Name,
-				Damage:   int32(weapon.Damage),
-				Range:    weapon.Range,
-				Type:     weapon.Type,
-				Accuracy: int32(weapon.Accuracy),
+				WeaponID:   weapon.ID,
+				WeaponType: weapon.Type,
+				Damage:     int32(weapon.Damage),
+				Range:      int32(weapon.RangeValue),
+				Accuracy:   float64(weapon.Accuracy),
+				Ammo:       0,       // TODO: Track current ammo on ship
+				MaxAmmo:    int32(weapon.AmmoCapacity),
+				Cooldown:   int32(weapon.Cooldown),
 			})
 		}
 	}
@@ -134,35 +136,35 @@ func convertOutfitsToAPI(outfitIDs []string) []*api.Outfit {
 		if outfit != nil {
 			outfits = append(outfits, &api.Outfit{
 				OutfitID:    outfit.ID,
+				OutfitType:  outfit.Type,
 				Name:        outfit.Name,
 				Description: outfit.Description,
-				Type:        outfit.Type,
-				Effects:     convertOutfitEffects(outfit),
+				Modifiers:   convertOutfitModifiers(outfit),
 			})
 		}
 	}
 	return outfits
 }
 
-// convertOutfitEffects converts outfit bonuses to API format
-func convertOutfitEffects(outfit *models.Outfit) map[string]int32 {
-	effects := make(map[string]int32)
+// convertOutfitModifiers converts outfit bonuses to API format
+func convertOutfitModifiers(outfit *models.Outfit) map[string]int32 {
+	modifiers := make(map[string]int32)
 	if outfit.ShieldBonus > 0 {
-		effects["shield_bonus"] = int32(outfit.ShieldBonus)
+		modifiers["shield_bonus"] = int32(outfit.ShieldBonus)
 	}
 	if outfit.HullBonus > 0 {
-		effects["hull_bonus"] = int32(outfit.HullBonus)
+		modifiers["hull_bonus"] = int32(outfit.HullBonus)
 	}
 	if outfit.CargoBonus > 0 {
-		effects["cargo_bonus"] = int32(outfit.CargoBonus)
+		modifiers["cargo_bonus"] = int32(outfit.CargoBonus)
 	}
 	if outfit.FuelBonus > 0 {
-		effects["fuel_bonus"] = int32(outfit.FuelBonus)
+		modifiers["fuel_bonus"] = int32(outfit.FuelBonus)
 	}
 	if outfit.SpeedBonus > 0 {
-		effects["speed_bonus"] = int32(outfit.SpeedBonus)
+		modifiers["speed_bonus"] = int32(outfit.SpeedBonus)
 	}
-	return effects
+	return modifiers
 }
 
 // convertInventoryToAPI converts ship cargo to API Inventory
