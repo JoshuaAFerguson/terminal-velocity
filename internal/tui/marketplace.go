@@ -142,6 +142,20 @@ func (m *Model) updateMarketplace(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.marketplace.error = msg.err
 		}
 		return m, nil
+
+	case marketplaceBountyPostedMsg:
+		m.marketplace.loading = false
+		if msg.err == "" {
+			m.marketplace.message = "Bounty posted successfully!"
+			m.marketplace.mode = marketplaceModeMenu
+			m.marketplace.error = ""
+			// Reset form
+			m.marketplace.createForm = make(map[string]string)
+			m.marketplace.formField = 0
+		} else {
+			m.marketplace.error = msg.err
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -651,30 +665,66 @@ func (m *Model) updateMarketplaceCreateContract(msg tea.KeyMsg) (tea.Model, tea.
 
 // updateMarketplacePostBounty handles bounty posting form
 func (m *Model) updateMarketplacePostBounty(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Initialize form if not set
+	if _, exists := m.marketplace.createForm["target_name"]; !exists {
+		m.marketplace.createForm["target_name"] = ""
+		m.marketplace.createForm["amount"] = "5000"
+		m.marketplace.createForm["reason"] = ""
+		m.marketplace.formField = 0
+	}
+
 	switch msg.String() {
 	case "esc", "q":
+		// Cancel and return to menu
 		m.marketplace.mode = marketplaceModeMenu
-	case "enter":
-		// Post bounty with marketplace manager
-		if m.marketplaceManager != nil {
-			// Basic implementation - in a real implementation, this would use form fields
-			targetID := uuid.New() // Placeholder - would come from form
-			_, err := m.marketplaceManager.PostBounty(
-				context.Background(),
-				m.playerID,
-				m.username,
-				targetID,
-				"Target Name", // Target name
-				5000, // Bounty amount
-				"Bounty reason", // Reason
-			)
-			if err != nil {
-				m.marketplace.error = fmt.Sprintf("Failed to post bounty: %v", err)
-			} else {
-				m.marketplace.message = "Bounty posted!"
+		m.marketplace.createForm = make(map[string]string) // Reset form
+		m.marketplace.formField = 0
+		return m, nil
+
+	case "tab":
+		// Cycle through form fields (0=target_name, 1=amount, 2=reason)
+		m.marketplace.formField = (m.marketplace.formField + 1) % 3
+
+	case "ctrl+s":
+		// Submit bounty
+		return m, m.postBounty()
+
+	case "backspace":
+		// Delete character from current field
+		switch m.marketplace.formField {
+		case 0: // target_name
+			if len(m.marketplace.createForm["target_name"]) > 0 {
+				m.marketplace.createForm["target_name"] = m.marketplace.createForm["target_name"][:len(m.marketplace.createForm["target_name"])-1]
+			}
+		case 1: // amount
+			if len(m.marketplace.createForm["amount"]) > 0 {
+				m.marketplace.createForm["amount"] = m.marketplace.createForm["amount"][:len(m.marketplace.createForm["amount"])-1]
+			}
+		case 2: // reason
+			if len(m.marketplace.createForm["reason"]) > 0 {
+				m.marketplace.createForm["reason"] = m.marketplace.createForm["reason"][:len(m.marketplace.createForm["reason"])-1]
 			}
 		}
-		m.marketplace.mode = marketplaceModeMenu
+
+	default:
+		// Add character to current field
+		if len(msg.String()) == 1 {
+			char := msg.String()[0]
+			switch m.marketplace.formField {
+			case 0: // target_name
+				if len(m.marketplace.createForm["target_name"]) < 50 {
+					m.marketplace.createForm["target_name"] += string(char)
+				}
+			case 1: // amount (numeric only)
+				if char >= '0' && char <= '9' {
+					m.marketplace.createForm["amount"] += string(char)
+				}
+			case 2: // reason
+				if len(m.marketplace.createForm["reason"]) < 200 {
+					m.marketplace.createForm["reason"] += string(char)
+				}
+			}
+		}
 	}
 
 	return m, nil
@@ -1144,6 +1194,79 @@ type marketplaceContractCreatedMsg struct {
 	err string
 }
 
+type marketplaceBountyPostedMsg struct {
+	err string
+}
+
+// postBounty submits the bounty posting form
+func (m *Model) postBounty() tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Get form values
+		targetName := m.marketplace.createForm["target_name"]
+		reason := m.marketplace.createForm["reason"]
+
+		// Parse amount
+		amount := int64(0)
+		if a := m.marketplace.createForm["amount"]; a != "" {
+			fmt.Sscanf(a, "%d", &amount)
+		}
+
+		// Validate target name
+		if targetName == "" {
+			return marketplaceBountyPostedMsg{err: "Target name cannot be empty"}
+		}
+
+		// Validate reason
+		if reason == "" {
+			return marketplaceBountyPostedMsg{err: "Reason cannot be empty"}
+		}
+
+		// Validate amount (minimum from config is 5000)
+		if amount < 5000 {
+			return marketplaceBountyPostedMsg{err: "Bounty amount must be at least 5,000 credits"}
+		}
+
+		// Calculate total cost (amount + 10% fee)
+		fee := int64(float64(amount) * 0.10)
+		totalCost := amount + fee
+
+		// Check player has enough credits
+		if totalCost > m.player.Credits {
+			return marketplaceBountyPostedMsg{err: fmt.Sprintf("Insufficient credits. You have %d, need %d (includes 10%% fee)", m.player.Credits, totalCost)}
+		}
+
+		// Generate a target ID (in a real implementation, this would be looked up from a player search)
+		// For now, we use a placeholder UUID
+		targetID := uuid.New()
+
+		// Post bounty
+		_, err := m.marketplaceManager.PostBounty(
+			ctx,
+			m.playerID,
+			m.username,
+			targetID,
+			targetName,
+			amount,
+			reason,
+		)
+
+		if err != nil {
+			return marketplaceBountyPostedMsg{err: fmt.Sprintf("Failed to post bounty: %v", err)}
+		}
+
+		// Deduct total cost from player credits
+		m.player.Credits -= totalCost
+		// Update player in database
+		if err := m.playerRepo.Update(ctx, m.player); err != nil {
+			return marketplaceBountyPostedMsg{err: fmt.Sprintf("Failed to update credits: %v", err)}
+		}
+
+		return marketplaceBountyPostedMsg{err: ""}
+	}
+}
+
 // createContract submits the contract creation form
 func (m *Model) createContract() tea.Cmd {
 	return func() tea.Msg {
@@ -1422,10 +1545,65 @@ func (m *Model) viewMarketplaceCreateContract() string {
 func (m *Model) viewMarketplacePostBounty() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("║                   POST BOUNTY                                         ║") + "\n")
-	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
-	b.WriteString(titleStyle.Render("║ Bounty posting form (Press Enter to post with defaults)               ║") + "\n")
-	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+	b.WriteString(titleStyle.Render("POST BOUNTY") + "\n\n")
+
+	// Field 0: Target Name
+	targetStyle := lipgloss.NewStyle()
+	if m.marketplace.formField == 0 {
+		targetStyle = targetStyle.Foreground(lipgloss.Color("11")).Bold(true)
+	}
+	targetName := m.marketplace.createForm["target_name"]
+	if m.marketplace.formField == 0 {
+		targetName += "_"
+	}
+	b.WriteString(targetStyle.Render(fmt.Sprintf("Target Player: %s", targetName)) + "\n\n")
+
+	// Field 1: Amount
+	amountStyle := lipgloss.NewStyle()
+	if m.marketplace.formField == 1 {
+		amountStyle = amountStyle.Foreground(lipgloss.Color("11")).Bold(true)
+	}
+	amount := m.marketplace.createForm["amount"]
+	if m.marketplace.formField == 1 {
+		amount += "_"
+	}
+	b.WriteString(amountStyle.Render(fmt.Sprintf("Bounty Amount: %s credits (min 5,000)", amount)) + "\n")
+	if m.marketplace.formField == 1 {
+		// Show fee calculation
+		amountInt := int64(0)
+		fmt.Sscanf(m.marketplace.createForm["amount"], "%d", &amountInt)
+		fee := int64(float64(amountInt) * 0.10)
+		total := amountInt + fee
+		b.WriteString(helpStyle.Render(fmt.Sprintf("  (Total cost with 10%% fee: %d credits)", total)) + "\n")
+	}
+	b.WriteString("\n")
+
+	// Field 2: Reason
+	reasonStyle := lipgloss.NewStyle()
+	if m.marketplace.formField == 2 {
+		reasonStyle = reasonStyle.Foreground(lipgloss.Color("11")).Bold(true)
+	}
+	b.WriteString(reasonStyle.Render("Reason:\n"))
+	reason := m.marketplace.createForm["reason"]
+	if m.marketplace.formField == 2 {
+		reason += "_"
+	}
+	reasonLines := wrapText(reason, 70)
+	for _, line := range reasonLines {
+		b.WriteString(reasonStyle.Render(line) + "\n")
+	}
+	b.WriteString("\n")
+
+	// Show player credits
+	b.WriteString(fmt.Sprintf("Your Credits: %d\n\n", m.player.Credits))
+
+	// Show error if any
+	if m.marketplace.error != "" {
+		b.WriteString(errorStyle.Render(m.marketplace.error) + "\n\n")
+	}
+
+	// Help text
+	b.WriteString(helpStyle.Render("[Tab] Next Field  [Ctrl+S] Post Bounty  [Esc] Cancel") + "\n")
 
 	return b.String()
 }
