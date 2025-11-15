@@ -353,37 +353,6 @@ func (m Model) getScreenName() string {
 	}
 }
 
-// wrapText wraps text to a specified width
-func wrapText(text string, width int) []string {
-	words := strings.Fields(text)
-	if len(words) == 0 {
-		return []string{""}
-	}
-
-	lines := []string{}
-	currentLine := ""
-
-	for _, word := range words {
-		if len(currentLine)+len(word)+1 <= width {
-			if currentLine != "" {
-				currentLine += " "
-			}
-			currentLine += word
-		} else {
-			if currentLine != "" {
-				lines = append(lines, currentLine)
-			}
-			currentLine = word
-		}
-	}
-
-	if currentLine != "" {
-		lines = append(lines, currentLine)
-	}
-
-	return lines
-}
-
 // centerText centers text within a given width
 func centerText(text string, width int) string {
 	if len(text) >= width {

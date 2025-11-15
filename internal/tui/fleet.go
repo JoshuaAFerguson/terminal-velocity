@@ -10,9 +10,9 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
@@ -716,4 +716,6 @@ func truncateString(s string, maxLen int) string {
 var (
 	fleetCreditStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // Green
 	fleetSelectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("14")) // Cyan
+	resetStyle         = lipgloss.NewStyle()                                  // Reset to default
+	selectedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("14")) // Cyan (alias for fleet selected)
 )

@@ -40,6 +40,7 @@ type Server struct {
 	shipRepo      *database.ShipRepository
 	marketRepo    *database.MarketRepository
 	mailRepo      *database.MailRepository
+	socialRepo    *database.SocialRepository
 	metricsServer *metrics.Server
 	rateLimiter   *ratelimit.Limiter
 }
@@ -171,6 +172,7 @@ func (s *Server) initDatabase() error {
 	s.shipRepo = database.NewShipRepository(s.db)
 	s.marketRepo = database.NewMarketRepository(s.db)
 	s.mailRepo = database.NewMailRepository(s.db)
+	s.socialRepo = database.NewSocialRepository(s.db)
 
 	log.Info("Database connected successfully")
 	return nil
@@ -357,7 +359,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 	log.Info("Starting game session for user=%s, playerID=%s", username, playerID)
 
 	// Initialize TUI model
-	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo)
+	model := tui.NewModel(playerID, username, s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo)
 
 	// Create BubbleTea program with SSH channel as input/output
 	p := tea.NewProgram(

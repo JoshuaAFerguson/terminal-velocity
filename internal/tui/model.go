@@ -16,8 +16,9 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
-	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/mail"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/missions"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
@@ -76,6 +77,10 @@ const (
 	ScreenQuestBoardEnhanced
 	ScreenTradeRoutes
 	ScreenMail
+	ScreenFleet
+	ScreenFriends
+	ScreenMarketplace
+	ScreenNotifications
 )
 
 // Model is the main TUI model
@@ -96,6 +101,7 @@ type Model struct {
 	shipRepo   *database.ShipRepository
 	marketRepo *database.MarketRepository
 	mailRepo   *database.MailRepository
+	socialRepo *database.SocialRepository
 
 	// Screen dimensions
 	width  int
@@ -139,6 +145,10 @@ type Model struct {
 	questBoardEnhanced    questBoardEnhancedModel
 	tradeRoutes           tradeRoutesState
 	mail                  mailState
+	fleet                 fleetState
+	friends               friendsState
+	marketplace           marketplaceState
+	notifications         notificationsState
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -192,6 +202,9 @@ type Model struct {
 	// Mission system
 	missionManager *missions.Manager
 
+	// Fleet system
+	fleetManager *fleet.Manager
+
 	// Error handling
 	err               error
 	errorMessage      string
@@ -210,6 +223,7 @@ func NewModel(
 	shipRepo *database.ShipRepository,
 	marketRepo *database.MarketRepository,
 	mailRepo *database.MailRepository,
+	socialRepo *database.SocialRepository,
 ) Model {
 	return Model{
 		screen:              ScreenMainMenu,
@@ -221,6 +235,7 @@ func NewModel(
 		shipRepo:            shipRepo,
 		marketRepo:          marketRepo,
 		mailRepo:            mailRepo,
+		socialRepo:          socialRepo,
 		width:               80,
 		height:              24,
 		mainMenu:            newMainMenuModel(),
@@ -243,7 +258,7 @@ func NewModel(
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
 		chatManager:         chat.NewManager(),
-		mailManager:         mail.NewManager(mailRepo),
+		mailManager:         mail.NewManager(socialRepo),
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
 		territoryManager:    territory.NewManager(),
@@ -321,6 +336,7 @@ func NewLoginModel(
 	shipRepo *database.ShipRepository,
 	marketRepo *database.MarketRepository,
 	mailRepo *database.MailRepository,
+	socialRepo *database.SocialRepository,
 ) Model {
 	return Model{
 		screen:              ScreenLogin,
@@ -332,6 +348,7 @@ func NewLoginModel(
 		shipRepo:            shipRepo,
 		marketRepo:          marketRepo,
 		mailRepo:            mailRepo,
+		socialRepo:          socialRepo,
 		width:               80,
 		height:              24,
 		loginModel:          newLoginModel(),
@@ -355,7 +372,7 @@ func NewLoginModel(
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
 		chatManager:         chat.NewManager(),
-		mailManager:         mail.NewManager(mailRepo),
+		mailManager:         mail.NewManager(socialRepo),
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
 		territoryManager:    territory.NewManager(),
@@ -533,6 +550,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateTradeRoutes(msg)
 	case ScreenMail:
 		return m.updateMail(msg)
+	case ScreenFleet:
+		return m.updateFleet(msg)
+	case ScreenFriends:
+		return m.updateFriends(msg)
+	case ScreenMarketplace:
+		return m.updateMarketplace(msg)
+	case ScreenNotifications:
+		return m.updateNotifications(msg)
 	default:
 		return m, nil
 	}
@@ -626,6 +651,14 @@ func (m Model) View() string {
 		return m.viewTradeRoutes()
 	case ScreenMail:
 		return m.viewMail()
+	case ScreenFleet:
+		return m.viewFleet()
+	case ScreenFriends:
+		return m.viewFriends()
+	case ScreenMarketplace:
+		return m.viewMarketplace()
+	case ScreenNotifications:
+		return m.viewNotifications()
 	default:
 		return "Unknown screen"
 	}

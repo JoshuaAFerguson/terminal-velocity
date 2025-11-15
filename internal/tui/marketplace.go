@@ -15,7 +15,6 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/marketplace"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 )
 
 // Marketplace screen modes
@@ -785,54 +784,6 @@ func (m *Model) viewMarketplacePostBounty() string {
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
 
 	return b.String()
-}
-
-// Helper functions
-
-func formatDuration(d time.Duration) string {
-	if d < 0 {
-		return "Expired"
-	}
-
-	hours := int(d.Hours())
-	if hours > 48 {
-		days := hours / 24
-		return fmt.Sprintf("%dd", days)
-	} else if hours > 0 {
-		return fmt.Sprintf("%dh", hours)
-	}
-
-	minutes := int(d.Minutes())
-	return fmt.Sprintf("%dm", minutes)
-}
-
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
-
-func wrapText(text string, width int) []string {
-	words := strings.Fields(text)
-	if len(words) == 0 {
-		return []string{}
-	}
-
-	var lines []string
-	currentLine := words[0]
-
-	for _, word := range words[1:] {
-		if len(currentLine)+1+len(word) <= width {
-			currentLine += " " + word
-		} else {
-			lines = append(lines, currentLine)
-			currentLine = word
-		}
-	}
-	lines = append(lines, currentLine)
-
-	return lines
 }
 
 var (

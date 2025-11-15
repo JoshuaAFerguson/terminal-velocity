@@ -252,7 +252,7 @@ func (m *Model) updateMailRead(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "esc":
 		// Return to previous view
-		if m.mail.currentMail.To == m.playerID {
+		if m.mail.currentMail.ReceiverID == m.playerID {
 			m.mail.mode = mailModeInbox
 		} else {
 			m.mail.mode = mailModeSent
@@ -263,17 +263,17 @@ func (m *Model) updateMailRead(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		// Delete current mail
 		mailID := m.mail.currentMail.ID
-		isInbox := m.mail.currentMail.To == m.playerID
+		isInbox := m.mail.currentMail.ReceiverID == m.playerID
 		m.mail.mode = mailModeInbox
 		m.mail.currentMail = nil
 		return m, m.deleteMail(mailID, isInbox)
 
 	case "r":
 		// Reply (only if in inbox)
-		if m.mail.currentMail.To == m.playerID {
+		if m.mail.currentMail.ReceiverID == m.playerID {
 			// Get sender username
 			ctx := context.Background()
-			sender, err := m.playerRepo.GetByID(ctx, m.mail.currentMail.From)
+			sender, err := m.playerRepo.GetByID(ctx, *m.mail.currentMail.SenderID)
 			if err == nil {
 				m.mail.mode = mailModeCompose
 				m.mail.recipientInput = sender.Username
@@ -374,7 +374,7 @@ func (m *Model) renderInbox() string {
 		msg := m.mail.inbox[i]
 
 		style := lipgloss.NewStyle()
-		if !msg.Read {
+		if !msg.IsRead {
 			style = style.Foreground(lipgloss.Color("11")).Bold(true)
 		} else {
 			style = style.Foreground(lipgloss.Color("7"))
@@ -391,7 +391,7 @@ func (m *Model) renderInbox() string {
 
 		// Get sender username
 		ctx := context.Background()
-		sender, err := m.playerRepo.GetByID(ctx, msg.From)
+		sender, err := m.playerRepo.GetByID(ctx, *msg.SenderID)
 		senderName := "Unknown"
 		if err == nil {
 			senderName = sender.Username
@@ -456,7 +456,7 @@ func (m *Model) renderSent() string {
 
 		// Get recipient username
 		ctx := context.Background()
-		recipient, err := m.playerRepo.GetByID(ctx, msg.To)
+		recipient, err := m.playerRepo.GetByID(ctx, msg.ReceiverID)
 		recipientName := "Unknown"
 		if err == nil {
 			recipientName = recipient.Username
@@ -550,17 +550,17 @@ func (m *Model) renderRead() string {
 	ctx := context.Background()
 	var otherPlayer *models.Player
 	var err error
-	if msg.To == m.playerID {
-		otherPlayer, err = m.playerRepo.GetByID(ctx, msg.From)
+	if msg.ReceiverID == m.playerID {
+		otherPlayer, err = m.playerRepo.GetByID(ctx, *msg.SenderID)
 	} else {
-		otherPlayer, err = m.playerRepo.GetByID(ctx, msg.To)
+		otherPlayer, err = m.playerRepo.GetByID(ctx, msg.ReceiverID)
 	}
 	otherName := "Unknown"
 	if err == nil {
 		otherName = otherPlayer.Username
 	}
 
-	if msg.To == m.playerID {
+	if msg.ReceiverID == m.playerID {
 		content.WriteString(fmt.Sprintf("From: %s\n", otherName))
 	} else {
 		content.WriteString(fmt.Sprintf("To: %s\n", otherName))
@@ -579,7 +579,7 @@ func (m *Model) renderRead() string {
 	b.WriteString(readStyle.Render(content.String()))
 	b.WriteString("\n\n")
 
-	if msg.To == m.playerID {
+	if msg.ReceiverID == m.playerID {
 		b.WriteString(lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
 			Render("[R] Reply  [D] Delete  [Q] Back\n"))
@@ -598,7 +598,7 @@ func (m *Model) loadInbox() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		messages, err := m.mailManager.GetInbox(ctx, m.playerID, 50, 0)
+		messages, err := m.mailManager.GetInbox(ctx, m.playerID, 50)
 		unreadCount, _ := m.mailManager.GetUnreadCount(ctx, m.playerID)
 
 		errStr := ""
@@ -606,8 +606,14 @@ func (m *Model) loadInbox() tea.Cmd {
 			errStr = err.Error()
 		}
 
+		// Convert []models.Mail to []*models.Mail
+		messagePtrs := make([]*models.Mail, len(messages))
+		for i := range messages {
+			messagePtrs[i] = &messages[i]
+		}
+
 		return mailLoadedMsg{
-			messages:    messages,
+			messages:    messagePtrs,
 			inbox:       true,
 			unreadCount: unreadCount,
 			err:         errStr,
@@ -619,7 +625,7 @@ func (m *Model) loadSent() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		messages, err := m.mailManager.GetSent(ctx, m.playerID, 50, 0)
+		messages, err := m.mailRepo.GetSent(ctx, m.playerID, 50, 0)
 
 		errStr := ""
 		if err != nil {
@@ -638,13 +644,28 @@ func (m *Model) sendMail(recipient, subject, body string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		// Look up recipient by username
-		recipientPlayer, err := m.playerRepo.GetByUsername(ctx, recipient)
-		if err != nil {
-			return mailSentMsg{err: "Recipient not found: " + recipient}
+		// Wrapper for player lookup function to match expected signature
+		getPlayerByUsername := func(username string) (*models.Player, error) {
+			return m.playerRepo.GetByUsername(ctx, username)
 		}
 
-		_, err = m.mailManager.SendMail(ctx, m.playerID, recipientPlayer.ID, subject, body)
+		// Simple check blocked function (returns false for now, no blocking system integrated yet)
+		checkBlocked := func(receiverID, senderID uuid.UUID) (bool, error) {
+			// TODO: Integrate with friends/blocking system when available
+			return false, nil
+		}
+
+		err := m.mailManager.SendMail(
+			ctx,
+			&m.playerID,
+			m.player.Username,
+			recipient,
+			subject,
+			body,
+			0, // No credits attached
+			getPlayerByUsername,
+			checkBlocked,
+		)
 		if err != nil {
 			return mailSentMsg{err: err.Error()}
 		}

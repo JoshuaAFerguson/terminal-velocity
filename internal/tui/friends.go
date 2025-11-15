@@ -8,7 +8,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -525,7 +524,7 @@ func (m *Model) renderAddFriend() string {
 
 func (m *Model) loadFriendsList() tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used once friends manager is integrated
 
 		// TODO: Use friends manager once integrated
 		// For now, return empty list
@@ -540,7 +539,7 @@ func (m *Model) loadFriendsList() tea.Cmd {
 
 func (m *Model) loadFriendRequests() tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used once friends manager is integrated
 
 		// TODO: Use friends manager once integrated
 		// For now, return empty list
@@ -555,7 +554,7 @@ func (m *Model) loadFriendRequests() tea.Cmd {
 
 func (m *Model) loadBlockedList() tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used once friends manager is integrated
 
 		// TODO: Use friends manager once integrated
 		// For now, return empty list
@@ -570,10 +569,10 @@ func (m *Model) loadBlockedList() tea.Cmd {
 
 func (m *Model) sendFriendRequest(username string) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used once friends manager is integrated
 
 		// TODO: Use friends manager once integrated
-		_ = ctx
+		// _ = ctx
 		_ = username
 
 		return friendActionMsg{
@@ -584,10 +583,10 @@ func (m *Model) sendFriendRequest(username string) tea.Cmd {
 
 func (m *Model) acceptFriendRequest(requestID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used once friends manager is integrated
 
 		// TODO: Use friends manager once integrated
-		_ = ctx
+		// _ = ctx
 		_ = requestID
 
 		return friendActionMsg{
@@ -598,10 +597,10 @@ func (m *Model) acceptFriendRequest(requestID uuid.UUID) tea.Cmd {
 
 func (m *Model) declineFriendRequest(requestID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used once friends manager is integrated
 
 		// TODO: Use friends manager once integrated
-		_ = ctx
+		// _ = ctx
 		_ = requestID
 
 		return friendActionMsg{
@@ -612,10 +611,10 @@ func (m *Model) declineFriendRequest(requestID uuid.UUID) tea.Cmd {
 
 func (m *Model) removeFriend(friendID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used once friends manager is integrated
 
 		// TODO: Use friends manager once integrated
-		_ = ctx
+		// _ = ctx
 		_ = friendID
 
 		return friendActionMsg{
@@ -626,10 +625,10 @@ func (m *Model) removeFriend(friendID uuid.UUID) tea.Cmd {
 
 func (m *Model) unblockPlayer(blockedID uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used once friends manager is integrated
 
 		// TODO: Use friends manager once integrated
-		_ = ctx
+		// _ = ctx
 		_ = blockedID
 
 		return friendActionMsg{

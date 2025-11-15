@@ -481,7 +481,7 @@ func (m *Model) renderNotificationView() string {
 
 func (m *Model) loadAllNotifications() tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used for notification operations
 
 		// TODO: Use notifications manager once integrated
 		// For now, return empty list
@@ -498,7 +498,7 @@ func (m *Model) loadAllNotifications() tea.Cmd {
 
 func (m *Model) loadUnreadNotifications() tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
+		// ctx := context.Background() // TODO: Will be used for notification operations
 
 		// TODO: Use notifications manager once integrated
 		// For now, return empty list
