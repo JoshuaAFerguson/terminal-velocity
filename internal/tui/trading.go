@@ -1,7 +1,7 @@
 // File: internal/tui/trading.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for trading
-// Version: 1.0.0
+// Version: 1.0.1
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/game/trading"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -528,7 +529,7 @@ func (m Model) executeBuy() tea.Cmd {
 		err = m.marketRepo.UpdateMarketPrice(ctx, price)
 		if err != nil {
 			// Continue anyway - market update failure shouldn't block the trade
-			// TODO: Log this error
+			logger.Warn("Failed to update market price after buy: commodityID=%s, error=%v", m.trading.selectedCommodity.ID, err)
 		}
 
 		// Update local player state
@@ -635,7 +636,7 @@ func (m Model) executeSell() tea.Cmd {
 		err = m.marketRepo.UpdateMarketPrice(ctx, price)
 		if err != nil {
 			// Continue anyway - market update failure shouldn't block the trade
-			// TODO: Log this error
+			logger.Warn("Failed to update market price after sell: commodityID=%s, error=%v", m.trading.selectedCommodity.ID, err)
 		}
 
 		// Update local player state
