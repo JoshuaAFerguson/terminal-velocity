@@ -1,7 +1,7 @@
 // File: internal/tui/combat.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for combat
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -25,6 +25,7 @@ type combatModel struct {
 	playerType   *models.ShipType
 	enemyShips   []*models.Ship
 	enemyTypes   map[string]*models.ShipType
+	enemyAI      map[string]*combat.AIState // AI states for enemies (keyed by ship ID)
 	allyShips    []*models.Ship
 	weaponStates []*combat.WeaponState
 
@@ -62,6 +63,7 @@ func newCombatModel() combatModel {
 		turnNumber:   1,
 		playerTurn:   true,
 		loading:      false,
+		enemyAI:      make(map[string]*combat.AIState),
 	}
 }
 
@@ -269,11 +271,101 @@ func (m Model) executeEndTurn() (tea.Model, tea.Cmd) {
 	m.combat.turnNumber++
 	m.addCombatLog(fmt.Sprintf("--- Turn %d ---", m.combat.turnNumber))
 
-	// TODO: Execute enemy AI turns
-	// For now, just end turn immediately
+	// Execute enemy AI turns
 	m.addCombatLog("Enemy turn...")
 
-	// Regenerate shields
+	// Create player ship list for AI (enemies' perspective)
+	playerShips := []*models.Ship{}
+	if m.combat.playerShip != nil {
+		playerShips = append(playerShips, m.combat.playerShip)
+	}
+
+	// Execute AI for each enemy ship
+	for _, enemyShip := range m.combat.enemyShips {
+		if enemyShip.Hull <= 0 {
+			continue // Skip destroyed ships
+		}
+
+		enemyShipID := enemyShip.ID.String()
+		enemyType := m.combat.enemyTypes[enemyShip.TypeID]
+
+		// Initialize AI state if not exists (default to Medium difficulty)
+		if m.combat.enemyAI[enemyShipID] == nil {
+			m.combat.enemyAI[enemyShipID] = combat.NewAIState(combat.AILevelMedium)
+		}
+
+		ai := m.combat.enemyAI[enemyShipID]
+
+		// Decide actions for this enemy
+		actions := combat.DecideAction(
+			ai,
+			enemyShip,
+			enemyType,
+			playerShips,
+			map[string]*models.ShipType{m.combat.playerType.ID: m.combat.playerType},
+			m.combat.allyShips,
+			1.0, // deltaTime = 1 turn
+		)
+
+		// Execute AI actions
+		for _, action := range actions {
+			switch action.Type {
+			case "fire":
+				// Find weapon and execute attack
+				for _, weaponID := range enemyShip.Weapons {
+					if weaponID == action.WeaponID {
+						weapon := models.GetWeaponByID(weaponID)
+						if weapon != nil && m.combat.playerShip != nil {
+							// Apply accuracy modifier based on AI level
+							accuracy := combat.ApplyAIAccuracyModifier(ai, float64(weapon.Accuracy)/100.0)
+
+							// Simple hit calculation
+							hit := (accuracy >= 0.5) // Simplified for now
+							if hit {
+								damage := weapon.Damage
+								// Apply damage to player ship
+								if m.combat.playerShip.Shields > 0 {
+									m.combat.playerShip.Shields -= damage
+									if m.combat.playerShip.Shields < 0 {
+										overflow := -m.combat.playerShip.Shields
+										m.combat.playerShip.Shields = 0
+										m.combat.playerShip.Hull -= overflow
+									}
+									m.addCombatLog(fmt.Sprintf("Enemy %s fires %s - HIT! -%d shields",
+										enemyType.Name, weapon.Name, damage))
+								} else {
+									m.combat.playerShip.Hull -= damage
+									m.addCombatLog(fmt.Sprintf("Enemy %s fires %s - HIT! -%d hull",
+										enemyType.Name, weapon.Name, damage))
+								}
+							} else {
+								m.addCombatLog(fmt.Sprintf("Enemy %s fires %s - MISS!",
+									enemyType.Name, weapon.Name))
+							}
+						}
+						break
+					}
+				}
+
+			case "retreat":
+				m.addCombatLog(fmt.Sprintf("Enemy %s attempts to retreat!", enemyType.Name))
+
+			case "evade":
+				m.addCombatLog(fmt.Sprintf("Enemy %s takes evasive maneuvers", enemyType.Name))
+			}
+		}
+
+		// Regenerate enemy shields
+		if enemyType != nil && enemyShip.Shields < enemyType.MaxShields {
+			regen := enemyType.ShieldRegen
+			enemyShip.Shields += regen
+			if enemyShip.Shields > enemyType.MaxShields {
+				enemyShip.Shields = enemyType.MaxShields
+			}
+		}
+	}
+
+	// Regenerate player shields
 	if m.combat.playerShip != nil && m.combat.playerType != nil {
 		if m.combat.playerShip.Shields < m.combat.playerType.MaxShields {
 			regen := m.combat.playerType.ShieldRegen
@@ -287,6 +379,12 @@ func (m Model) executeEndTurn() (tea.Model, tea.Cmd) {
 
 	// Update weapon cooldowns
 	combat.UpdateCooldowns(m.combat.weaponStates, 1.0)
+
+	// Check combat end conditions
+	if m.combat.playerShip != nil && m.combat.playerShip.Hull <= 0 {
+		m.addCombatLog("Your ship has been destroyed!")
+		// TODO: Handle player defeat
+	}
 
 	// Start player's turn again
 	m.combat.playerTurn = true
