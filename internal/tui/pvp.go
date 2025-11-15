@@ -119,9 +119,16 @@ func (m Model) updatePvPList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				challenge := challenges[m.pvpModel.cursor]
 				_ = m.pvpManager.AcceptChallenge(challenge.ID, m.playerID)
 
-				// TODO: In full implementation, this would start actual combat
-				// For now, simulate instant combat resolution
-				m.simulateCombat(challenge.ID)
+				// Initialize PvP combat with the challenger
+				m.combatEnhanced.initializePvPCombat(
+					challenge.ID,
+					challenge.ChallengerName,
+					"Corvette", // Default ship type for now
+				)
+
+				// Transition to combat screen
+				m.screen = ScreenCombatEnhanced
+				return m, nil
 			}
 		} else if m.pvpModel.viewMode == pvpViewBounties {
 			// Hunt bounty
