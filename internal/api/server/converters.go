@@ -1,7 +1,7 @@
 // File: internal/api/server/converters.go
 // Project: Terminal Velocity
 // Description: Converters between database models and API types
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -295,14 +295,20 @@ func convertMissionToAPI(mission *models.Mission) *api.Mission {
 		return nil
 	}
 
+	// Calculate total reputation reward
+	var reputationTotal int32
+	for _, repChange := range mission.ReputationChange {
+		reputationTotal += int32(repChange)
+	}
+
 	apiMission := &api.Mission{
 		MissionID:           mission.ID,
 		Title:               mission.Title,
 		Description:         mission.Description,
 		RewardCredits:       mission.Reward,
-		RewardReputation:    0, // TODO: Sum reputation changes
-		OriginSystemID:      uuid.Nil, // TODO: Get system from OriginPlanet
-		DestinationSystemID: uuid.Nil, // TODO: Get from Destination
+		RewardReputation:    reputationTotal,
+		OriginSystemID:      uuid.Nil, // TODO: Requires planet lookup - pass planetRepo to get SystemID
+		DestinationSystemID: uuid.Nil, // TODO: Requires planet lookup - pass planetRepo to get SystemID
 		Deadline:            mission.Deadline,
 		ProgressCurrent:     int32(mission.Progress),
 		ProgressRequired:    int32(mission.Quantity),
@@ -374,11 +380,77 @@ func convertQuestToAPI(quest *models.Quest) *api.Quest {
 	// For now, assume all quests are available
 	apiQuest.Status = api.QuestStatusAvailable
 
-	// TODO: Convert objectives - Quest.Objectives structure is complex
-	// For now, return empty array as these are placeholder converters
+	// Convert objectives from quest.Objectives array
+	for _, obj := range quest.Objectives {
+		if obj != nil {
+			apiObjective := &api.QuestObjective{
+				ObjectiveID:      obj.ID,
+				Description:      obj.Description,
+				ProgressCurrent:  int32(obj.Current),
+				ProgressRequired: int32(obj.Required),
+				Completed:        obj.Completed,
+			}
 
-	// TODO: Convert rewards - Quest.Rewards is QuestReward (singular struct), not array
-	// apiQuest.Rewards should include credits from quest.Rewards.Credits, etc.
+			// Convert objective type
+			switch obj.Type {
+			case models.ObjectiveKill, models.ObjectiveDestroy:
+				apiObjective.Type = api.ObjectiveTypeDestroy
+			case models.ObjectiveDeliver:
+				apiObjective.Type = api.ObjectiveTypeDeliver
+			case models.ObjectiveTravel, models.ObjectiveInvestigate:
+				apiObjective.Type = api.ObjectiveTypeTravel
+			case models.ObjectiveCollect, models.ObjectiveMine:
+				apiObjective.Type = api.ObjectiveTypeCollect
+			default:
+				apiObjective.Type = api.ObjectiveTypeDeliver
+			}
+
+			apiQuest.Objectives = append(apiQuest.Objectives, apiObjective)
+		}
+	}
+
+	// Convert rewards from quest.Rewards (singular struct)
+	if quest.Rewards.Credits > 0 {
+		apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+			Type:  api.RewardTypeCredits,
+			Value: quest.Rewards.Credits,
+		})
+	}
+
+	if quest.Rewards.Experience > 0 {
+		apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+			Type:  api.RewardTypeExperience,
+			Value: int64(quest.Rewards.Experience),
+		})
+	}
+
+	// Add reputation rewards
+	for _, amount := range quest.Rewards.Reputation {
+		if amount != 0 {
+			apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+				Type:  api.RewardTypeReputation,
+				Value: int64(amount),
+			})
+		}
+	}
+
+	// Add item rewards
+	for itemID, quantity := range quest.Rewards.Items {
+		apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+			Type:   api.RewardTypeItem,
+			ItemID: itemID,
+			Value:  int64(quantity),
+		})
+	}
+
+	// Add special rewards
+	if quest.Rewards.ShipUnlock != "" {
+		apiQuest.Rewards = append(apiQuest.Rewards, &api.QuestReward{
+			Type:   api.RewardTypeUnlock,
+			ItemID: quest.Rewards.ShipUnlock,
+			Value:  1,
+		})
+	}
 
 	return apiQuest
 }
