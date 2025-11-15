@@ -7,6 +7,157 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2025-11-15 - Roadmap Features Implementation)
+- **Social Features System (Phase 9)**:
+  - **Friends System**:
+    - Friend request workflow (send, accept, reject)
+    - Friend list management with online status tracking
+    - Block system for preventing unwanted interactions
+    - Privacy controls and friendship validation
+  - **Mail System**:
+    - Player-to-player messaging with attachments
+    - Credit and item attachments with escrow safety
+    - Mail templates for common messages
+    - Unread tracking and bulk operations
+    - Block integration (blocked players cannot send mail)
+  - **Notifications System**:
+    - 9 notification types: friend requests, mail, PvP challenges, trade offers, faction invites, achievements, bounties, territory alerts, system announcements
+    - Real-time notification delivery with callbacks
+    - Configurable expiration times (friend requests: 7 days, mail: 3 days, etc.)
+    - Auto-dismissal of old notifications
+    - Notification templates and formatting
+  - **Social TUI Screens**:
+    - Friends screen with 4 tabs: friends list, friend requests, blocked players, add friend
+    - Notifications screen with filtering by type and read/unread status
+    - Color-coded notifications by importance (friend requests: cyan, mail: green, PvP: red)
+    - Interactive actions: accept/reject requests, view details, dismiss notifications
+  - **Enhanced Chat Commands**:
+    - `/whisper` (`/w`, `/msg`, `/tell`) - Private messaging
+    - `/who` (`/online`) - List online players with locations
+    - `/roll` (`/dice`) - Dice rolling with notation (1d6, 2d10+5, etc.)
+    - `/me` (`/emote`) - Emote actions
+    - `/ignore` (`/block`) - Block players
+    - `/unignore` (`/unblock`) - Unblock players
+    - `/help` - Command reference
+  - **Database Schema**:
+    - friends table with bidirectional relationships
+    - friend_requests table with expiration tracking
+    - blocks table with reason logging
+    - mail table with attachments and read status
+    - notifications table with type-specific data
+    - 17 strategic indexes for performance
+    - 4 SQL helper functions for common operations
+
+- **Ship Capture System (Phase 12)**:
+  - Classic Escape Velocity boarding mechanics
+  - Two-stage capture process:
+    1. Board enemy ship (30s duration, crew-based success chance)
+    2. Capture ship after successful boarding
+  - Disable requirements: target must be <25% hull, <10% shields
+  - Crew-based calculations:
+    - Base boarding chance: 40%
+    - +5% per crew member
+    - Ship size modifiers
+  - Casualty system: 15-40% crew losses on both sides
+  - Capture success calculation:
+    - Base capture chance: 50%
+    - Modified by hull damage
+    - Modified by crew differential
+  - Captured ship set to 50% hull after takeover
+  - Cooldown system: 60s between attempts
+  - Thread-safe operation tracking
+  - Background resolution with time-based outcomes
+
+- **Mining & Salvage System (Phase 15)**:
+  - **Resource Types** (12 total):
+    - Ore: iron, copper, titanium, platinum, gold
+    - Special: crystals, rare earth, deuterium
+    - Salvage: scrap metal, components, weapons, outfits
+  - **Target Types**:
+    - Asteroids (30% spawn chance, 1-3 per system)
+    - Derelicts (10% spawn chance, salvageable ships)
+    - Debris Fields (15% spawn chance, battle remnants)
+  - **Rarity System**:
+    - Common: Basic resources (iron, copper, scrap)
+    - Uncommon: Advanced materials (titanium, gold, components)
+    - Rare: Precious resources (platinum, crystals, rare earth, weapons)
+    - Legendary: (future expansion)
+  - **Mining Mechanics**:
+    - Cycle-based extraction (15s per cycle, 1-10 cycles total)
+    - Mining laser bonus: +25% yield per level
+    - Cargo scanner bonus: +15% yield
+    - Proportional resource extraction
+    - Depletion tracking
+  - **Derelict Salvage**:
+    - Salvage weapons from uncommon+ derelicts
+    - Salvage outfits from rare derelicts
+    - Variable salvage amounts based on rarity
+  - **Scanner Integration**:
+    - Cargo scanner reveals hidden resources
+    - 50% chance to reveal extra target with scanner
+  - **Operation Management**:
+    - Thread-safe active operation tracking
+    - Background cycle processing
+    - Auto-cleanup after 60s
+    - Cancelable operations
+    - Statistics tracking
+
+- **Player Marketplace (Phase 10)**:
+  - **Auction House**:
+    - Time-based auction system (1h - 7 days configurable)
+    - Four auction types: ships, outfits, commodities, special items
+    - Minimum bid increments (5% default)
+    - Instant buyout option (150% premium default)
+    - Auction fees (5% of final sale to house)
+    - Bid history tracking with timestamps
+    - Automatic expiry and completion
+    - Credit escrow during bidding
+    - Refund system for outbid players
+    - Seller payouts minus fees
+  - **Contract System**:
+    - Four contract types: courier, assassination, escort, bounty hunt
+    - Player-posted contracts with deposit requirements
+    - Contract claiming and completion workflow
+    - Failure penalties (10% of reward)
+    - Maximum 3 active contracts per player
+    - 48-hour expiry with automatic refunds
+    - Deposit = reward + posting cost (1000cr default)
+    - Contract validation and reward distribution
+  - **Bounty System**:
+    - Player bounties with expiration tracking
+    - Minimum bounty: 5000 credits
+    - Posting fee: 10% of bounty amount
+    - Maximum 5 bounties per player
+    - 72-hour expiry with automatic refund
+    - Automatic claim on target kill
+    - Multiple bounties stack
+    - Claim window: 5 minutes after kill
+  - **Marketplace TUI**:
+    - Main menu with 9 marketplace options
+    - Browse auctions with filtering and sorting
+    - Create auction form (ships, items, commodities)
+    - Browse contracts by type
+    - Post contract with target specification
+    - View active bounties with target info
+    - Post bounty on any player
+    - Detailed views for all item types
+    - Pagination for large lists (10 items per page)
+    - Time remaining displays with auto-formatting
+    - Bid history viewing
+    - Color-coded bounties (red for danger)
+  - **Background Workers**:
+    - Automatic expiry processing (1-minute ticker)
+    - Auction completion and seller payouts
+    - Contract expiry and refunds
+    - Bounty expiry and refunds
+    - Thread-safe operation management
+  - **Callbacks & Events**:
+    - onAuctionComplete callback
+    - onContractClaimed callback
+    - onBountyClaimed callback
+    - Real-time event notifications
+    - Statistics tracking
+
 ### Fixed (2025-11-15 - Comprehensive Bug Fix Release)
 - **Critical Security Fixes**:
   - Fixed 6 money duplication exploits in trading operations (buy/sell commodity, buy/sell ship, buy/sell outfit)
