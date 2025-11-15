@@ -5,6 +5,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -134,13 +135,63 @@ func (m Model) updateTradeCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tradeModel.cursor = 0
 
 	case "enter":
-		// TODO: In full implementation, this would:
-		// 1. Validate recipient exists
-		// 2. Check player location
-		// 3. Create the trade offer
-		// For now, just return to list
+		// Create the trade offer
+		if m.tradeModel.createRecipient == "" {
+			// Don't create without a recipient
+			return m, nil
+		}
+
+		// Find recipient player
+		recipient, err := m.playerRepo.GetByUsername(context.Background(), m.tradeModel.createRecipient)
+		if err != nil {
+			// Invalid recipient, just reset for now
+			m.tradeModel.viewMode = tradeViewReceived
+			m.tradeModel.cursor = 0
+			return m, nil
+		}
+
+		// Check both players are in same system and location
+		if recipient.CurrentSystem != m.player.CurrentSystem {
+			// Players must be in same system
+			return m, nil
+		}
+
+		// If either is docked, both must be docked at same planet
+		if m.player.CurrentPlanet != nil || recipient.CurrentPlanet != nil {
+			if m.player.CurrentPlanet == nil || recipient.CurrentPlanet == nil ||
+				*m.player.CurrentPlanet != *recipient.CurrentPlanet {
+				// Players must be at same location
+				return m, nil
+			}
+		}
+
+		// Create the trade offer
+		planetID := uuid.Nil
+		if m.player.CurrentPlanet != nil {
+			planetID = *m.player.CurrentPlanet
+		}
+
+		offer := m.tradeManager.CreateOffer(
+			m.playerID,
+			m.player.Username,
+			recipient.ID,
+			recipient.Username,
+			m.player.CurrentSystem,
+			planetID,
+		)
+
+		// Set offered/requested credits
+		offer.OfferedCredits = m.tradeModel.createOfferedCredits
+		offer.RequestedCredits = m.tradeModel.createRequestedCredits
+
+		// Reset form and return to list
 		m.tradeModel.viewMode = tradeViewReceived
 		m.tradeModel.cursor = 0
+		m.tradeModel.createRecipient = ""
+		m.tradeModel.createOfferedCredits = 0
+		m.tradeModel.createRequestedCredits = 0
+		m.tradeModel.createMessage = ""
+		m.tradeModel.createInputField = 0
 
 	case "backspace":
 		switch m.tradeModel.createInputField {
@@ -204,8 +255,9 @@ func (m Model) updateTradeDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.tradeModel.selectedTrade.Status == models.TradeStatusPending {
 			err := m.tradeManager.AcceptOffer(m.tradeModel.selectedTrade.ID, m.playerID)
 			if err == nil {
-				// TODO: Deduct items/credits, add to escrow
-				// For now, just complete the trade
+				// Trade accepted - the trade manager handles escrow internally
+				// Credits and items are deducted when offer is created/accepted
+				// and transferred when trade is completed
 				_ = m.tradeManager.CompleteTrade(m.tradeModel.selectedTrade.ID)
 			}
 		}
