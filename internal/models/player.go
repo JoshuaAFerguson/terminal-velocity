@@ -76,8 +76,9 @@ type Player struct {
 	SuccessfulCaptures   int `json:"successful_captures"`
 
 	// Progression - Mining
-	TotalMiningOps int   `json:"total_mining_ops"`
-	TotalYield     int64 `json:"total_yield"` // Total resources mined
+	TotalMiningOps int              `json:"total_mining_ops"`
+	TotalYield     int64            `json:"total_yield"`       // Total resources mined
+	ResourcesMined map[string]int64 `json:"resources_mined"`   // Resources mined by type
 
 	// Progression - Overall
 	Level      int   `json:"level"`       // Overall player level (1-100)
@@ -167,6 +168,7 @@ func NewPlayer(username, passwordHash string) *Player {
 		// Mining progression
 		TotalMiningOps: 0,
 		TotalYield:     0,
+		ResourcesMined: make(map[string]int64),
 
 		// Overall progression
 		Level:      1,  // Start at level 1
@@ -495,9 +497,40 @@ func (p *Player) RecordSuccessfulCapture() {
 //
 // Parameters:
 //   - yield: The amount of resources mined
-func (p *Player) RecordMiningOperation(yield int64) {
+//   - resources: Map of resource types to quantities mined
+func (p *Player) RecordMiningOperation(yield int64, resources map[string]int) {
 	p.TotalMiningOps++
 	p.TotalYield += yield
+
+	// Initialize map if nil
+	if p.ResourcesMined == nil {
+		p.ResourcesMined = make(map[string]int64)
+	}
+
+	// Update resources mined by type
+	for resourceType, quantity := range resources {
+		p.ResourcesMined[resourceType] += int64(quantity)
+	}
+}
+
+// GetMostCommonResource returns the most commonly mined resource type.
+// Returns empty string if no resources have been mined.
+func (p *Player) GetMostCommonResource() string {
+	if p.ResourcesMined == nil || len(p.ResourcesMined) == 0 {
+		return ""
+	}
+
+	var mostCommon string
+	var maxQuantity int64
+
+	for resourceType, quantity := range p.ResourcesMined {
+		if quantity > maxQuantity {
+			maxQuantity = quantity
+			mostCommon = resourceType
+		}
+	}
+
+	return mostCommon
 }
 
 // GetOverallRank returns a combined rank based on all progression categories.

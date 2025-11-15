@@ -340,7 +340,7 @@ func (m *Manager) runMiningCycles(ctx context.Context, operation *MiningOperatio
 	// Update player stats for completed mining operation
 	if m.playerRepo != nil {
 		if player, err := m.playerRepo.GetByID(ctx, operation.PlayerID); err == nil {
-			player.RecordMiningOperation(int64(operation.CurrentYield))
+			player.RecordMiningOperation(int64(operation.CurrentYield), operation.Resources)
 			if err := m.playerRepo.Update(ctx, player); err != nil {
 				log.Error("Failed to update player stats for mining operation: %v", err)
 			}
@@ -459,10 +459,16 @@ func (m *Manager) GetStats(ctx context.Context, playerID uuid.UUID) MiningStats 
 		}
 	}
 
+	// Get most common resource
+	mostCommon := player.GetMostCommonResource()
+	if mostCommon == "" {
+		mostCommon = string(ResourceIron) // Default to iron if no resources mined yet
+	}
+
 	return MiningStats{
 		ActiveOperations:   activeOperations,
 		TotalOperations:    player.TotalMiningOps,
 		TotalYield:         float64(player.TotalYield),
-		MostCommonResource: string(ResourceIron), // TODO: Track most common resource
+		MostCommonResource: mostCommon,
 	}
 }
