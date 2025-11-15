@@ -476,7 +476,7 @@ func (m *Model) viewFleetShips() string {
 		// TODO: Get actual ship type name
 		shipType := "Unknown"
 
-		line := fmt.Sprintf("║ %-25s %-15s %7.1f%% %7.1f%% %-10s ║",
+		line := fmt.Sprintf("║ %-25s %-15s %7d%% %7d%% %-10s ║",
 			truncateString(ship.Name, 25),
 			shipType,
 			ship.Hull,
@@ -656,9 +656,9 @@ func (m *Model) viewFleetViewShip() string {
 	b.WriteString(titleStyle.Render("║                   SHIP DETAILS                                        ║") + "\n")
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
 	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Name: %-63s ║", ship.Name)) + "\n")
-	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %.1f%%%-60s ║", ship.Hull, "")) + "\n")
-	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %.1f%%%-57s ║", ship.Shields, "")) + "\n")
-	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Fuel: %.1f%-61s ║", ship.Fuel, "")) + "\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %d%%%-60s ║", ship.Hull, "")) + "\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %d%%%-57s ║", ship.Shields, "")) + "\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Fuel: %d%-61s ║", ship.Fuel, "")) + "\n")
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
 	b.WriteString(titleStyle.Render("║ TODO: Additional ship details and stats                               ║") + "\n")
 
@@ -697,8 +697,8 @@ func (m *Model) viewFleetViewEscort() string {
 
 	if escort.Ship != nil {
 		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Ship: %-63s ║", escort.Ship.Name)) + "\n")
-		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %.1f%%%-60s ║", escort.Ship.Hull, "")) + "\n")
-		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %.1f%%%-57s ║", escort.Ship.Shields, "")) + "\n")
+		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %d%%%-60s ║", escort.Ship.Hull, "")) + "\n")
+		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %d%%%-57s ║", escort.Ship.Shields, "")) + "\n")
 	}
 
 	return b.String()

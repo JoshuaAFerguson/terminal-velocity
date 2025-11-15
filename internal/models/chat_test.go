@@ -10,6 +10,7 @@ package models
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -37,7 +38,7 @@ func TestChatHistoryConcurrency(t *testing.T) {
 					SenderID:  uuid.New(),
 					Channel:   ChatChannelGlobal,
 					Content:   "Test message",
-					Timestamp: 0,
+					Timestamp: time.Now(),
 				}
 				history.AddMessage(msg)
 			}
@@ -59,13 +60,14 @@ func TestChatHistoryGetMessagesConcurrency(t *testing.T) {
 	history := NewChatHistory(playerID)
 
 	// Add some initial messages
+	baseTime := time.Now()
 	for i := 0; i < 100; i++ {
 		msg := &ChatMessage{
 			ID:        uuid.New(),
 			SenderID:  uuid.New(),
 			Channel:   ChatChannelGlobal,
 			Content:   "Test message",
-			Timestamp: int64(i),
+			Timestamp: baseTime.Add(time.Duration(i) * time.Second),
 		}
 		history.AddMessage(msg)
 	}
@@ -119,13 +121,14 @@ func TestChatHistoryConcurrentReadWrite(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
+			baseTime := time.Now()
 			for j := 0; j < 100; j++ {
 				msg := &ChatMessage{
 					ID:        uuid.New(),
 					SenderID:  uuid.New(),
 					Channel:   ChatChannelGlobal,
 					Content:   "Test message",
-					Timestamp: int64(j),
+					Timestamp: baseTime.Add(time.Duration(j) * time.Millisecond),
 				}
 				history.AddMessage(msg)
 			}
@@ -147,6 +150,7 @@ func TestChatHistoryClearChannel(t *testing.T) {
 	history := NewChatHistory(playerID)
 
 	// Add messages to multiple channels
+	baseTime := time.Now()
 	for i := 0; i < 50; i++ {
 		for _, channel := range []ChatChannel{
 			ChatChannelGlobal,
@@ -158,7 +162,7 @@ func TestChatHistoryClearChannel(t *testing.T) {
 				SenderID:  uuid.New(),
 				Channel:   channel,
 				Content:   "Test message",
-				Timestamp: int64(i),
+				Timestamp: baseTime.Add(time.Duration(i) * time.Second),
 			}
 			history.AddMessage(msg)
 		}
@@ -175,13 +179,14 @@ func TestChatHistoryClearChannel(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
+		baseTime := time.Now()
 		for i := 0; i < 10; i++ {
 			msg := &ChatMessage{
 				ID:        uuid.New(),
 				SenderID:  uuid.New(),
 				Channel:   ChatChannelSystem,
 				Content:   "Test message",
-				Timestamp: int64(i),
+				Timestamp: baseTime.Add(time.Duration(i) * time.Millisecond),
 			}
 			history.AddMessage(msg)
 		}

@@ -10,6 +10,8 @@ package tui
 import (
 	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // TestRegistrationInputLengthLimits tests that registration input is properly limited
@@ -176,7 +178,8 @@ func TestChatInputSanitization(t *testing.T) {
 
 			// Simulate typing each character
 			for _, char := range tt.input {
-				m, _ = m.updateChat(keyMsg(string(char)))
+				updatedModel, _ := m.updateChat(keyMsg(string(char)))
+				m = updatedModel.(Model)
 			}
 
 			if len(m.chatModel.inputBuffer) > 200 {
