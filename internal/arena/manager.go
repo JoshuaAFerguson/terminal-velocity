@@ -222,6 +222,7 @@ type Tournament struct {
 	EndTime       time.Time
 	Status        string // "registration", "in_progress", "completed"
 	Winners       []uuid.UUID // 1st, 2nd, 3rd place
+	BracketData   map[string]interface{} // Additional bracket metadata (e.g., bye advancers)
 }
 
 // TournamentType defines tournament format
@@ -659,11 +660,88 @@ func (m *Manager) generateBracket(tournament *Tournament) *TournamentBracket {
 		})
 	}
 
+	// Seed participants by ELO (highest to lowest)
+	participants := make([]uuid.UUID, len(tournament.Participants))
+	copy(participants, tournament.Participants)
+	m.seedParticipants(participants)
+
+	// Calculate if we need byes (when not a power of 2)
+	numParticipants := len(participants)
+	nextPowerOf2 := 1
+	for nextPowerOf2 < numParticipants {
+		nextPowerOf2 *= 2
+	}
+	numByes := nextPowerOf2 - numParticipants
+
 	// Create first round matches
-	// TODO: Implement bracket generation logic
-	// For now, just create placeholder structure
+	firstRound := bracket.Rounds[0]
+	playerIndex := 0
+
+	// Handle byes first - top seeds get byes
+	byeAdvancers := make([]uuid.UUID, 0, numByes)
+	if numByes > 0 {
+		// Top seeds get byes
+		for i := 0; i < numByes; i++ {
+			byeAdvancers = append(byeAdvancers, participants[playerIndex])
+			log.Info("Tournament bye: player=%s", participants[playerIndex])
+			playerIndex++
+		}
+	}
+
+	// Create matches for remaining players
+	// Use bracket seeding: 1 vs lowest, 2 vs second-lowest, etc.
+	remainingPlayers := participants[playerIndex:]
+	numMatches := len(remainingPlayers) / 2
+
+	for i := 0; i < numMatches; i++ {
+		// Pair highest seed with lowest remaining seed
+		player1 := remainingPlayers[i]
+		player2 := remainingPlayers[len(remainingPlayers)-1-i]
+
+		// Create match
+		match, err := m.createMatchInternal(tournament.MatchType, []uuid.UUID{player1, player2})
+		if err != nil {
+			log.Error("Failed to create tournament match: %v", err)
+			continue
+		}
+
+		// Link match to tournament
+		match.TournamentID = &tournament.ID
+		bracket.Matches[match.ID] = match
+		firstRound.Matches = append(firstRound.Matches, match.ID)
+
+		log.Info("Tournament match created: round=1, match=%s, p1=%s, p2=%s",
+			match.ID, player1, player2)
+	}
+
+	// Store bye advancers for next round (if second round exists)
+	if len(bracket.Rounds) > 1 && len(byeAdvancers) > 0 {
+		// We'll handle these when advancing to round 2
+		tournament.BracketData = map[string]interface{}{
+			"bye_advancers": byeAdvancers,
+		}
+	}
+
+	log.Info("Bracket generated: tournament=%s, rounds=%d, first_round_matches=%d, byes=%d",
+		tournament.ID, numRounds, len(firstRound.Matches), numByes)
 
 	return bracket
+}
+
+// seedParticipants sorts participants by ELO rating (highest first)
+func (m *Manager) seedParticipants(participants []uuid.UUID) {
+	// Simple bubble sort by ELO (good enough for tournament sizes)
+	for i := 0; i < len(participants); i++ {
+		for j := i + 1; j < len(participants); j++ {
+			rank1 := m.getOrCreateRanking(participants[i])
+			rank2 := m.getOrCreateRanking(participants[j])
+
+			// Higher ELO goes first
+			if rank2.ELO > rank1.ELO {
+				participants[i], participants[j] = participants[j], participants[i]
+			}
+		}
+	}
 }
 
 // ============================================================================
