@@ -283,7 +283,7 @@ func convertMarketToAPI(prices []models.MarketPrice, commodities map[string]*mod
 }
 
 // convertPlanetToAPI converts database planet to API Planet
-func convertPlanetToAPI(planet *models.Planet) *api.Planet {
+func convertPlanetToAPI(planet *models.Planet, governmentID string) *api.Planet {
 	if planet == nil {
 		return nil
 	}
@@ -295,7 +295,7 @@ func convertPlanetToAPI(planet *models.Planet) *api.Planet {
 		SystemID:    planet.SystemID,
 		Services:    planet.Services,
 		TechLevel:   int32(planet.TechLevel),
-		Government:  "", // TODO: Get government from StarSystem
+		Government:  governmentID,
 		Population:  planet.Population,
 	}
 }

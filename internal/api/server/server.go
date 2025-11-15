@@ -623,11 +623,18 @@ func (s *GameServer) Land(ctx context.Context, req *api.LandRequest) (*api.LandR
 		}, nil
 	}
 
+	// Load system to get government ID
+	system, err := s.systemRepo.GetSystemByID(ctx, planet.SystemID)
+	if err != nil {
+		// If we can't load the system, use empty government
+		system = &models.StarSystem{GovernmentID: ""}
+	}
+
 	// Return success with updated state
 	return &api.LandResponse{
 		Success:  true,
 		Message:  "landed successfully",
-		Planet:   convertPlanetToAPI(planet),
+		Planet:   convertPlanetToAPI(planet, system.GovernmentID),
 		NewState: convertPlayerToAPI(player, ship),
 	}, nil
 }
