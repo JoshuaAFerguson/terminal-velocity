@@ -56,6 +56,11 @@ type marketplaceState struct {
 	createForm     map[string]string
 	formField      int
 
+	// Item picker for auction creation
+	itemPicker      *ItemPickerModel
+	showItemPicker  bool
+	selectedItemID  uuid.UUID // Selected item for auction
+
 	loading        bool
 	error          string
 	message        string
@@ -109,6 +114,17 @@ func (m *Model) updateMarketplace(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case marketplaceModePostBounty:
 			return m.updateMarketplacePostBounty(msg)
 		}
+
+	case marketplaceAuctionCreatedMsg:
+		m.marketplace.loading = false
+		if msg.err == "" {
+			m.marketplace.message = "Auction created successfully!"
+			m.marketplace.mode = marketplaceModeMenu
+			m.marketplace.error = ""
+		} else {
+			m.marketplace.error = msg.err
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -152,6 +168,14 @@ func (m *Model) updateMarketplaceMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.marketplace.mode = marketplaceModeCreateAuction
 			m.marketplace.createForm = make(map[string]string)
 			m.marketplace.formField = 0
+			m.marketplace.selectedItemID = uuid.Nil
+			m.marketplace.showItemPicker = false
+			// Initialize item picker
+			m.marketplace.itemPicker = NewItemPicker(m.itemRepo, m.playerID)
+			m.marketplace.itemPicker.SetMode(ItemPickerModeSingle)
+			m.marketplace.itemPicker.SetFilter(FilterAvailable) // Only available items
+			m.marketplace.itemPicker.SetTitle("Select Item to Auction")
+			return m, m.marketplace.itemPicker.LoadItems()
 		case 3: // Browse Contracts
 			m.marketplace.mode = marketplaceModeContracts
 			m.marketplace.selectedIndex = 0
@@ -398,34 +422,101 @@ func (m *Model) updateMarketplaceViewBounty(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 
 // updateMarketplaceCreateAuction handles auction creation form
 func (m *Model) updateMarketplaceCreateAuction(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// If item picker is showing, route input to it
+	if m.marketplace.showItemPicker {
+		switch msg.String() {
+		case "esc":
+			// Cancel item selection
+			m.marketplace.showItemPicker = false
+			return m, nil
+
+		case "enter":
+			// Confirm item selection
+			selected := m.marketplace.itemPicker.GetSelectedItems()
+			if len(selected) == 0 {
+				m.marketplace.error = "Please select an item to auction"
+				return m, nil
+			}
+			m.marketplace.selectedItemID = selected[0]
+			m.marketplace.showItemPicker = false
+			m.marketplace.error = ""
+			// Initialize form fields with defaults
+			m.marketplace.createForm["starting_bid"] = "1000"
+			m.marketplace.createForm["buyout_price"] = "5000"
+			m.marketplace.createForm["duration"] = "24" // hours
+			m.marketplace.createForm["description"] = ""
+			return m, nil
+
+		default:
+			// Route to item picker
+			return m, m.marketplace.itemPicker.Update(msg)
+		}
+	}
+
+	// If no item selected yet, show picker
+	if m.marketplace.selectedItemID == uuid.Nil {
+		m.marketplace.showItemPicker = true
+		return m, nil
+	}
+
+	// Handle auction form navigation
 	switch msg.String() {
 	case "esc", "q":
+		// Cancel and return to menu
 		m.marketplace.mode = marketplaceModeMenu
-	case "enter":
-		// Create auction with marketplace manager
-		if m.marketplaceManager != nil && m.currentShip != nil {
-			// Basic implementation - in a real implementation, this would use form fields
-			itemID := uuid.New() // Placeholder - would come from form
-			_, err := m.marketplaceManager.CreateAuction(
-				context.Background(),
-				m.playerID,
-				m.username,
-				marketplace.AuctionTypeCommodity,
-				itemID,
-				"Item", // Placeholder name
-				1,      // Quantity
-				"Item description", // Description
-				1000,   // Starting bid
-				24*time.Hour, // Duration
-				5000,   // Buyout price
-			)
-			if err != nil {
-				m.marketplace.error = fmt.Sprintf("Failed to create auction: %v", err)
-			} else {
-				m.marketplace.message = "Auction created!"
+		return m, nil
+
+	case "tab":
+		// Cycle through form fields (0=starting_bid, 1=buyout_price, 2=duration, 3=description)
+		m.marketplace.formField = (m.marketplace.formField + 1) % 4
+
+	case "ctrl+s":
+		// Submit auction
+		return m, m.createAuction()
+
+	case "backspace":
+		// Delete character from current field
+		switch m.marketplace.formField {
+		case 0: // starting_bid
+			if len(m.marketplace.createForm["starting_bid"]) > 0 {
+				m.marketplace.createForm["starting_bid"] = m.marketplace.createForm["starting_bid"][:len(m.marketplace.createForm["starting_bid"])-1]
+			}
+		case 1: // buyout_price
+			if len(m.marketplace.createForm["buyout_price"]) > 0 {
+				m.marketplace.createForm["buyout_price"] = m.marketplace.createForm["buyout_price"][:len(m.marketplace.createForm["buyout_price"])-1]
+			}
+		case 2: // duration
+			if len(m.marketplace.createForm["duration"]) > 0 {
+				m.marketplace.createForm["duration"] = m.marketplace.createForm["duration"][:len(m.marketplace.createForm["duration"])-1]
+			}
+		case 3: // description
+			if len(m.marketplace.createForm["description"]) > 0 {
+				m.marketplace.createForm["description"] = m.marketplace.createForm["description"][:len(m.marketplace.createForm["description"])-1]
 			}
 		}
-		m.marketplace.mode = marketplaceModeMenu
+
+	default:
+		// Add character to current field
+		if len(msg.String()) == 1 {
+			switch m.marketplace.formField {
+			case 0: // starting_bid (numbers only)
+				if msg.String() >= "0" && msg.String() <= "9" {
+					m.marketplace.createForm["starting_bid"] += msg.String()
+				}
+			case 1: // buyout_price (numbers only)
+				if msg.String() >= "0" && msg.String() <= "9" {
+					m.marketplace.createForm["buyout_price"] += msg.String()
+				}
+			case 2: // duration (numbers only)
+				if msg.String() >= "0" && msg.String() <= "9" {
+					m.marketplace.createForm["duration"] += msg.String()
+				}
+			case 3: // description
+				if len(m.marketplace.createForm["description"]) < 500 {
+					m.marketplace.createForm["description"] += msg.String()
+				}
+			}
+		}
 	}
 
 	return m, nil
@@ -867,14 +958,168 @@ func (m *Model) viewMarketplaceBountyDetails() string {
 	return b.String()
 }
 
+// Commands
+
+// createAuction creates a new auction with the marketplace manager
+func (m *Model) createAuction() tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		// Parse form values
+		startingBid := int64(0)
+		if bid := m.marketplace.createForm["starting_bid"]; bid != "" {
+			fmt.Sscanf(bid, "%d", &startingBid)
+		}
+
+		buyoutPrice := int64(0)
+		if buyout := m.marketplace.createForm["buyout_price"]; buyout != "" {
+			fmt.Sscanf(buyout, "%d", &buyoutPrice)
+		}
+
+		durationHours := 24
+		if dur := m.marketplace.createForm["duration"]; dur != "" {
+			fmt.Sscanf(dur, "%d", &durationHours)
+		}
+
+		description := m.marketplace.createForm["description"]
+		if description == "" {
+			description = "No description provided"
+		}
+
+		// Get item details
+		item, err := m.itemRepo.GetItemByID(ctx, m.marketplace.selectedItemID)
+		if err != nil {
+			return marketplaceAuctionCreatedMsg{err: fmt.Sprintf("Failed to get item: %v", err)}
+		}
+
+		// Validate starting bid
+		if startingBid < 100 {
+			return marketplaceAuctionCreatedMsg{err: "Starting bid must be at least 100 credits"}
+		}
+
+		// Validate buyout price
+		if buyoutPrice > 0 && buyoutPrice < startingBid {
+			return marketplaceAuctionCreatedMsg{err: "Buyout price must be higher than starting bid"}
+		}
+
+		// Validate duration
+		if durationHours < 1 || durationHours > 168 {
+			return marketplaceAuctionCreatedMsg{err: "Duration must be between 1 and 168 hours (1 week)"}
+		}
+
+		// Determine auction type from item type
+		var auctionType marketplace.AuctionType
+		switch item.ItemType {
+		case "weapon":
+			auctionType = marketplace.AuctionTypeOutfit // Weapons count as outfits
+		case "outfit":
+			auctionType = marketplace.AuctionTypeOutfit
+		case "special", "quest":
+			auctionType = marketplace.AuctionTypeSpecial
+		default:
+			auctionType = marketplace.AuctionTypeSpecial
+		}
+
+		// Create auction
+		_, err = m.marketplaceManager.CreateAuction(
+			ctx,
+			m.playerID,
+			m.username,
+			auctionType,
+			m.marketplace.selectedItemID,
+			item.GetDisplayName(),
+			1, // Quantity (inventory items are unique)
+			description,
+			startingBid,
+			time.Duration(durationHours)*time.Hour,
+			buyoutPrice,
+		)
+
+		if err != nil {
+			return marketplaceAuctionCreatedMsg{err: fmt.Sprintf("Failed to create auction: %v", err)}
+		}
+
+		return marketplaceAuctionCreatedMsg{err: ""}
+	}
+}
+
+type marketplaceAuctionCreatedMsg struct {
+	err string
+}
+
+// View functions
+
 // viewMarketplaceCreateAuction renders auction creation form
 func (m *Model) viewMarketplaceCreateAuction() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("║                   CREATE AUCTION                                      ║") + "\n")
-	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
-	b.WriteString(titleStyle.Render("║ Auction creation form (Press Enter to create with defaults)           ║") + "\n")
-	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+	// If item picker is showing, render it
+	if m.marketplace.showItemPicker {
+		b.WriteString(titleStyle.Render("CREATE AUCTION - Select Item") + "\n\n")
+		b.WriteString(m.marketplace.itemPicker.View())
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("[Space] Toggle  [Enter] Confirm  [Esc] Cancel") + "\n")
+		return b.String()
+	}
+
+	// If no item selected, should show picker (this shouldn't happen but handle it)
+	if m.marketplace.selectedItemID == uuid.Nil {
+		b.WriteString(errorStyle.Render("No item selected") + "\n")
+		b.WriteString(helpStyle.Render("Press any key to select an item") + "\n")
+		return b.String()
+	}
+
+	// Show auction form
+	b.WriteString(titleStyle.Render("CREATE AUCTION") + "\n\n")
+
+	// Get selected item details
+	ctx := context.Background()
+	item, err := m.itemRepo.GetItemByID(ctx, m.marketplace.selectedItemID)
+	itemName := "Unknown Item"
+	if err == nil {
+		itemName = item.GetDisplayName()
+	}
+
+	b.WriteString(subtitleStyle.Render(fmt.Sprintf("Item: %s", itemName)) + "\n\n")
+
+	// Form fields with highlighting
+	startingBidStyle := lipgloss.NewStyle()
+	if m.marketplace.formField == 0 {
+		startingBidStyle = startingBidStyle.Foreground(lipgloss.Color("11")).Bold(true)
+	}
+	b.WriteString(startingBidStyle.Render(fmt.Sprintf("Starting Bid: %s_ credits", m.marketplace.createForm["starting_bid"])) + "\n")
+
+	buyoutStyle := lipgloss.NewStyle()
+	if m.marketplace.formField == 1 {
+		buyoutStyle = buyoutStyle.Foreground(lipgloss.Color("11")).Bold(true)
+	}
+	b.WriteString(buyoutStyle.Render(fmt.Sprintf("Buyout Price: %s_ credits (0 for none)", m.marketplace.createForm["buyout_price"])) + "\n")
+
+	durationStyle := lipgloss.NewStyle()
+	if m.marketplace.formField == 2 {
+		durationStyle = durationStyle.Foreground(lipgloss.Color("11")).Bold(true)
+	}
+	b.WriteString(durationStyle.Render(fmt.Sprintf("Duration: %s_ hours (1-168)", m.marketplace.createForm["duration"])) + "\n\n")
+
+	descStyle := lipgloss.NewStyle()
+	if m.marketplace.formField == 3 {
+		descStyle = descStyle.Foreground(lipgloss.Color("11")).Bold(true)
+	}
+	b.WriteString(descStyle.Render("Description:\n"))
+	descLines := wrapText(m.marketplace.createForm["description"]+"_", 70)
+	for _, line := range descLines {
+		b.WriteString(descStyle.Render(line) + "\n")
+	}
+
+	b.WriteString("\n")
+
+	// Show error if any
+	if m.marketplace.error != "" {
+		b.WriteString(errorStyle.Render(m.marketplace.error) + "\n\n")
+	}
+
+	// Help text
+	b.WriteString(helpStyle.Render("[Tab] Next Field  [Ctrl+S] Create Auction  [Esc] Cancel") + "\n")
 
 	return b.String()
 }
