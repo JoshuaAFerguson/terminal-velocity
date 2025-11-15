@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 // ItemRepository handles database operations for player items
