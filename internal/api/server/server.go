@@ -9,6 +9,8 @@ package server
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -40,6 +42,9 @@ type GameServer struct {
 
 	// Session management
 	sessions *SessionManager
+
+	// Database connection for transactions
+	db *database.DB
 }
 
 // NewGameServer creates a new in-process game server
@@ -53,6 +58,7 @@ func NewGameServer(config *Config) (*GameServer, error) {
 		missionMgr: config.MissionMgr,
 		questMgr:   config.QuestMgr,
 		sessions:   NewSessionManager(),
+		db:         config.DB,
 	}
 
 	return server, nil
@@ -60,6 +66,9 @@ func NewGameServer(config *Config) (*GameServer, error) {
 
 // Config for the game server
 type Config struct {
+	// Database connection
+	DB *database.DB
+
 	// Database repositories
 	PlayerRepo *database.PlayerRepository
 	SystemRepo *database.SystemRepository
@@ -772,33 +781,47 @@ func (s *GameServer) BuyCommodity(ctx context.Context, req *api.TradeRequest) (*
 	// TODO: Check cargo space (requires ShipType lookup)
 	// For now, just add to cargo
 
-	// Perform the trade
-	// 1. Deduct credits
-	player.AddCredits(-totalCost)
-	err = s.playerRepo.Update(ctx, player)
-	if err != nil {
-		return &api.TradeResponse{
-			Success: false,
-			Message: "failed to update player credits",
-		}, nil
-	}
+	// Perform the trade atomically within a transaction
+	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
+		// 1. Deduct credits from player
+		_, err := tx.ExecContext(ctx,
+			"UPDATE players SET credits = credits - $1 WHERE id = $2",
+			totalCost, req.PlayerID)
+		if err != nil {
+			return fmt.Errorf("failed to update player credits: %w", err)
+		}
 
-	// 2. Add cargo to ship
-	ship.AddCargo(req.CommodityID, int(req.Quantity))
-	err = s.shipRepo.Update(ctx, ship)
-	if err != nil {
-		return &api.TradeResponse{
-			Success: false,
-			Message: "failed to update ship cargo",
-		}, nil
-	}
+		// 2. Add cargo to ship
+		ship.AddCargo(req.CommodityID, int(req.Quantity))
+		cargoJSON, err := json.Marshal(ship.Cargo)
+		if err != nil {
+			return fmt.Errorf("failed to serialize cargo: %w", err)
+		}
+		_, err = tx.ExecContext(ctx,
+			"UPDATE ships SET cargo = $1 WHERE id = $2",
+			cargoJSON, player.ShipID)
+		if err != nil {
+			return fmt.Errorf("failed to update ship cargo: %w", err)
+		}
 
-	// 3. Update market stock
-	err = s.marketRepo.UpdateStock(ctx, *player.CurrentPlanet, req.CommodityID, -int(req.Quantity))
+		// 3. Update market stock
+		_, err = tx.ExecContext(ctx,
+			"UPDATE market_prices SET stock = stock - $1 WHERE planet_id = $2 AND commodity_id = $3",
+			req.Quantity, *player.CurrentPlanet, req.CommodityID)
+		if err != nil {
+			return fmt.Errorf("failed to update market stock: %w", err)
+		}
+
+		// Update local state
+		player.AddCredits(-totalCost)
+
+		return nil
+	})
+
 	if err != nil {
 		return &api.TradeResponse{
 			Success: false,
-			Message: "failed to update market stock",
+			Message: fmt.Sprintf("trade failed: %v", err),
 		}, nil
 	}
 
@@ -878,40 +901,49 @@ func (s *GameServer) SellCommodity(ctx context.Context, req *api.TradeRequest) (
 	// Calculate payment (player sells at buy price)
 	totalPayment := price.BuyPrice * int64(req.Quantity)
 
-	// Perform the trade
-	// 1. Add credits
-	player.AddCredits(totalPayment)
-	err = s.playerRepo.Update(ctx, player)
+	// Perform the trade atomically within a transaction
+	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
+		// 1. Add credits to player
+		_, err := tx.ExecContext(ctx,
+			"UPDATE players SET credits = credits + $1 WHERE id = $2",
+			totalPayment, req.PlayerID)
+		if err != nil {
+			return fmt.Errorf("failed to update player credits: %w", err)
+		}
+
+		// 2. Remove cargo from ship
+		if !ship.RemoveCargo(req.CommodityID, int(req.Quantity)) {
+			return fmt.Errorf("failed to remove cargo from ship")
+		}
+		cargoJSON, err := json.Marshal(ship.Cargo)
+		if err != nil {
+			return fmt.Errorf("failed to serialize cargo: %w", err)
+		}
+		_, err = tx.ExecContext(ctx,
+			"UPDATE ships SET cargo = $1 WHERE id = $2",
+			cargoJSON, player.ShipID)
+		if err != nil {
+			return fmt.Errorf("failed to update ship cargo: %w", err)
+		}
+
+		// 3. Update market stock (increase stock, decrease demand)
+		_, err = tx.ExecContext(ctx,
+			"UPDATE market_prices SET stock = stock + $1 WHERE planet_id = $2 AND commodity_id = $3",
+			req.Quantity, *player.CurrentPlanet, req.CommodityID)
+		if err != nil {
+			return fmt.Errorf("failed to update market stock: %w", err)
+		}
+
+		// Update local state
+		player.AddCredits(totalPayment)
+
+		return nil
+	})
+
 	if err != nil {
 		return &api.TradeResponse{
 			Success: false,
-			Message: "failed to update player credits",
-		}, nil
-	}
-
-	// 2. Remove cargo from ship
-	success := ship.RemoveCargo(req.CommodityID, int(req.Quantity))
-	if !success {
-		return &api.TradeResponse{
-			Success: false,
-			Message: "failed to remove cargo from ship",
-		}, nil
-	}
-
-	err = s.shipRepo.Update(ctx, ship)
-	if err != nil {
-		return &api.TradeResponse{
-			Success: false,
-			Message: "failed to update ship cargo",
-		}, nil
-	}
-
-	// 3. Update market stock (increase stock, decrease demand)
-	err = s.marketRepo.UpdateStock(ctx, *player.CurrentPlanet, req.CommodityID, int(req.Quantity))
-	if err != nil {
-		return &api.TradeResponse{
-			Success: false,
-			Message: "failed to update market stock",
+			Message: fmt.Sprintf("trade failed: %v", err),
 		}, nil
 	}
 
@@ -1024,42 +1056,61 @@ func (s *GameServer) BuyShip(ctx context.Context, req *api.ShipPurchaseRequest) 
 		Outfits: make([]string, 0),
 	}
 
-	// Create the ship in database
-	err = s.shipRepo.Create(ctx, newShip)
-	if err != nil {
-		return &api.ShipPurchaseResponse{
-			Success: false,
-			Message: "failed to create ship",
-		}, nil
-	}
+	// Perform ship purchase atomically within a transaction
+	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
+		// 1. Create the ship in database
+		cargoJSON, _ := json.Marshal(newShip.Cargo)
+		weaponsJSON, _ := json.Marshal(newShip.Weapons)
+		outfitsJSON, _ := json.Marshal(newShip.Outfits)
 
-	// Deduct credits
-	player.AddCredits(-totalCost)
-	err = s.playerRepo.Update(ctx, player)
-	if err != nil {
-		return &api.ShipPurchaseResponse{
-			Success: false,
-			Message: "failed to update player credits",
-		}, nil
-	}
-
-	// Delete trade-in ship if provided
-	if req.TradeInShipID != nil {
-		err = s.shipRepo.Delete(ctx, *req.TradeInShipID)
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO ships (id, owner_id, type_id, name, hull, shields, fuel, cargo, crew, weapons, outfits)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+			newShip.ID, newShip.OwnerID, newShip.TypeID, newShip.Name, newShip.Hull,
+			newShip.Shields, newShip.Fuel, cargoJSON, newShip.Crew, weaponsJSON, outfitsJSON)
 		if err != nil {
-			// Log error but don't fail the transaction
-			// Ship was created and player charged, so we continue
+			return fmt.Errorf("failed to create ship: %w", err)
 		}
+
+		// 2. Deduct credits from player
+		_, err = tx.ExecContext(ctx,
+			"UPDATE players SET credits = credits - $1 WHERE id = $2",
+			totalCost, player.ID)
+		if err != nil {
+			return fmt.Errorf("failed to update player credits: %w", err)
+		}
+
+		// 3. Delete trade-in ship if provided
+		if req.TradeInShipID != nil {
+			_, err = tx.ExecContext(ctx,
+				"DELETE FROM ships WHERE id = $1",
+				*req.TradeInShipID)
+			if err != nil {
+				return fmt.Errorf("failed to delete trade-in ship: %w", err)
+			}
+		}
+
+		// Update local state
+		player.AddCredits(-totalCost)
+
+		return nil
+	})
+
+	if err != nil {
+		return &api.ShipPurchaseResponse{
+			Success: false,
+			Message: fmt.Sprintf("purchase failed: %v", err),
+		}, nil
 	}
 
 	// Return success
 	return &api.ShipPurchaseResponse{
-		Success:     true,
-		Message:     "ship purchased successfully",
-		NewShip:     convertShipToAPI(newShip),
-		TotalCost:   totalCost,
+		Success:      true,
+		Message:      "ship purchased successfully",
+		NewShip:      convertShipToAPI(newShip),
+		TotalCost:    totalCost,
 		TradeInValue: tradeInValue,
-		NewState:    convertPlayerToAPI(player, newShip),
+		NewState:     convertPlayerToAPI(player, newShip),
 	}, nil
 }
 
@@ -1127,22 +1178,34 @@ func (s *GameServer) SellShip(ctx context.Context, req *api.ShipSaleRequest) (*a
 	// Calculate sale value (60% of base price with depreciation)
 	saleValue := int64(float64(shipType.Price) * 0.6)
 
-	// Delete ship
-	err = s.shipRepo.Delete(ctx, req.ShipID)
-	if err != nil {
-		return &api.ShipSaleResponse{
-			Success: false,
-			Message: "failed to delete ship",
-		}, nil
-	}
+	// Perform ship sale atomically within a transaction
+	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
+		// 1. Delete ship
+		_, err := tx.ExecContext(ctx,
+			"DELETE FROM ships WHERE id = $1",
+			req.ShipID)
+		if err != nil {
+			return fmt.Errorf("failed to delete ship: %w", err)
+		}
 
-	// Add credits to player
-	player.AddCredits(saleValue)
-	err = s.playerRepo.Update(ctx, player)
+		// 2. Add credits to player
+		_, err = tx.ExecContext(ctx,
+			"UPDATE players SET credits = credits + $1 WHERE id = $2",
+			saleValue, player.ID)
+		if err != nil {
+			return fmt.Errorf("failed to update player credits: %w", err)
+		}
+
+		// Update local state
+		player.AddCredits(saleValue)
+
+		return nil
+	})
+
 	if err != nil {
 		return &api.ShipSaleResponse{
 			Success: false,
-			Message: "failed to update player credits",
+			Message: fmt.Sprintf("sale failed: %v", err),
 		}, nil
 	}
 
@@ -1222,22 +1285,38 @@ func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseReque
 		ship.Outfits = append(ship.Outfits, outfit.ID)
 	}
 
-	// Update ship
-	err = s.shipRepo.Update(ctx, ship)
-	if err != nil {
-		return &api.OutfitPurchaseResponse{
-			Success: false,
-			Message: "failed to update ship",
-		}, nil
-	}
+	// Perform outfit purchase atomically within a transaction
+	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
+		// 1. Update ship with new outfits
+		outfitsJSON, err := json.Marshal(ship.Outfits)
+		if err != nil {
+			return fmt.Errorf("failed to serialize outfits: %w", err)
+		}
+		_, err = tx.ExecContext(ctx,
+			"UPDATE ships SET outfits = $1 WHERE id = $2",
+			outfitsJSON, player.ShipID)
+		if err != nil {
+			return fmt.Errorf("failed to update ship: %w", err)
+		}
 
-	// Deduct credits
-	player.AddCredits(-totalCost)
-	err = s.playerRepo.Update(ctx, player)
+		// 2. Deduct credits from player
+		_, err = tx.ExecContext(ctx,
+			"UPDATE players SET credits = credits - $1 WHERE id = $2",
+			totalCost, player.ID)
+		if err != nil {
+			return fmt.Errorf("failed to update player credits: %w", err)
+		}
+
+		// Update local state
+		player.AddCredits(-totalCost)
+
+		return nil
+	})
+
 	if err != nil {
 		return &api.OutfitPurchaseResponse{
 			Success: false,
-			Message: "failed to update player credits",
+			Message: fmt.Sprintf("purchase failed: %v", err),
 		}, nil
 	}
 
@@ -1324,25 +1403,41 @@ func (s *GameServer) SellOutfit(ctx context.Context, req *api.OutfitSaleRequest)
 	}
 	ship.Outfits = newOutfits
 
-	// Update ship
-	err = s.shipRepo.Update(ctx, ship)
-	if err != nil {
-		return &api.OutfitSaleResponse{
-			Success: false,
-			Message: "failed to update ship",
-		}, nil
-	}
-
 	// Calculate sale value (60% of purchase price)
 	saleValue := int64(float64(outfit.Price) * 0.6 * float64(req.Quantity))
 
-	// Add credits to player
-	player.AddCredits(saleValue)
-	err = s.playerRepo.Update(ctx, player)
+	// Perform outfit sale atomically within a transaction
+	err = s.db.WithTransaction(ctx, func(tx *sql.Tx) error {
+		// 1. Update ship (remove outfits)
+		outfitsJSON, err := json.Marshal(ship.Outfits)
+		if err != nil {
+			return fmt.Errorf("failed to serialize outfits: %w", err)
+		}
+		_, err = tx.ExecContext(ctx,
+			"UPDATE ships SET outfits = $1 WHERE id = $2",
+			outfitsJSON, player.ShipID)
+		if err != nil {
+			return fmt.Errorf("failed to update ship: %w", err)
+		}
+
+		// 2. Add credits to player
+		_, err = tx.ExecContext(ctx,
+			"UPDATE players SET credits = credits + $1 WHERE id = $2",
+			saleValue, player.ID)
+		if err != nil {
+			return fmt.Errorf("failed to update player credits: %w", err)
+		}
+
+		// Update local state
+		player.AddCredits(saleValue)
+
+		return nil
+	})
+
 	if err != nil {
 		return &api.OutfitSaleResponse{
 			Success: false,
-			Message: "failed to update player credits",
+			Message: fmt.Sprintf("sale failed: %v", err),
 		}, nil
 	}
 

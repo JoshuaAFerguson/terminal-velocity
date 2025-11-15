@@ -65,9 +65,13 @@ func (m Model) updateChat(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 			default:
-				// Add character to buffer
+				// Add character to buffer with sanitization
 				if len(msg.String()) == 1 && len(m.chatModel.inputBuffer) < 200 {
-					m.chatModel.inputBuffer += msg.String()
+					// Filter out control characters and non-printable characters
+					char := msg.String()[0]
+					if char >= 32 && char != 127 {
+						m.chatModel.inputBuffer += msg.String()
+					}
 				}
 			}
 

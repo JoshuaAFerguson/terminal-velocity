@@ -172,16 +172,31 @@ func (m Model) handleRegistrationInput(input string) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Filter out control characters and non-printable characters
+	char := input[0]
+	if char < 32 || char == 127 {
+		return m, nil
+	}
+
 	switch reg.step {
 	case 1: // Email
-		reg.email += input
-		reg.error = ""
+		// Limit email length to prevent memory exhaustion (RFC 5321 max is 254)
+		if len(reg.email) < 254 {
+			reg.email += input
+			reg.error = ""
+		}
 	case 2: // Password
-		reg.password += input
-		reg.error = ""
+		// Limit password length to prevent memory exhaustion (reasonable max is 128)
+		if len(reg.password) < 128 {
+			reg.password += input
+			reg.error = ""
+		}
 	case 3: // Confirm password
-		reg.confirmPass += input
-		reg.error = ""
+		// Limit confirm password length to match password max
+		if len(reg.confirmPass) < 128 {
+			reg.confirmPass += input
+			reg.error = ""
+		}
 	}
 
 	return m, nil

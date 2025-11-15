@@ -92,8 +92,8 @@ func (m *Manager) CreateChallenge(
 
 // GetChallenge retrieves a challenge by ID
 func (m *Manager) GetChallenge(challengeID uuid.UUID) (*models.PvPChallenge, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	challenge, exists := m.challenges[challengeID]
 	if !exists {
@@ -110,8 +110,8 @@ func (m *Manager) GetChallenge(challengeID uuid.UUID) (*models.PvPChallenge, err
 
 // GetPlayerChallenges returns all challenges for a player
 func (m *Manager) GetPlayerChallenges(playerID uuid.UUID) []*models.PvPChallenge {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	challenges := m.byPlayer[playerID]
 
@@ -127,8 +127,8 @@ func (m *Manager) GetPlayerChallenges(playerID uuid.UUID) []*models.PvPChallenge
 
 // GetPendingChallenges returns pending challenges awaiting player response
 func (m *Manager) GetPendingChallenges(playerID uuid.UUID) []*models.PvPChallenge {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	pending := []*models.PvPChallenge{}
 	for _, challenge := range m.byPlayer[playerID] {
@@ -309,8 +309,8 @@ func (m *Manager) IssueBounty(targetID uuid.UUID, targetName string, amount int6
 
 // GetBounty retrieves a bounty for a player
 func (m *Manager) GetBounty(targetID uuid.UUID) (*models.Bounty, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	bounty, exists := m.bounties[targetID]
 	if !exists || !bounty.Active {
@@ -328,8 +328,8 @@ func (m *Manager) GetBounty(targetID uuid.UUID) (*models.Bounty, bool) {
 
 // GetAllActiveBounties returns all active bounties
 func (m *Manager) GetAllActiveBounties() []*models.Bounty {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	active := []*models.Bounty{}
 	for _, bounty := range m.bounties {

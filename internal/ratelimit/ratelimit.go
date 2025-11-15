@@ -41,6 +41,7 @@ type Limiter struct {
 	// Cleanup ticker
 	cleanupTicker *time.Ticker
 	stopChan      chan struct{}
+	wg            sync.WaitGroup
 }
 
 // connectionTracker tracks connections from a single IP
@@ -123,6 +124,7 @@ func NewLimiter(cfg *Config) *Limiter {
 
 	// Start cleanup goroutine
 	l.cleanupTicker = time.NewTicker(cfg.CleanupInterval)
+	l.wg.Add(1)
 	go l.cleanupLoop()
 
 	log.Info("Rate limiter initialized: maxConnPerIP=%d, maxAuthAttempts=%d, autobanThreshold=%d",
@@ -134,6 +136,7 @@ func NewLimiter(cfg *Config) *Limiter {
 // Stop stops the rate limiter cleanup goroutine
 func (l *Limiter) Stop() {
 	close(l.stopChan)
+	l.wg.Wait() // Wait for cleanup goroutine to finish
 	if l.cleanupTicker != nil {
 		l.cleanupTicker.Stop()
 	}
@@ -400,6 +403,8 @@ func (l *Limiter) GetStats() map[string]interface{} {
 
 // cleanupLoop periodically cleans up old entries
 func (l *Limiter) cleanupLoop() {
+	defer l.wg.Done()
+
 	for {
 		select {
 		case <-l.cleanupTicker.C:

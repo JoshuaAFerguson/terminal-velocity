@@ -407,6 +407,39 @@ CREATE INDEX idx_mail_unread ON player_mail(to_player, read, sent_at DESC);
 CREATE INDEX idx_loadouts_player ON shared_loadouts(player_id, updated_at DESC);
 CREATE INDEX idx_loadouts_public ON shared_loadouts(is_public, created_at DESC) WHERE is_public = true;
 CREATE INDEX idx_loadouts_ship_type ON shared_loadouts(ship_type_id, is_public, created_at DESC) WHERE is_public = true;
+
+-- Performance optimization indexes (added 2025-11-15)
+-- Market prices indexes (heavily queried for trading)
+CREATE INDEX idx_market_planet ON market_prices(planet_id);
+CREATE INDEX idx_market_planet_commodity ON market_prices(planet_id, commodity_id);
+CREATE INDEX idx_market_updated ON market_prices(last_update DESC);
+
+-- Ship cargo indexes (frequently accessed during trading/combat)
+CREATE INDEX idx_ship_cargo_ship ON ship_cargo(ship_id);
+CREATE INDEX idx_ship_cargo_composite ON ship_cargo(ship_id, commodity_id);
+
+-- Player location indexes (for presence/multiplayer features)
+CREATE INDEX idx_players_current_system ON players(current_system) WHERE current_system IS NOT NULL;
+CREATE INDEX idx_players_current_planet ON players(current_planet) WHERE current_planet IS NOT NULL;
+CREATE INDEX idx_players_ship ON players(ship_id) WHERE ship_id IS NOT NULL;
+
+-- Ship weapons and outfits indexes
+CREATE INDEX idx_ship_weapons_ship ON ship_weapons(ship_id);
+CREATE INDEX idx_ship_outfits_ship ON ship_outfits(ship_id);
+
+-- System connections indexes (for navigation pathfinding)
+CREATE INDEX idx_system_connections_a ON system_connections(system_a);
+CREATE INDEX idx_system_connections_b ON system_connections(system_b);
+
+-- Faction members indexes (for faction queries)
+CREATE INDEX idx_faction_members_faction ON faction_members(faction_id);
+
+-- Player reputation indexes (for NPC interactions)
+CREATE INDEX idx_player_reputation_player ON player_reputation(player_id);
+
+-- Composite indexes for common join patterns
+CREATE INDEX idx_ships_owner_type ON ships(owner_id, type_id);
+CREATE INDEX idx_planets_system_tech ON planets(system_id, tech_level);
 CREATE INDEX idx_loadouts_popular ON shared_loadouts((favorites * 2 + views) DESC, is_public) WHERE is_public = true;
 CREATE INDEX idx_loadout_favorites_player ON loadout_favorites(player_id, created_at DESC);
 

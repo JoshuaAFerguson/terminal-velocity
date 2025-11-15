@@ -9,6 +9,7 @@ package traderoutes
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"sort"
 
@@ -388,12 +389,18 @@ func (c *Calculator) PlanRoute(ctx context.Context, fromID, toID uuid.UUID) (*Na
 	totalDistance := 0
 
 	for i, sysID := range jumpPath {
-		system := systemMap[sysID]
+		system, exists := systemMap[sysID]
+		if !exists {
+			return nil, fmt.Errorf("system not found in map: %s", sysID)
+		}
 		pathSystems = append(pathSystems, system)
 		waypoints = append(waypoints, system.Name)
 
 		if i > 0 {
-			prevSystem := systemMap[jumpPath[i-1]]
+			prevSystem, exists := systemMap[jumpPath[i-1]]
+			if !exists {
+				return nil, fmt.Errorf("previous system not found in map: %s", jumpPath[i-1])
+			}
 			totalDistance += c.calculateDistance(prevSystem, system)
 		}
 	}

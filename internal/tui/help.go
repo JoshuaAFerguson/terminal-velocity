@@ -81,8 +81,8 @@ func (m Model) updateHelpTopics(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Quick Reference
 			m.helpModel.viewMode = helpViewQuick
 			m.helpModel.scroll = 0
-		} else if m.helpModel.cursor-2 < len(m.helpModel.topics) {
-			// Regular topic
+		} else if m.helpModel.cursor >= 2 && m.helpModel.cursor-2 < len(m.helpModel.topics) {
+			// Regular topic - check bounds to prevent negative index
 			m.helpModel.currentTopic = &m.helpModel.topics[m.helpModel.cursor-2]
 			m.helpModel.viewMode = helpViewContent
 			m.helpModel.scroll = 0

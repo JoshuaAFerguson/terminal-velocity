@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/validation"
 	"golang.org/x/term"
 )
 
@@ -160,8 +161,9 @@ func createAccountWithPassword(ctx context.Context, repo *database.PlayerReposit
 		return fmt.Errorf("passwords do not match")
 	}
 
-	if len(password) < 8 {
-		return fmt.Errorf("password must be at least 8 characters")
+	// Validate password complexity (same validation as TUI registration)
+	if err := validation.ValidatePassword(string(password)); err != nil {
+		return fmt.Errorf("password validation failed: %w", err)
 	}
 
 	// Create the account

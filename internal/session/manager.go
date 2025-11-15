@@ -198,10 +198,13 @@ func (m *Manager) SavePlayerState(
 		}
 	}
 
-	// Update session
+	// Update session - re-check existence after database operations
 	m.mu.Lock()
-	session.LastSave = time.Now()
-	session.DirtyState = false
+	session, exists = m.sessions[playerID]
+	if exists {
+		session.LastSave = time.Now()
+		session.DirtyState = false
+	}
 	m.mu.Unlock()
 
 	return nil
@@ -314,7 +317,10 @@ func (m *Manager) cleanupInactiveSessions() {
 	}
 
 	for _, playerID := range toRemove {
-		session := m.sessions[playerID]
+		session, exists := m.sessions[playerID]
+		if !exists {
+			continue // Session was already cleaned up
+		}
 		session.IsActive = false
 		// Note: In production, we would trigger a final save here
 	}

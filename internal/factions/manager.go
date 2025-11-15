@@ -160,7 +160,12 @@ func (m *Manager) LeaveFaction(playerID uuid.UUID) error {
 		return ErrNotMember
 	}
 
-	faction := m.factions[factionID]
+	faction, exists := m.factions[factionID]
+	if !exists {
+		// Faction was deleted, clean up membership
+		delete(m.members, playerID)
+		return ErrFactionNotFound
+	}
 
 	// Can't leave if you're the leader
 	if faction.IsLeader(playerID) {

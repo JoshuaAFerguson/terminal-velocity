@@ -469,7 +469,10 @@ func (m *Manager) GetCurrentStep(playerID uuid.UUID) *models.TutorialStep {
 		return nil
 	}
 
-	progress := m.progress[playerID]
+	progress, exists := m.progress[playerID]
+	if !exists {
+		return nil
+	}
 	return tutorial.GetNextIncompleteStep(progress)
 }
 

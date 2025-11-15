@@ -119,7 +119,10 @@ func NewServer(configFile string, port int) (*Server, error) {
 	log.Debug("Initializing SSH configuration")
 	if err := srv.initSSHConfig(); err != nil {
 		log.Error("Failed to initialize SSH config: %v", err)
-		srv.db.Close() // Clean up database on error
+		// Clean up database on error
+		if closeErr := srv.db.Close(); closeErr != nil {
+			log.Warn("Failed to close database during cleanup: %v", closeErr)
+		}
 		return nil, fmt.Errorf("failed to init SSH config: %w", err)
 	}
 
@@ -234,7 +237,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 			log.Warn("Connection rejected from %s: %s", remoteAddr, reason)
 			metrics.Global().IncrementFailedConnections()
 			// Send rejection message and close
-			conn.Write([]byte("Connection rejected: " + reason + "\r\n"))
+			if _, err := conn.Write([]byte("Connection rejected: " + reason + "\r\n")); err != nil {
+				log.Warn("Failed to write rejection message to %s: %v", remoteAddr, err)
+			}
 			return
 		}
 		defer s.rateLimiter.ReleaseConnection(remoteAddr)
@@ -248,7 +253,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 	defer func() {
-		sshConn.Close()
+		if err := sshConn.Close(); err != nil {
+			log.Warn("Failed to close SSH connection from %s: %v", remoteAddr, err)
+		}
 		// Track connection duration
 		metrics.Global().RecordConnectionDuration(time.Since(connStart))
 	}()
@@ -317,7 +324,9 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 			playerID, err = uuid.Parse(playerIDStr)
 			if err != nil {
 				log.Error("Invalid player ID in permissions for %s: %v", username, err)
-				channel.Write([]byte("Error: Invalid session. Please reconnect.\r\n"))
+				if _, writeErr := channel.Write([]byte("Error: Invalid session. Please reconnect.\r\n")); writeErr != nil {
+					log.Warn("Failed to write error message to %s: %v", username, writeErr)
+				}
 				return
 			}
 			log.Debug("Player ID from permissions: %s", playerID)
@@ -336,7 +345,9 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 			return
 		} else if err != nil {
 			log.Error("Error checking for player %s: %v", username, err)
-			channel.Write([]byte("Error: Authentication failed. Please reconnect.\r\n"))
+			if _, writeErr := channel.Write([]byte("Error: Authentication failed. Please reconnect.\r\n")); writeErr != nil {
+				log.Warn("Failed to write error message to %s: %v", username, writeErr)
+			}
 			return
 		}
 		playerID = player.ID
@@ -668,6 +679,8 @@ type PlayerSession struct {
 // Close closes the player session
 func (ps *PlayerSession) Close() {
 	if ps.Channel != nil {
-		ps.Channel.Close()
+		if err := ps.Channel.Close(); err != nil {
+			log.Warn("Failed to close SSH channel for user %s: %v", ps.Username, err)
+		}
 	}
 }

@@ -102,22 +102,31 @@ func (m *Manager) Heartbeat(playerID uuid.UUID) {
 	}
 }
 
-// GetPresence returns a player's presence information
+// GetPresence returns a copy of player's presence information
 func (m *Manager) GetPresence(playerID uuid.UUID) *models.PlayerPresence {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return m.players[playerID]
+	presence := m.players[playerID]
+	if presence == nil {
+		return nil
+	}
+
+	// Return a copy to prevent external modifications
+	copy := *presence
+	return &copy
 }
 
-// GetAllOnline returns a list of all online players
+// GetAllOnline returns a list of all online players (as copies)
 func (m *Manager) GetAllOnline() []*models.PlayerPresence {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	result := make([]*models.PlayerPresence, 0, len(m.players))
 	for _, presence := range m.players {
-		result = append(result, presence)
+		// Return copies to prevent external modifications
+		copy := *presence
+		result = append(result, &copy)
 	}
 
 	return result
