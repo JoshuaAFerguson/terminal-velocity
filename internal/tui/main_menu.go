@@ -59,6 +59,9 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "q":
+			// Quit from main menu
+			return m, tea.Quit
 		case "up", "k":
 			if m.mainMenu.cursor > 0 {
 				m.mainMenu.cursor--

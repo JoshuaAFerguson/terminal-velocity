@@ -43,8 +43,10 @@ type fleetState struct {
 	selectedEscort uuid.UUID
 
 	// Forms
-	escortName    string
+	escortName     string
 	escortBehavior fleet.EscortBehavior
+	inputMode      string // "name", "ship", "behavior", "confirm"
+	nameInput      string // Text input buffer for pilot name
 
 	loading       bool
 	error         string
@@ -151,6 +153,8 @@ func (m *Model) updateFleetMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 4: // Hire New Escort
 			m.fleet.mode = fleetModeHireEscort
 			m.fleet.escortName = ""
+			m.fleet.nameInput = ""
+			m.fleet.inputMode = "name" // Start with name input
 			m.fleet.selectedIndex = 0
 		case 5: // Pay Maintenance
 			// Pay maintenance early
@@ -378,41 +382,108 @@ func (m *Model) updateFleetFormation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // updateFleetHireEscort handles hiring new escorts
 func (m *Model) updateFleetHireEscort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "q":
-		m.fleet.mode = fleetModeMenu
-	case "enter":
-		// Hire escort with selected ship and behavior
-		if m.fleetManager != nil && m.fleet.escortName != "" {
-			// Create a basic ship for the escort (in a real implementation, this would come from a shipyard selection)
-			escortShip := &models.Ship{
-				ID:      uuid.New(),
-				OwnerID: m.playerID,
-				Name:    "Escort Fighter",
-				TypeID:  "fighter",
-				// Basic stats
-				Hull:    100,
-				Shields: 50,
-				Fuel:    100,
+	switch m.fleet.inputMode {
+	case "name":
+		// Handle name input
+		switch msg.String() {
+		case "esc", "q":
+			m.fleet.mode = fleetModeMenu
+		case "enter":
+			if m.fleet.nameInput != "" {
+				m.fleet.escortName = m.fleet.nameInput
+				m.fleet.inputMode = "ship"
+				m.fleet.selectedIndex = 0
 			}
-			behavior := behaviorTypes[m.fleet.selectedIndex]
-			_, err := m.fleetManager.HireEscort(context.Background(), m.playerID, escortShip, m.fleet.escortName, behavior)
-			if err != nil {
-				m.fleet.error = fmt.Sprintf("Failed to hire escort: %v", err)
+		case "backspace":
+			if len(m.fleet.nameInput) > 0 {
+				m.fleet.nameInput = m.fleet.nameInput[:len(m.fleet.nameInput)-1]
+			}
+		default:
+			// Add character to name (limit to 20 chars)
+			if len(msg.String()) == 1 && len(m.fleet.nameInput) < 20 {
+				m.fleet.nameInput += msg.String()
+			}
+		}
+
+	case "ship":
+		// Handle ship selection from owned ships
+		switch msg.String() {
+		case "esc", "q":
+			m.fleet.inputMode = "name"
+		case "enter":
+			// Select current ship
+			if m.fleet.currentFleet != nil && len(m.fleet.currentFleet.OwnedShips) > 0 {
+				if m.fleet.selectedIndex < len(m.fleet.currentFleet.OwnedShips) {
+					m.fleet.selectedShip = m.fleet.currentFleet.OwnedShips[m.fleet.selectedIndex].ID
+					m.fleet.inputMode = "behavior"
+					m.fleet.selectedIndex = 0
+				}
+			}
+		case "up", "k":
+			if m.fleet.selectedIndex > 0 {
+				m.fleet.selectedIndex--
+			}
+		case "down", "j":
+			if m.fleet.currentFleet != nil && m.fleet.selectedIndex < len(m.fleet.currentFleet.OwnedShips)-1 {
+				m.fleet.selectedIndex++
+			}
+		}
+
+	case "behavior":
+		// Handle behavior selection
+		switch msg.String() {
+		case "esc", "q":
+			m.fleet.inputMode = "ship"
+			m.fleet.selectedIndex = 0
+		case "enter":
+			if m.fleet.selectedIndex < len(behaviorTypes) {
+				m.fleet.escortBehavior = behaviorTypes[m.fleet.selectedIndex]
+				m.fleet.inputMode = "confirm"
+			}
+		case "up", "k":
+			if m.fleet.selectedIndex > 0 {
+				m.fleet.selectedIndex--
+			}
+		case "down", "j":
+			if m.fleet.selectedIndex < len(behaviorTypes)-1 {
+				m.fleet.selectedIndex++
+			}
+		}
+
+	case "confirm":
+		// Confirmation screen
+		switch msg.String() {
+		case "esc", "q", "n":
+			m.fleet.inputMode = "behavior"
+			m.fleet.selectedIndex = 0
+		case "enter", "y":
+			// Hire escort with selected ship and behavior
+			if m.fleetManager != nil && m.fleet.escortName != "" {
+				// Find the selected ship
+				var escortShip *models.Ship
+				if m.fleet.currentFleet != nil {
+					for _, ship := range m.fleet.currentFleet.OwnedShips {
+						if ship.ID == m.fleet.selectedShip {
+							escortShip = ship
+							break
+						}
+					}
+				}
+
+				if escortShip != nil {
+					_, err := m.fleetManager.HireEscort(context.Background(), m.playerID, escortShip, m.fleet.escortName, m.fleet.escortBehavior)
+					if err != nil {
+						m.fleet.error = fmt.Sprintf("Failed to hire escort: %v", err)
+					} else {
+						m.fleet.message = fmt.Sprintf("Escort pilot %s hired! They will follow and protect you.", m.fleet.escortName)
+					}
+				} else {
+					m.fleet.error = "Selected ship not found"
+				}
 			} else {
-				m.fleet.message = "Escort hired! They will follow and protect you."
+				m.fleet.error = "Missing escort information"
 			}
-		} else {
-			m.fleet.error = "Please enter a name for your escort pilot"
-		}
-		m.fleet.mode = fleetModeMenu
-	case "up", "k":
-		if m.fleet.selectedIndex > 0 {
-			m.fleet.selectedIndex--
-		}
-	case "down", "j":
-		if m.fleet.selectedIndex < len(behaviorTypes)-1 {
-			m.fleet.selectedIndex++
+			m.fleet.mode = fleetModeMenu
 		}
 	}
 
@@ -507,7 +578,16 @@ func (m *Model) viewFleet() string {
 	case fleetModeFormation:
 		b.WriteString(helpStyle.Render("↑/↓: Navigate | Enter: Select Formation | Q: Back\n"))
 	case fleetModeHireEscort:
-		b.WriteString(helpStyle.Render("↑/↓: Select Behavior | Enter: Hire | Q: Cancel\n"))
+		switch m.fleet.inputMode {
+		case "name":
+			b.WriteString(helpStyle.Render("Type: Enter Name | Enter: Next | Q: Cancel\n"))
+		case "ship":
+			b.WriteString(helpStyle.Render("↑/↓: Select Ship | Enter: Next | Q: Back\n"))
+		case "behavior":
+			b.WriteString(helpStyle.Render("↑/↓: Select Behavior | Enter: Next | Q: Back\n"))
+		case "confirm":
+			b.WriteString(helpStyle.Render("Enter/Y: Confirm | Q/N: Cancel\n"))
+		}
 	default:
 		b.WriteString(helpStyle.Render("Q: Back\n"))
 	}
@@ -702,29 +782,81 @@ func (m *Model) viewFleetHireEscort() string {
 	b.WriteString(titleStyle.Render("║ Hiring Cost: 50,000 credits                                           ║") + "\n")
 	b.WriteString(titleStyle.Render("║ Daily Maintenance: 5,000 credits per escort                           ║") + "\n")
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
-	b.WriteString(titleStyle.Render("║ Select escort behavior:                                               ║") + "\n")
-	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
 
-	behaviors := map[fleet.EscortBehavior]string{
-		fleet.BehaviorDefensive:  "Defensive  - Only engages when you're attacked",
-		fleet.BehaviorAggressive: "Aggressive - Attacks all hostile targets",
-		fleet.BehaviorPassive:    "Passive    - Never engages in combat",
-		fleet.BehaviorSupport:    "Support    - Provides healing and buffs",
-	}
-
-	for i, behaviorType := range behaviorTypes {
-		desc := behaviors[behaviorType]
-		if i == m.fleet.selectedIndex {
-			line := fmt.Sprintf("║   ► %-65s ║", desc)
-			b.WriteString(selectedStyle.Render(line) + "\n")
-		} else {
-			line := fmt.Sprintf("║     %-65s ║", desc)
-			b.WriteString(titleStyle.Render(line) + "\n")
+	switch m.fleet.inputMode {
+	case "name":
+		b.WriteString(titleStyle.Render("║ Step 1/3: Enter Pilot Name                                            ║") + "\n")
+		b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+		nameDisplay := m.fleet.nameInput
+		if nameDisplay == "" {
+			nameDisplay = "_"
 		}
+		line := fmt.Sprintf("║ Name: %-63s ║", nameDisplay)
+		b.WriteString(selectedStyle.Render(line) + "\n")
+		b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+		b.WriteString(titleStyle.Render("║ Press Enter to continue                                               ║") + "\n")
+
+	case "ship":
+		b.WriteString(titleStyle.Render("║ Step 2/3: Select Ship for Escort                                     ║") + "\n")
+		b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+		if m.fleet.currentFleet != nil && len(m.fleet.currentFleet.OwnedShips) > 0 {
+			for i, ship := range m.fleet.currentFleet.OwnedShips {
+				desc := fmt.Sprintf("%s (%s) - Hull: %d%%", ship.Name, ship.TypeID, ship.Hull)
+				if i == m.fleet.selectedIndex {
+					line := fmt.Sprintf("║   ► %-65s ║", desc)
+					b.WriteString(selectedStyle.Render(line) + "\n")
+				} else {
+					line := fmt.Sprintf("║     %-65s ║", desc)
+					b.WriteString(titleStyle.Render(line) + "\n")
+				}
+			}
+		} else {
+			b.WriteString(titleStyle.Render("║ No ships available for escort duty                                    ║") + "\n")
+		}
+
+	case "behavior":
+		b.WriteString(titleStyle.Render("║ Step 3/3: Select Escort Behavior                                      ║") + "\n")
+		b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+		behaviors := map[fleet.EscortBehavior]string{
+			fleet.BehaviorDefensive:  "Defensive  - Only engages when you're attacked",
+			fleet.BehaviorAggressive: "Aggressive - Attacks all hostile targets",
+			fleet.BehaviorPassive:    "Passive    - Never engages in combat",
+			fleet.BehaviorSupport:    "Support    - Provides healing and buffs",
+		}
+
+		for i, behaviorType := range behaviorTypes {
+			desc := behaviors[behaviorType]
+			if i == m.fleet.selectedIndex {
+				line := fmt.Sprintf("║   ► %-65s ║", desc)
+				b.WriteString(selectedStyle.Render(line) + "\n")
+			} else {
+				line := fmt.Sprintf("║     %-65s ║", desc)
+				b.WriteString(titleStyle.Render(line) + "\n")
+			}
+		}
+
+	case "confirm":
+		b.WriteString(titleStyle.Render("║ Confirm Escort Hire                                                   ║") + "\n")
+		b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Pilot Name: %-58s ║", m.fleet.escortName)) + "\n")
+
+		// Find selected ship name
+		var shipName string
+		if m.fleet.currentFleet != nil {
+			for _, ship := range m.fleet.currentFleet.OwnedShips {
+				if ship.ID == m.fleet.selectedShip {
+					shipName = fmt.Sprintf("%s (%s)", ship.Name, ship.TypeID)
+					break
+				}
+			}
+		}
+		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Ship: %-63s ║", shipName)) + "\n")
+		b.WriteString(titleStyle.Render(fmt.Sprintf("║ Behavior: %-59s ║", m.fleet.escortBehavior)) + "\n")
+		b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+		b.WriteString(titleStyle.Render("║ Press Enter to confirm, Q to cancel                                   ║") + "\n")
 	}
 
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
-	b.WriteString(titleStyle.Render("║ TODO: Ship selection and pilot name input                             ║") + "\n")
 
 	return b.String()
 }
@@ -752,11 +884,89 @@ func (m *Model) viewFleetViewShip() string {
 	b.WriteString(titleStyle.Render("║                   SHIP DETAILS                                        ║") + "\n")
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
 	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Name: %-63s ║", ship.Name)) + "\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Type: %-63s ║", ship.TypeID)) + "\n")
+	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+
+	// Status
+	b.WriteString(titleStyle.Render("║ STATUS                                                                ║") + "\n")
 	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Hull: %d%%%-60s ║", ship.Hull, "")) + "\n")
 	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Shields: %d%%%-57s ║", ship.Shields, "")) + "\n")
 	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Fuel: %d%-61s ║", ship.Fuel, "")) + "\n")
 	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
-	b.WriteString(titleStyle.Render("║ TODO: Additional ship details and stats                               ║") + "\n")
+
+	// Cargo
+	b.WriteString(titleStyle.Render("║ CARGO                                                                 ║") + "\n")
+	cargoUsed := 0
+	if ship.Cargo != nil {
+		for _, item := range ship.Cargo {
+			cargoUsed += item.Quantity
+		}
+	}
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ Items in hold: %d%-53s ║", cargoUsed, "")) + "\n")
+
+	// List cargo items
+	if ship.Cargo != nil && len(ship.Cargo) > 0 {
+		b.WriteString(titleStyle.Render("║ Items:                                                                ║") + "\n")
+		for i, item := range ship.Cargo {
+			if i >= 5 { // Limit to 5 items shown
+				b.WriteString(titleStyle.Render(fmt.Sprintf("║   ... and %d more%-51s ║", len(ship.Cargo)-5, "")) + "\n")
+				break
+			}
+			itemLine := fmt.Sprintf("%-40s x%d", item.CommodityID, item.Quantity)
+			b.WriteString(titleStyle.Render(fmt.Sprintf("║   %-67s ║", itemLine)) + "\n")
+		}
+	} else {
+		b.WriteString(titleStyle.Render("║ No cargo                                                              ║") + "\n")
+	}
+	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+
+	// Equipment/Outfits
+	b.WriteString(titleStyle.Render("║ EQUIPMENT                                                             ║") + "\n")
+	if ship.Outfits != nil && len(ship.Outfits) > 0 {
+		for i, outfit := range ship.Outfits {
+			if i >= 5 { // Limit to 5 outfits shown
+				b.WriteString(titleStyle.Render(fmt.Sprintf("║   ... and %d more%-51s ║", len(ship.Outfits)-5, "")) + "\n")
+				break
+			}
+			b.WriteString(titleStyle.Render(fmt.Sprintf("║   %-67s ║", outfit)) + "\n")
+		}
+	} else {
+		b.WriteString(titleStyle.Render("║ No outfits installed                                                  ║") + "\n")
+	}
+	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+
+	// Weapons
+	b.WriteString(titleStyle.Render("║ WEAPONS                                                               ║") + "\n")
+	if ship.Weapons != nil && len(ship.Weapons) > 0 {
+		for i, weapon := range ship.Weapons {
+			if i >= 5 { // Limit to 5 weapons shown
+				b.WriteString(titleStyle.Render(fmt.Sprintf("║   ... and %d more%-51s ║", len(ship.Weapons)-5, "")) + "\n")
+				break
+			}
+			// Check for ammo
+			ammoStr := ""
+			if ship.WeaponAmmo != nil {
+				if ammo, ok := ship.WeaponAmmo[i]; ok {
+					ammoStr = fmt.Sprintf(" [%d rounds]", ammo)
+				}
+			}
+			weaponLine := fmt.Sprintf("%s%s", weapon, ammoStr)
+			b.WriteString(titleStyle.Render(fmt.Sprintf("║   %-67s ║", weaponLine)) + "\n")
+		}
+	} else {
+		b.WriteString(titleStyle.Render("║ No weapons installed                                                  ║") + "\n")
+	}
+	b.WriteString(titleStyle.Render("║                                                                       ║") + "\n")
+
+	// Crew
+	b.WriteString(titleStyle.Render("║ CREW                                                                  ║") + "\n")
+	crewDisplay := "Unknown"
+	if ship.Crew > 0 {
+		crewDisplay = fmt.Sprintf("%d crew members", ship.Crew)
+	} else {
+		crewDisplay = "Skeleton crew"
+	}
+	b.WriteString(titleStyle.Render(fmt.Sprintf("║ %s%-s ║", crewDisplay, strings.Repeat(" ", 69-len(crewDisplay)))) + "\n")
 
 	return b.String()
 }

@@ -33,8 +33,7 @@ func TestScreenTransitions(t *testing.T) {
 		{"Landing to Outfitter", ScreenLanding, "o", ScreenOutfitterEnhanced},
 		{"Landing to Shipyard", ScreenLanding, "s", ScreenShipyardEnhanced},
 		{"Landing to Missions", ScreenLanding, "m", ScreenMissionBoardEnhanced},
-		// TODO: Fix this test - Q key works in practice but fails in test
-		// {"Landing to Quests", ScreenLanding, "q", ScreenQuestBoardEnhanced},
+		{"Landing to Quests", ScreenLanding, "q", ScreenQuestBoardEnhanced},
 		{"Landing to News", ScreenLanding, "b", ScreenNews},
 		{"Landing to SpaceView", ScreenLanding, "t", ScreenSpaceView},
 		{"Landing to SpaceView ESC", ScreenLanding, "esc", ScreenSpaceView},

@@ -330,9 +330,11 @@ func (m *Manager) CheckMissionProgress(player *models.Player, playerShip *models
 				}
 			}
 		case models.MissionTypeCombat:
-			// Would check combat stats (not implemented yet)
+			// Combat missions are updated via RecordEnemyKill() when enemies are destroyed
+			// Progress is tracked automatically in that method
 		case models.MissionTypeBounty:
-			// Would check if target killed (not implemented yet)
+			// Bounty missions are updated via RecordEnemyKill() when the target is destroyed
+			// Progress is tracked automatically in that method
 		}
 
 		// Auto-complete if progress meets quantity
@@ -580,4 +582,52 @@ func generateTradingMission(originPlanet uuid.UUID, factionID string) *models.Mi
 	}
 
 	return mission
+}
+
+// RecordEnemyKill updates progress for active combat and bounty missions when an enemy is destroyed.
+// Should be called by the combat system after each enemy kill.
+//
+// Parameters:
+//   - enemyType: The type of enemy destroyed (e.g., "Pirate Fighter", "Bounty Hunter")
+//   - enemyName: The name of the specific enemy (for bounty missions, empty string for generic enemies)
+//
+// Returns:
+//   - Array of messages about mission progress updates
+func (m *Manager) RecordEnemyKill(enemyType string, enemyName string) []string {
+	messages := []string{}
+
+	// Check all active missions
+	for _, mission := range m.activeMissions {
+		// Skip if mission is already completed or failed
+		if mission.Status != models.MissionStatusActive {
+			continue
+		}
+
+		// Update combat missions
+		if mission.Type == models.MissionTypeCombat {
+			// Check if enemy type matches mission target
+			if mission.Target != nil && *mission.Target == enemyType {
+				mission.Progress++
+				if mission.Progress >= mission.Quantity {
+					messages = append(messages, fmt.Sprintf("Combat mission '%s' objective complete! (%d/%d)",
+						mission.Title, mission.Progress, mission.Quantity))
+				} else {
+					messages = append(messages, fmt.Sprintf("Mission progress: %d/%d %s destroyed",
+						mission.Progress, mission.Quantity, enemyType))
+				}
+			}
+		}
+
+		// Update bounty missions
+		if mission.Type == models.MissionTypeBounty {
+			// Check if this is the specific target for the bounty
+			if mission.Target != nil && enemyName != "" && *mission.Target == enemyName {
+				mission.Progress = 1 // Bounty missions are typically single-target
+				messages = append(messages, fmt.Sprintf("Bounty target '%s' eliminated! Mission '%s' complete!",
+					enemyName, mission.Title))
+			}
+		}
+	}
+
+	return messages
 }

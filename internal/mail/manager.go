@@ -48,7 +48,7 @@ func (m *Manager) SetNewMailCallback(callback func(receiverID uuid.UUID, mail *m
 // ============================================================================
 
 // SendMail sends mail to another player
-func (m *Manager) SendMail(ctx context.Context, senderID *uuid.UUID, senderName, receiverUsername string, subject, body string, attachedCredits int64, getPlayerByUsername func(string) (*models.Player, error), checkBlocked func(uuid.UUID, uuid.UUID) (bool, error)) error {
+func (m *Manager) SendMail(ctx context.Context, senderID *uuid.UUID, senderName, receiverUsername string, subject, body string, attachedCredits int64, attachedItems []uuid.UUID, getPlayerByUsername func(string) (*models.Player, error), checkBlocked func(uuid.UUID, uuid.UUID) (bool, error)) error {
 	// Validate subject and body
 	if subject == "" {
 		return fmt.Errorf("subject cannot be empty")
@@ -86,6 +86,14 @@ func (m *Manager) SendMail(ctx context.Context, senderID *uuid.UUID, senderName,
 		return fmt.Errorf("cannot attach negative credits")
 	}
 
+	// Validate attached items
+	if attachedItems == nil {
+		attachedItems = []uuid.UUID{}
+	}
+	if len(attachedItems) > 10 {
+		return fmt.Errorf("cannot attach more than 10 items")
+	}
+
 	// Create mail
 	mail := &models.Mail{
 		SenderID:        senderID,
@@ -94,7 +102,7 @@ func (m *Manager) SendMail(ctx context.Context, senderID *uuid.UUID, senderName,
 		Subject:         subject,
 		Body:            body,
 		AttachedCredits: attachedCredits,
-		AttachedItems:   []uuid.UUID{}, // TODO: Implement item attachments
+		AttachedItems:   attachedItems,
 	}
 
 	// Send mail (deducts credits if attached)
@@ -110,8 +118,8 @@ func (m *Manager) SendMail(ctx context.Context, senderID *uuid.UUID, senderName,
 	}
 	m.mu.RUnlock()
 
-	log.Info("Mail sent: from=%s, to=%s, subject=%s, credits=%d",
-		senderName, receiverUsername, subject, attachedCredits)
+	log.Info("Mail sent: from=%s, to=%s, subject=%s, credits=%d, items=%d",
+		senderName, receiverUsername, subject, attachedCredits, len(attachedItems))
 	return nil
 }
 

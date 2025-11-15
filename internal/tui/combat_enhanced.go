@@ -16,6 +16,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/combat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 )
 
 type combatEnhancedModel struct {
@@ -44,6 +45,10 @@ type combatEnhancedModel struct {
 	enemyWasHostile bool
 	enemyHadBounty bool
 	enemyBounty    int64
+
+	// PvP combat tracking
+	isPvPCombat   bool
+	pvpChallengeID *uuid.UUID
 }
 
 type combatShip struct {
@@ -116,6 +121,45 @@ func newCombatEnhancedModel() combatEnhancedModel {
 		},
 		selectedAction: 0,
 		actionMode:     "select",
+		isPvPCombat:    false,
+		pvpChallengeID: nil,
+	}
+}
+
+// initializePvPCombat sets up combat with a PvP opponent
+func (m *combatEnhancedModel) initializePvPCombat(challengeID uuid.UUID, opponentName string, opponentShipType string) {
+	// Reset combat state
+	m.isPvPCombat = true
+	m.pvpChallengeID = &challengeID
+	m.isPlayerTurn = true
+	m.combatPhase = "ongoing"
+	m.turnNumber = 1
+	m.distance = 2000
+	m.closingSpeed = 100
+	m.selectedAction = 0
+	m.actionMode = "select"
+	m.showingLoot = false
+
+	// Set up enemy ship
+	m.enemyShip.name = opponentName
+	m.enemyShip.shipType = opponentShipType
+	m.enemyShip.hull = 100
+	m.enemyShip.maxHull = 100
+	m.enemyShip.shields = 100
+	m.enemyShip.maxShields = 100
+	m.enemyShip.energy = 100
+	m.enemyShip.attitude = "neutral" // PvP is consensual
+
+	// Set up basic weapons for opponent
+	m.enemyShip.weapons = []combatWeapon{
+		{name: "Laser Cannon", ready: true, ammo: -1, maxAmmo: -1, energyCost: 10, damage: 40},
+		{name: "Pulse Laser", ready: true, ammo: -1, maxAmmo: -1, energyCost: 15, damage: 35},
+	}
+
+	// Initialize combat log
+	m.combatLog = []string{
+		fmt.Sprintf("> PvP Challenge: %s has accepted your duel!", opponentName),
+		"> Combat beginning...",
 	}
 }
 
@@ -843,17 +887,52 @@ func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Check if combat is over
 			if msg.combatOver {
 				if msg.victory {
-					// Victory - generate loot
+					// Victory
 					m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
 						"> ENEMY DESTROYED! Victory!")
 					m.combatEnhanced.combatPhase = "victory"
-					// Generate loot from destroyed enemy
-					return m, m.generateCombatLootCmd()
+
+					// Handle PvP combat completion
+					if m.combatEnhanced.isPvPCombat && m.combatEnhanced.pvpChallengeID != nil {
+						// Complete PvP combat with the manager
+						_, _ = m.pvpManager.CompleteCombat(
+							*m.combatEnhanced.pvpChallengeID,
+							m.playerID,
+							1000, // Credits transfer (could calculate based on damage)
+							850,  // Damage dealt (could track this)
+							450,  // Damage taken (could track this)
+						)
+						// Return to space view for PvP (no loot)
+						m.screen = ScreenSpaceView
+					} else {
+						// Generate loot from destroyed enemy (PvE only)
+						return m, m.generateCombatLootCmd()
+					}
 				} else {
 					// Defeat
 					m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
 						"> YOUR SHIP IS DESTROYED! Defeat!")
 					m.combatEnhanced.combatPhase = "defeat"
+
+					// Handle PvP defeat
+					if m.combatEnhanced.isPvPCombat && m.combatEnhanced.pvpChallengeID != nil {
+						// Complete PvP combat with enemy as winner
+						// Get opponent ID from challenge
+						challenges := m.pvpManager.GetPendingChallenges(m.playerID)
+						for _, challenge := range challenges {
+							if challenge.ID == *m.combatEnhanced.pvpChallengeID {
+								_, _ = m.pvpManager.CompleteCombat(
+									*m.combatEnhanced.pvpChallengeID,
+									challenge.ChallengerID, // Enemy won
+									1000,
+									450, // Damage dealt by loser
+									850, // Damage taken by loser
+								)
+								break
+							}
+						}
+					}
+
 					m.screen = ScreenMainMenu
 				}
 			} else {

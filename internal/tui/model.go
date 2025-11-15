@@ -470,14 +470,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
-			// Only quit from main menu
-			if m.screen == ScreenMainMenu {
-				return m, tea.Quit
-			}
-			// From other screens, go back to main menu
-			m.screen = ScreenMainMenu
-			return m, nil
+		case "ctrl+c":
+			// Quit from any screen
+			return m, tea.Quit
 		}
 
 	case tea.WindowSizeMsg:

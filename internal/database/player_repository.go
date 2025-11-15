@@ -178,7 +178,8 @@ func (r *PlayerRepository) Authenticate(ctx context.Context, username, password 
 func (r *PlayerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Player, error) {
 	query := `
 		SELECT id, username, credits, current_system, combat_rating,
-		       total_kills, is_online, is_criminal, faction_id, faction_rank, created_at
+		       total_kills, is_online, is_criminal, faction_id, faction_rank, created_at,
+		       crafting_skill, total_crafts, research_points
 		FROM players
 		WHERE id = $1
 	`
@@ -199,6 +200,9 @@ func (r *PlayerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.P
 		&factionID,
 		&factionRank,
 		&player.CreatedAt,
+		&player.CraftingSkill,
+		&player.TotalCrafts,
+		&player.ResearchPoints,
 	)
 
 	if err != nil {
@@ -236,7 +240,8 @@ func (r *PlayerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.P
 func (r *PlayerRepository) GetByUsername(ctx context.Context, username string) (*models.Player, error) {
 	query := `
 		SELECT id, username, credits, current_system, combat_rating,
-		       total_kills, is_online, is_criminal, faction_id, faction_rank, created_at
+		       total_kills, is_online, is_criminal, faction_id, faction_rank, created_at,
+		       crafting_skill, total_crafts, research_points
 		FROM players
 		WHERE username = $1
 	`
@@ -257,6 +262,9 @@ func (r *PlayerRepository) GetByUsername(ctx context.Context, username string) (
 		&factionID,
 		&factionRank,
 		&player.CreatedAt,
+		&player.CraftingSkill,
+		&player.TotalCrafts,
+		&player.ResearchPoints,
 	)
 
 	if err != nil {
@@ -296,8 +304,9 @@ func (r *PlayerRepository) Update(ctx context.Context, player *models.Player) er
 		UPDATE players
 		SET credits = $1, current_system = $2, combat_rating = $3,
 		    total_kills = $4, is_online = $5, is_criminal = $6,
-		    faction_id = $7, faction_rank = $8
-		WHERE id = $9
+		    faction_id = $7, faction_rank = $8, crafting_skill = $9,
+		    total_crafts = $10, research_points = $11
+		WHERE id = $12
 	`
 
 	var currentSystem, factionID interface{}
@@ -317,6 +326,9 @@ func (r *PlayerRepository) Update(ctx context.Context, player *models.Player) er
 		player.IsCriminal,
 		factionID,
 		nil, // faction_rank
+		player.CraftingSkill,
+		player.TotalCrafts,
+		player.ResearchPoints,
 		player.ID,
 	)
 

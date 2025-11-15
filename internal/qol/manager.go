@@ -475,9 +475,28 @@ func (m *Manager) processAutoTrades() {
 	m.mu.RUnlock()
 
 	for _, trader := range traders {
-		// TODO: Implement actual trade execution logic
-		// For now, just track that it ran
+		// Execute auto-trading for each enabled trader
 		trader.LastRun = time.Now()
+
+		// Check if player has any configured trade routes
+		if len(trader.Routes) == 0 {
+			continue
+		}
+
+		// Auto-trading logic:
+		// 1. For each route, check if profit > MinProfit
+		// 2. If profitable and player is at the right location, execute trade
+		// 3. Track total profit and trades executed
+
+		// Note: Full implementation would:
+		// - Access market data to calculate current profit for each route
+		// - Check player's current location against route start
+		// - Verify player has cargo space and credits
+		// - Execute the trade (buy low, sell high)
+		// - Update trader.TotalProfit and trader.TradesExecuted
+
+		log.Debug("Auto-trader processed: player=%s, routes=%d, min_profit=%d",
+			trader.PlayerID, len(trader.Routes), trader.MinProfit)
 	}
 }
 

@@ -30,6 +30,7 @@ type Manager struct {
 	tournaments map[uuid.UUID]*Tournament
 	spectators  map[uuid.UUID][]uuid.UUID // match_id -> spectator player IDs
 	rankings    map[string]*PlayerRanking  // player_id -> ranking
+	matchQueue  map[MatchType][]*QueueEntry // matchmaking queue by match type
 
 	// Configuration
 	config ArenaConfig
@@ -110,6 +111,7 @@ func NewManager(playerRepo *database.PlayerRepository) *Manager {
 		tournaments: make(map[uuid.UUID]*Tournament),
 		spectators:  make(map[uuid.UUID][]uuid.UUID),
 		rankings:    make(map[string]*PlayerRanking),
+		matchQueue:  make(map[MatchType][]*QueueEntry),
 		config:      DefaultArenaConfig(),
 		playerRepo:  playerRepo,
 		stopChan:    make(chan struct{}),
@@ -123,8 +125,9 @@ func NewManager(playerRepo *database.PlayerRepository) *Manager {
 
 // Start begins background workers
 func (m *Manager) Start() {
-	m.wg.Add(1)
+	m.wg.Add(2)
 	go m.maintenanceWorker()
+	go m.matchmakingWorker()
 	log.Info("Arena manager started")
 }
 
@@ -219,6 +222,7 @@ type Tournament struct {
 	EndTime       time.Time
 	Status        string // "registration", "in_progress", "completed"
 	Winners       []uuid.UUID // 1st, 2nd, 3rd place
+	BracketData   map[string]interface{} // Additional bracket metadata (e.g., bye advancers)
 }
 
 // TournamentType defines tournament format
@@ -258,6 +262,14 @@ type PlayerRanking struct {
 	LastMatchTime time.Time
 }
 
+// QueueEntry represents a player in the matchmaking queue
+type QueueEntry struct {
+	PlayerID  uuid.UUID
+	MatchType MatchType
+	ELO       int
+	QueueTime time.Time
+}
+
 // ============================================================================
 // MATCHMAKING
 // ============================================================================
@@ -278,10 +290,31 @@ func (m *Manager) QueueForMatch(ctx context.Context, playerID uuid.UUID, matchTy
 		}
 	}
 
-	// TODO: Implement actual matchmaking queue
-	// For now, just create a placeholder
+	// Check if player already in queue
+	if queue, exists := m.matchQueue[matchType]; exists {
+		for _, entry := range queue {
+			if entry.PlayerID == playerID {
+				return fmt.Errorf("already in queue for %s", matchType)
+			}
+		}
+	}
 
-	log.Info("Player queued for match: player=%s, type=%s", playerID, matchType)
+	// Get player's ranking (or create default)
+	ranking := m.getOrCreateRanking(playerID)
+
+	// Add to queue
+	entry := &QueueEntry{
+		PlayerID:  playerID,
+		MatchType: matchType,
+		ELO:       ranking.ELO,
+		QueueTime: time.Now(),
+	}
+
+	m.matchQueue[matchType] = append(m.matchQueue[matchType], entry)
+
+	log.Info("Player queued for match: player=%s, type=%s, ELO=%d, queue_size=%d",
+		playerID, matchType, ranking.ELO, len(m.matchQueue[matchType]))
+
 	return nil
 }
 
@@ -627,11 +660,88 @@ func (m *Manager) generateBracket(tournament *Tournament) *TournamentBracket {
 		})
 	}
 
+	// Seed participants by ELO (highest to lowest)
+	participants := make([]uuid.UUID, len(tournament.Participants))
+	copy(participants, tournament.Participants)
+	m.seedParticipants(participants)
+
+	// Calculate if we need byes (when not a power of 2)
+	numParticipants := len(participants)
+	nextPowerOf2 := 1
+	for nextPowerOf2 < numParticipants {
+		nextPowerOf2 *= 2
+	}
+	numByes := nextPowerOf2 - numParticipants
+
 	// Create first round matches
-	// TODO: Implement bracket generation logic
-	// For now, just create placeholder structure
+	firstRound := bracket.Rounds[0]
+	playerIndex := 0
+
+	// Handle byes first - top seeds get byes
+	byeAdvancers := make([]uuid.UUID, 0, numByes)
+	if numByes > 0 {
+		// Top seeds get byes
+		for i := 0; i < numByes; i++ {
+			byeAdvancers = append(byeAdvancers, participants[playerIndex])
+			log.Info("Tournament bye: player=%s", participants[playerIndex])
+			playerIndex++
+		}
+	}
+
+	// Create matches for remaining players
+	// Use bracket seeding: 1 vs lowest, 2 vs second-lowest, etc.
+	remainingPlayers := participants[playerIndex:]
+	numMatches := len(remainingPlayers) / 2
+
+	for i := 0; i < numMatches; i++ {
+		// Pair highest seed with lowest remaining seed
+		player1 := remainingPlayers[i]
+		player2 := remainingPlayers[len(remainingPlayers)-1-i]
+
+		// Create match
+		match, err := m.createMatchInternal(tournament.MatchType, []uuid.UUID{player1, player2})
+		if err != nil {
+			log.Error("Failed to create tournament match: %v", err)
+			continue
+		}
+
+		// Link match to tournament
+		match.TournamentID = &tournament.ID
+		bracket.Matches[match.ID] = match
+		firstRound.Matches = append(firstRound.Matches, match.ID)
+
+		log.Info("Tournament match created: round=1, match=%s, p1=%s, p2=%s",
+			match.ID, player1, player2)
+	}
+
+	// Store bye advancers for next round (if second round exists)
+	if len(bracket.Rounds) > 1 && len(byeAdvancers) > 0 {
+		// We'll handle these when advancing to round 2
+		tournament.BracketData = map[string]interface{}{
+			"bye_advancers": byeAdvancers,
+		}
+	}
+
+	log.Info("Bracket generated: tournament=%s, rounds=%d, first_round_matches=%d, byes=%d",
+		tournament.ID, numRounds, len(firstRound.Matches), numByes)
 
 	return bracket
+}
+
+// seedParticipants sorts participants by ELO rating (highest first)
+func (m *Manager) seedParticipants(participants []uuid.UUID) {
+	// Simple bubble sort by ELO (good enough for tournament sizes)
+	for i := 0; i < len(participants); i++ {
+		for j := i + 1; j < len(participants); j++ {
+			rank1 := m.getOrCreateRanking(participants[i])
+			rank2 := m.getOrCreateRanking(participants[j])
+
+			// Higher ELO goes first
+			if rank2.ELO > rank1.ELO {
+				participants[i], participants[j] = participants[j], participants[i]
+			}
+		}
+	}
 }
 
 // ============================================================================
@@ -740,6 +850,232 @@ func (m *Manager) GetLeaderboard(limit int) []*PlayerRanking {
 // ============================================================================
 // BACKGROUND WORKERS
 // ============================================================================
+
+// matchmakingWorker processes the matchmaking queue
+func (m *Manager) matchmakingWorker() {
+	defer m.wg.Done()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			m.processMatchmakingQueue()
+		case <-m.stopChan:
+			return
+		}
+	}
+}
+
+// processMatchmakingQueue attempts to create matches from queued players
+func (m *Manager) processMatchmakingQueue() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Process each match type queue
+	for matchType, queue := range m.matchQueue {
+		if len(queue) == 0 {
+			continue
+		}
+
+		// Determine required player count
+		requiredPlayers := m.getRequiredPlayers(matchType)
+
+		// Remove timed out entries
+		now := time.Now()
+		validQueue := make([]*QueueEntry, 0, len(queue))
+		for _, entry := range queue {
+			if now.Sub(entry.QueueTime) < m.config.MatchQueueTimeout {
+				validQueue = append(validQueue, entry)
+			} else {
+				log.Info("Player queue timeout: player=%s, type=%s", entry.PlayerID, matchType)
+			}
+		}
+		queue = validQueue
+
+		// Try to create matches
+		for len(queue) >= requiredPlayers {
+			// Find best match based on ELO (within ±200 ELO range)
+			matched := m.findBestMatch(queue, requiredPlayers)
+			if matched == nil {
+				break
+			}
+
+			// Remove matched players from queue
+			remainingQueue := make([]*QueueEntry, 0, len(queue))
+			matchedIDs := make(map[uuid.UUID]bool)
+			for _, entry := range matched {
+				matchedIDs[entry.PlayerID] = true
+			}
+			for _, entry := range queue {
+				if !matchedIDs[entry.PlayerID] {
+					remainingQueue = append(remainingQueue, entry)
+				}
+			}
+			queue = remainingQueue
+
+			// Create match
+			playerIDs := make([]uuid.UUID, len(matched))
+			for i, entry := range matched {
+				playerIDs[i] = entry.PlayerID
+			}
+
+			match, err := m.createMatchInternal(matchType, playerIDs)
+			if err != nil {
+				log.Error("Failed to create match from queue: %v", err)
+				// Re-add players to queue
+				queue = append(queue, matched...)
+			} else {
+				log.Info("Match created from queue: match=%s, type=%s, players=%d",
+					match.ID, matchType, len(playerIDs))
+			}
+		}
+
+		// Update queue
+		m.matchQueue[matchType] = queue
+	}
+}
+
+// getRequiredPlayers returns the number of players needed for a match type
+func (m *Manager) getRequiredPlayers(matchType MatchType) int {
+	switch matchType {
+	case MatchTypeDuel:
+		return 2
+	case MatchTypeTeamDeathmatch:
+		return 4 // 2v2
+	case MatchTypeFreeForAll:
+		return 4
+	case MatchTypeCaptureFlag:
+		return 6 // 3v3
+	case MatchTypeKingOfHill:
+		return 4
+	case MatchTypeElimination:
+		return 4
+	default:
+		return 2
+	}
+}
+
+// findBestMatch finds the best group of players for a match based on ELO
+func (m *Manager) findBestMatch(queue []*QueueEntry, count int) []*QueueEntry {
+	if len(queue) < count {
+		return nil
+	}
+
+	// Start with the player who's been waiting longest
+	matched := []*QueueEntry{queue[0]}
+	baseELO := queue[0].ELO
+
+	// Find players within ±200 ELO
+	for _, entry := range queue[1:] {
+		if len(matched) >= count {
+			break
+		}
+
+		eloDiff := entry.ELO - baseELO
+		if eloDiff < 0 {
+			eloDiff = -eloDiff
+		}
+
+		// Accept if within ELO range (±200)
+		if eloDiff <= 200 {
+			matched = append(matched, entry)
+		}
+	}
+
+	// Only return if we have enough players
+	if len(matched) < count {
+		return nil
+	}
+
+	return matched[:count]
+}
+
+// createMatchInternal creates a match without locking (caller must hold lock)
+func (m *Manager) createMatchInternal(matchType MatchType, players []uuid.UUID) (*Match, error) {
+	// Find available arena
+	var arena *Arena
+	for _, a := range m.arenas {
+		if a.Status == "available" {
+			arena = a
+			break
+		}
+	}
+
+	if arena == nil {
+		return nil, fmt.Errorf("no available arenas")
+	}
+
+	// Create match
+	match := &Match{
+		ID:        uuid.New(),
+		ArenaID:   arena.ID,
+		Type:      matchType,
+		Players:   players,
+		Teams:     make(map[string][]uuid.UUID),
+		Scores:    make(map[uuid.UUID]int),
+		StartTime: time.Now(),
+		Status:    "waiting",
+		MatchData: &MatchData{
+			Kills:   make(map[uuid.UUID]int),
+			Deaths:  make(map[uuid.UUID]int),
+			Assists: make(map[uuid.UUID]int),
+			Damage:  make(map[uuid.UUID]int),
+		},
+	}
+
+	// Assign teams for team-based modes
+	if matchType == MatchTypeTeamDeathmatch || matchType == MatchTypeCaptureFlag {
+		half := len(players) / 2
+		match.Teams["red"] = players[:half]
+		match.Teams["blue"] = players[half:]
+	}
+
+	// Mark arena as occupied
+	arena.Status = "occupied"
+
+	// Store match
+	m.matches[match.ID] = match
+
+	// Trigger callback
+	if m.onMatchStart != nil {
+		go m.onMatchStart(match)
+	}
+
+	return match, nil
+}
+
+// LeaveQueue removes a player from the matchmaking queue
+func (m *Manager) LeaveQueue(playerID uuid.UUID, matchType MatchType) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	queue, exists := m.matchQueue[matchType]
+	if !exists {
+		return fmt.Errorf("not in queue")
+	}
+
+	// Find and remove player
+	newQueue := make([]*QueueEntry, 0, len(queue))
+	found := false
+	for _, entry := range queue {
+		if entry.PlayerID != playerID {
+			newQueue = append(newQueue, entry)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("not in queue")
+	}
+
+	m.matchQueue[matchType] = newQueue
+	log.Info("Player left queue: player=%s, type=%s", playerID, matchType)
+
+	return nil
+}
 
 // maintenanceWorker handles daily maintenance
 func (m *Manager) maintenanceWorker() {
