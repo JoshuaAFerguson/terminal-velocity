@@ -1,13 +1,14 @@
 // File: internal/tui/chat.go
 // Project: Terminal Velocity
 // Description: Chat UI for multiplayer communication across multiple channels
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -327,19 +328,35 @@ func (m *Model) sendChatMessage() {
 		}
 
 	case models.ChatChannelFaction:
-		// TODO: Send to faction members when faction system is implemented
-		// For now, show an error
-		msg := models.NewSystemMessage(models.ChatChannelFaction, "Faction chat not yet available. Join a faction first!")
-		history := m.chatManager.GetOrCreateHistory(m.playerID)
-		history.AddMessage(msg)
+		// Get player's faction
+		faction, err := m.factionManager.GetPlayerFaction(m.playerID)
+		if err != nil || faction == nil {
+			// Player not in a faction
+			msg := models.NewSystemMessage(models.ChatChannelFaction, "You must be in a faction to use faction chat. Join a faction first!")
+			history := m.chatManager.GetOrCreateHistory(m.playerID)
+			history.AddMessage(msg)
+			return
+		}
+
+		// Send message to all faction members
+		m.chatManager.SendFactionMessage(faction.ID.String(), m.playerID, m.username, content, faction.Members)
 
 	case models.ChatChannelDirect:
 		if m.chatModel.dmRecipient != "" {
-			// TODO: Look up recipient ID from presence
-			// For now, this is a placeholder
-			msg := models.NewSystemMessage(models.ChatChannelDirect, "Direct messages coming soon!")
-			history := m.chatManager.GetOrCreateHistory(m.playerID)
-			history.AddMessage(msg)
+			// Look up recipient by username
+			recipient, err := m.playerRepo.GetByUsername(context.Background(), m.chatModel.dmRecipient)
+			if err != nil || recipient == nil {
+				msg := models.NewSystemMessage(models.ChatChannelDirect, fmt.Sprintf("Player '%s' not found.", m.chatModel.dmRecipient))
+				history := m.chatManager.GetOrCreateHistory(m.playerID)
+				history.AddMessage(msg)
+				return
+			}
+
+			// Check if recipient is online (optional - can send to offline players too)
+			// For now, allow sending to offline players (mail-like functionality)
+
+			// Send direct message
+			m.chatManager.SendDirectMessage(m.playerID, m.username, recipient.ID, recipient.Username, content)
 		}
 
 	case models.ChatChannelTrade:
@@ -375,11 +392,23 @@ func (m *Model) handleChatCommand(command string) {
 			return
 		}
 
-		recipient := parts[1]
+		recipientUsername := parts[1]
 		content := strings.Join(parts[2:], " ")
 
-		// TODO: Look up recipient and send DM
-		msg := models.NewSystemMessage(models.ChatChannelDirect, fmt.Sprintf("Sending DM to %s: %s (feature coming soon!)", recipient, content))
+		// Look up recipient by username
+		recipientPlayer, err := m.playerRepo.GetByUsername(context.Background(), recipientUsername)
+		if err != nil || recipientPlayer == nil {
+			msg := models.NewSystemMessage(models.ChatChannelDirect, fmt.Sprintf("Player '%s' not found.", recipientUsername))
+			history := m.chatManager.GetOrCreateHistory(m.playerID)
+			history.AddMessage(msg)
+			return
+		}
+
+		// Send direct message
+		m.chatManager.SendDirectMessage(m.playerID, m.username, recipientPlayer.ID, recipientPlayer.Username, content)
+
+		// Confirm to sender
+		msg := models.NewSystemMessage(models.ChatChannelDirect, fmt.Sprintf("DM sent to %s", recipientUsername))
 		history := m.chatManager.GetOrCreateHistory(m.playerID)
 		history.AddMessage(msg)
 
