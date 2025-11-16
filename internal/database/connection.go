@@ -1,10 +1,24 @@
 // File: internal/database/connection.go
 // Project: Terminal Velocity
-// Description: Database repository for connection
-// Version: 1.1.0
+// Description: Database connection pool management with retry logic, metrics tracking,
+//              and transaction support. Provides thread-safe database operations for
+//              the Terminal Velocity game server.
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package database provides PostgreSQL database access for Terminal Velocity.
+//
+// This package implements the repository pattern for all database operations,
+// providing:
+//   - Connection pool management with configurable limits
+//   - Automatic retry logic for transient errors
+//   - Transaction support with automatic rollback
+//   - Metrics tracking for all database operations
+//   - Thread-safe concurrent access
+//
+// All database queries use parameterized statements to prevent SQL injection.
+// The package uses pgx/v5 as the PostgreSQL driver for optimal performance.
 package database
 
 import (
@@ -21,32 +35,67 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 )
 
-// DB wraps the database connection pool
-
+// log is the logger instance for database operations.
 var log = logger.WithComponent("Database")
 
+// DB wraps the database connection pool and provides enhanced functionality.
+//
+// This struct embeds *sql.DB and adds metrics tracking to all query operations.
+// It is safe for concurrent use by multiple goroutines as the underlying
+// sql.DB connection pool is thread-safe.
+//
+// All methods on DB automatically:
+//   - Track metrics for monitoring
+//   - Log errors for debugging
+//   - Use the connection pool efficiently
 type DB struct {
-	*sql.DB
+	*sql.DB // Embedded connection pool from database/sql
 }
 
-// Config holds database configuration
+// Config holds database configuration parameters.
+//
+// Configuration can be loaded from environment variables or provided directly.
+// Environment variables take precedence over defaults when using DefaultConfig().
+//
+// Environment variables:
+//   - DB_HOST: Database server hostname (default: localhost)
+//   - DB_PORT: Database server port (default: 5432)
+//   - DB_USER: Database username (default: terminal_velocity)
+//   - DB_PASSWORD: Database password (required for security)
+//   - DB_NAME: Database name (default: terminal_velocity)
+//   - DB_SSLMODE: SSL mode (default: disable)
+//   - DB_MAX_OPEN_CONNS: Maximum open connections (default: 25)
+//   - DB_MAX_IDLE_CONNS: Maximum idle connections (default: 5)
 type Config struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
-	Database string
-	SSLMode  string
+	Host     string // Database server hostname or IP address
+	Port     int    // Database server port (typically 5432)
+	User     string // Database username for authentication
+	Password string // Database password (should never be logged)
+	Database string // Database name to connect to
+	SSLMode  string // SSL mode: disable, require, verify-ca, or verify-full
 
-	// Connection pool settings
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	ConnMaxIdleTime time.Duration
+	// Connection pool settings control resource usage and performance
+	MaxOpenConns    int           // Maximum number of open connections to the database
+	MaxIdleConns    int           // Maximum number of idle connections in the pool
+	ConnMaxLifetime time.Duration // Maximum lifetime of a connection (prevents stale connections)
+	ConnMaxIdleTime time.Duration // Maximum time a connection can be idle before closing
 }
 
-// DefaultConfig returns a default database configuration
-// It checks environment variables first, then falls back to defaults
+// DefaultConfig returns a default database configuration.
+//
+// This function creates a Config struct with sensible defaults, overriding them
+// with environment variables when present. This allows for flexible deployment:
+//   - Development: Use defaults (no env vars needed)
+//   - Production: Override via environment variables
+//   - Docker: Configure via docker-compose.yml or Kubernetes secrets
+//
+// Returns:
+//   - *Config: Configuration with defaults or environment variable overrides
+//
+// Security notes:
+//   - Warns if DB_PASSWORD is not set (insecure default)
+//   - Never logs password values
+//   - Supports SSL modes for encrypted connections
 func DefaultConfig() *Config {
 	cfg := &Config{
 		Host:            getEnv("DB_HOST", "localhost"),
@@ -77,7 +126,14 @@ func DefaultConfig() *Config {
 	return cfg
 }
 
-// getEnv gets an environment variable or returns a default value
+// getEnv retrieves an environment variable or returns a default value.
+//
+// Parameters:
+//   - key: Environment variable name to lookup
+//   - defaultValue: Value to return if environment variable is not set or empty
+//
+// Returns:
+//   - string: Environment variable value or default
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -85,7 +141,17 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// getEnvAsInt gets an environment variable as an integer or returns a default value
+// getEnvAsInt retrieves an environment variable as an integer or returns a default value.
+//
+// If the environment variable exists but cannot be parsed as an integer,
+// a warning is logged and the default value is returned.
+//
+// Parameters:
+//   - key: Environment variable name to lookup
+//   - defaultValue: Value to return if variable is not set or invalid
+//
+// Returns:
+//   - int: Parsed integer value or default
 func getEnvAsInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
@@ -96,7 +162,37 @@ func getEnvAsInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-// NewDB creates a new database connection pool
+// NewDB creates a new database connection pool with automatic retry logic.
+//
+// This function establishes a connection to PostgreSQL and configures the
+// connection pool for optimal performance. It uses retry logic to handle
+// transient connection failures common in containerized environments.
+//
+// Connection process:
+//  1. Build PostgreSQL DSN from config
+//  2. Open connection with pgx driver
+//  3. Configure connection pool limits
+//  4. Ping database to verify connectivity
+//  5. Retry on failure with exponential backoff
+//
+// Parameters:
+//   - cfg: Database configuration (nil uses DefaultConfig)
+//
+// Returns:
+//   - *DB: Wrapped connection pool ready for use
+//   - error: Connection error (after all retries exhausted)
+//
+// Thread-safety:
+//   - The returned *DB is safe for concurrent use by multiple goroutines
+//   - Connection pool handles concurrency automatically
+//
+// Example:
+//
+//	db, err := NewDB(nil) // Use default config
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer db.Close()
 func NewDB(cfg *Config) (*DB, error) {
 	if cfg == nil {
 		cfg = DefaultConfig()
@@ -163,7 +259,18 @@ func NewDB(cfg *Config) (*DB, error) {
 	return dbWrapper, nil
 }
 
-// Close closes the database connection pool
+// Close gracefully closes the database connection pool.
+//
+// This method should be called when shutting down the server to ensure
+// all database connections are properly closed. It waits for active
+// queries to complete before closing.
+//
+// Returns:
+//   - error: Error if closure fails (rare, but should be logged)
+//
+// Thread-safety:
+//   - Safe to call concurrently, but should only be called once during shutdown
+//   - Subsequent database operations will fail after Close() is called
 func (db *DB) Close() error {
 	log.Info("Closing database connection")
 	err := db.DB.Close()
@@ -175,7 +282,19 @@ func (db *DB) Close() error {
 	return nil
 }
 
-// Ping checks if the database is reachable
+// Ping verifies database connectivity and records metrics.
+//
+// This method sends a lightweight query to the database to verify the
+// connection is alive and responsive. Use this for health checks.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//
+// Returns:
+//   - error: Error if database is unreachable or unresponsive
+//
+// Thread-safety:
+//   - Safe for concurrent use
 func (db *DB) Ping(ctx context.Context) error {
 	err := db.PingContext(ctx)
 	if err != nil {
@@ -187,7 +306,28 @@ func (db *DB) Ping(ctx context.Context) error {
 	return nil
 }
 
-// QueryContext wraps sql.DB.QueryContext with metrics tracking
+// QueryContext executes a query that returns multiple rows with metrics tracking.
+//
+// This method wraps sql.DB.QueryContext to automatically track metrics for
+// monitoring and debugging. Use this for SELECT queries that return 0 or more rows.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - query: SQL query with parameter placeholders ($1, $2, etc.)
+//   - args: Values to bind to query parameters (prevents SQL injection)
+//
+// Returns:
+//   - *sql.Rows: Result set (must be closed by caller)
+//   - error: Query execution error
+//
+// Thread-safety:
+//   - Safe for concurrent use
+//
+// Example:
+//
+//	rows, err := db.QueryContext(ctx, "SELECT id, name FROM players WHERE credits > $1", 1000)
+//	if err != nil { return err }
+//	defer rows.Close()
 func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	metrics.Global().IncrementDBQueries()
 	rows, err := db.DB.QueryContext(ctx, query, args...)
@@ -197,13 +337,54 @@ func (db *DB) QueryContext(ctx context.Context, query string, args ...interface{
 	return rows, err
 }
 
-// QueryRowContext wraps sql.DB.QueryRowContext with metrics tracking
+// QueryRowContext executes a query that returns at most one row with metrics tracking.
+//
+// This method wraps sql.DB.QueryRowContext to automatically track metrics.
+// Use this for SELECT queries expected to return a single row or nothing.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - query: SQL query with parameter placeholders ($1, $2, etc.)
+//   - args: Values to bind to query parameters (prevents SQL injection)
+//
+// Returns:
+//   - *sql.Row: Single row result (call .Scan() to retrieve values)
+//
+// Thread-safety:
+//   - Safe for concurrent use
+//
+// Example:
+//
+//	var name string
+//	err := db.QueryRowContext(ctx, "SELECT name FROM players WHERE id = $1", playerID).Scan(&name)
+//	if err == sql.ErrNoRows { /* not found */ }
 func (db *DB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	metrics.Global().IncrementDBQueries()
 	return db.DB.QueryRowContext(ctx, query, args...)
 }
 
-// ExecContext wraps sql.DB.ExecContext with metrics tracking
+// ExecContext executes a query that doesn't return rows with metrics tracking.
+//
+// This method wraps sql.DB.ExecContext to automatically track metrics.
+// Use this for INSERT, UPDATE, DELETE, and DDL queries.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - query: SQL query with parameter placeholders ($1, $2, etc.)
+//   - args: Values to bind to query parameters (prevents SQL injection)
+//
+// Returns:
+//   - sql.Result: Contains RowsAffected() and LastInsertId()
+//   - error: Query execution error
+//
+// Thread-safety:
+//   - Safe for concurrent use
+//
+// Example:
+//
+//	result, err := db.ExecContext(ctx, "UPDATE players SET credits = $1 WHERE id = $2", 1000, playerID)
+//	if err != nil { return err }
+//	rows, _ := result.RowsAffected()
 func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	metrics.Global().IncrementDBQueries()
 	result, err := db.DB.ExecContext(ctx, query, args...)
@@ -213,7 +394,23 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 	return result, err
 }
 
-// Exec wraps sql.DB.Exec with metrics tracking (for non-context queries)
+// Exec executes a query without context with metrics tracking.
+//
+// This method is provided for compatibility with legacy code that doesn't
+// use contexts. New code should use ExecContext instead.
+//
+// Parameters:
+//   - query: SQL query with parameter placeholders ($1, $2, etc.)
+//   - args: Values to bind to query parameters (prevents SQL injection)
+//
+// Returns:
+//   - sql.Result: Contains RowsAffected() and LastInsertId()
+//   - error: Query execution error
+//
+// Thread-safety:
+//   - Safe for concurrent use
+//
+// Deprecated: Use ExecContext for better timeout and cancellation control.
 func (db *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
 	metrics.Global().IncrementDBQueries()
 	result, err := db.DB.Exec(query, args...)

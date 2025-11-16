@@ -1,10 +1,106 @@
 // File: internal/security/session.go
 // Project: Terminal Velocity
 // Description: Session management with timeout, tracking, and concurrent session limiting
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-11-14
 
+// Package security - Session management for active player sessions.
+//
+// This file implements comprehensive session lifecycle management including creation,
+// validation, timeout enforcement, and concurrent session limiting. It prevents
+// session hijacking and ensures inactive sessions are automatically cleaned up.
+//
+// Features:
+//   - Session Creation: Creates UUID-identified sessions with metadata tracking
+//   - Idle Timeout: Automatically expires sessions after inactivity (default: 15 min)
+//   - Max Duration: Hard limit on session lifetime regardless of activity (default: 24h)
+//   - Concurrent Limiting: Limits simultaneous sessions per player (default: 3)
+//   - Activity Tracking: Updates last activity timestamp for timeout calculation
+//   - Automatic Cleanup: Background goroutine removes expired sessions (every 1 min)
+//   - Session Warnings: Configurable warning before forceful disconnection
+//
+// Session Lifecycle:
+//
+//	1. Creation:
+//	   - CreateSession(playerID, username, ipAddress)
+//	   - Checks concurrent session limit
+//	   - Assigns unique session ID
+//	   - Records start time and initial activity
+//
+//	2. Active Use:
+//	   - UpdateActivity(sessionID) on each player action
+//	   - Resets idle timeout
+//	   - GetTimeUntilTimeout() for warning displays
+//
+//	3. Validation:
+//	   - CheckSessionValid(sessionID) returns (valid, reason)
+//	   - Checks: session exists, is active, not idle, not expired
+//
+//	4. Termination:
+//	   - DestroySession(sessionID) for logout
+//	   - cleanupExpiredSessions() for timeouts
+//	   - Removes from sessions map and player tracking
+//
+// Timeout Types:
+//   - Idle Timeout: Time since last activity (e.g., 15 minutes)
+//   - Max Duration: Time since session creation (e.g., 24 hours)
+//   - Both are checked independently; whichever expires first ends the session
+//
+// Thread Safety:
+// All SessionManager methods are thread-safe using sync.RWMutex. Read operations
+// (Get*, Check*) use RLock, write operations (Create*, Destroy*, Update*) use Lock.
+//
+// Configuration:
+//
+//	type SessionConfig struct {
+//	    IdleTimeout        time.Duration  // Inactivity timeout (default: 15m)
+//	    MaxSessionDuration time.Duration  // Maximum session length (default: 24h)
+//	    MaxConcurrent      int            // Max sessions per player (default: 3)
+//	    WarnBeforeKick     time.Duration  // Warning time before timeout (default: 2m)
+//	    CheckInterval      time.Duration  // Cleanup check frequency (default: 1m)
+//	}
+//
+// Usage Example:
+//
+//	// Initialize session manager
+//	config := security.DefaultSessionConfig()
+//	config.IdleTimeout = 30 * time.Minute
+//	sessionMgr := security.NewSessionManager(config)
+//	defer sessionMgr.Stop()
+//
+//	// Create session on login
+//	session, err := sessionMgr.CreateSession(playerID, username, ipAddress)
+//	if err != nil {
+//	    // Check if error is ErrMaxSessionsReached
+//	    if sessionErr, ok := err.(*security.SessionError); ok {
+//	        if sessionErr.Code == security.ErrMaxSessionsReached {
+//	            // Prompt user to close existing session
+//	        }
+//	    }
+//	    return err
+//	}
+//
+//	// Update activity during gameplay
+//	sessionMgr.UpdateActivity(session.ID)
+//
+//	// Check if session still valid
+//	if valid, reason := sessionMgr.CheckSessionValid(session.ID); !valid {
+//	    log.Warn("Session invalid: %s", reason)
+//	    // Force logout
+//	}
+//
+//	// Warn before timeout
+//	if sessionMgr.ShouldWarnTimeout(session.ID) {
+//	    timeLeft := sessionMgr.GetTimeUntilTimeout(session.ID)
+//	    showWarning("Session will expire in %v", timeLeft)
+//	}
+//
+//	// Destroy session on logout
+//	sessionMgr.DestroySession(session.ID)
+//
+// Version: 1.1.0
+// Last Updated: 2025-11-16
 package security
 
 import (

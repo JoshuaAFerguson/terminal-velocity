@@ -1,9 +1,32 @@
 // File: internal/tui/model.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for model with login screen and unauthenticated state support
-// Version: 1.2.2
+// Description: Core TUI model with BubbleTea integration, screen routing, and state management
+// Version: 1.3.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// This file implements the main TUI model for Terminal Velocity using the BubbleTea framework.
+// It follows the Model-View-Update (MVU) architecture pattern where:
+//   - Model: Holds all application state (player data, screen models, managers)
+//   - Update: Handles messages and returns updated model + commands
+//   - View: Renders the current state to the terminal
+//
+// Key architectural patterns:
+//   - Screen-based routing: Each screen has its own model and update/view functions
+//   - Async operations: Long-running operations return tea.Cmd for non-blocking execution
+//   - Message passing: Custom message types communicate async operation results
+//   - Repository pattern: All database access goes through typed repositories
+//   - Manager pattern: Game systems (chat, factions, etc.) are managed by dedicated managers
+//
+// Thread Safety:
+//   - The BubbleTea Update() function is called sequentially, so no locking is needed in TUI code
+//   - However, managers and repositories may be accessed concurrently and use their own locking
+//   - Use context.Background() for database operations in tea.Cmd functions
+//
+// Screen Transitions:
+//   - Screens change via m.screen = ScreenName in Update()
+//   - Always return tea.ClearScreen when changing screens to prevent artifacts
+//   - Screen-specific state is preserved in sub-models (e.g., m.trading, m.combat)
 
 package tui
 
@@ -38,195 +61,348 @@ import (
 	"github.com/google/uuid"
 )
 
-// Screen represents different game screens
-
+// Screen represents different game screens in the TUI.
+//
+// The screen enum is used for routing in the Update() and View() functions.
+// Each screen has a corresponding sub-model (e.g., mainMenuModel, combatModel)
+// and update/view functions (e.g., updateCombat, viewCombat).
+//
+// Screen Categories:
+//   - Authentication: Login, Registration
+//   - Core Game: MainMenu, Game, Help, Tutorial, Settings
+//   - Navigation: Navigation, NavigationEnhanced, SpaceView, Landing
+//   - Commerce: Trading, TradingEnhanced, Cargo, TradeRoutes, Marketplace
+//   - Ships: Shipyard, ShipyardEnhanced, Outfitter, OutfitterEnhanced, ShipManagement, Fleet
+//   - Combat: Combat, CombatEnhanced, PvP, Encounter
+//   - Missions & Quests: Missions, MissionBoardEnhanced, Quests, QuestBoardEnhanced
+//   - Social: Chat, Players, Friends, Mail, Notifications
+//   - Organizations: Factions, Trade
+//   - Progression: Achievements, Leaderboards, News
+//   - Administration: Admin
 type Screen int
 
 const (
+	// ScreenMainMenu is the main menu screen shown after login
 	ScreenMainMenu Screen = iota
+
+	// ScreenGame is the primary game view (currently minimal, mostly redirects to other screens)
 	ScreenGame
+
+	// ScreenNavigation is the legacy system navigation and jump interface
 	ScreenNavigation
+
+	// ScreenTrading is the legacy commodity trading interface
 	ScreenTrading
+
+	// ScreenCargo displays the player's cargo hold and allows jettisoning items
 	ScreenCargo
+
+	// ScreenShipyard is the legacy ship purchase interface
 	ScreenShipyard
+
+	// ScreenOutfitter is the legacy equipment purchase and installation interface
 	ScreenOutfitter
+
+	// ScreenShipManagement provides ship repair, refuel, and maintenance services
 	ScreenShipManagement
+
+	// ScreenCombat is the turn-based combat interface with tactical options
 	ScreenCombat
+
+	// ScreenMissions shows available and active missions
 	ScreenMissions
+
+	// ScreenAchievements displays unlocked and locked achievements with progress
 	ScreenAchievements
+
+	// ScreenEncounter handles random encounters (pirates, traders, distress calls)
 	ScreenEncounter
+
+	// ScreenNews shows recent news articles generated from game events
 	ScreenNews
+
+	// ScreenLeaderboards displays player rankings across multiple categories
 	ScreenLeaderboards
+
+	// ScreenPlayers shows online players and their locations
 	ScreenPlayers
+
+	// ScreenChat provides multi-channel chat (global, system, faction, DM)
 	ScreenChat
+
+	// ScreenFactions manages player factions, membership, and treasury
 	ScreenFactions
+
+	// ScreenTrade handles player-to-player trading with escrow
 	ScreenTrade
+
+	// ScreenPvP manages PvP challenges and faction wars
 	ScreenPvP
+
+	// ScreenHelp displays context-sensitive help content
 	ScreenHelp
+
+	// ScreenOutfitterEnhanced is an enhanced equipment browser with filtering
 	ScreenOutfitterEnhanced
+
+	// ScreenSettings manages player preferences and color schemes
 	ScreenSettings
+
+	// ScreenAdmin provides server administration tools (RBAC-protected)
 	ScreenAdmin
+
+	// ScreenTutorial displays interactive tutorials for new players
 	ScreenTutorial
+
+	// ScreenQuests shows quest progression and branching narratives
 	ScreenQuests
+
+	// ScreenRegistration handles new player account creation
 	ScreenRegistration
+
+	// ScreenLogin is the initial login screen for unauthenticated users
 	ScreenLogin
+
+	// ScreenSpaceView is the 3D space visualization with targeting
 	ScreenSpaceView
+
+	// ScreenLanding handles planet landing and service selection
 	ScreenLanding
+
+	// ScreenTradingEnhanced is the enhanced commodity trading interface with analytics
 	ScreenTradingEnhanced
+
+	// ScreenShipyardEnhanced is the enhanced ship browser with detailed comparisons
 	ScreenShipyardEnhanced
+
+	// ScreenMissionBoardEnhanced is the enhanced mission browser with filtering
 	ScreenMissionBoardEnhanced
+
+	// ScreenNavigationEnhanced is the enhanced navigation interface with route planning
 	ScreenNavigationEnhanced
+
+	// ScreenCombatEnhanced is the enhanced combat interface with advanced tactics
 	ScreenCombatEnhanced
+
+	// ScreenQuestBoardEnhanced is the enhanced quest browser with storyline tracking
 	ScreenQuestBoardEnhanced
+
+	// ScreenTradeRoutes displays profitable trade routes and market analysis
 	ScreenTradeRoutes
+
+	// ScreenMail manages player-to-player mail and messages
 	ScreenMail
+
+	// ScreenFleet manages multi-ship ownership, escorts, and formations
 	ScreenFleet
+
+	// ScreenFriends manages friend lists and social connections
 	ScreenFriends
+
+	// ScreenMarketplace is the player-to-player item marketplace
 	ScreenMarketplace
+
+	// ScreenNotifications displays game notifications and alerts
 	ScreenNotifications
 )
 
-// Model is the main TUI model
+// Model is the main TUI model that holds all application state.
+//
+// The Model follows the BubbleTea MVU (Model-View-Update) pattern and contains:
+//   - Current screen and routing information
+//   - Player data (loaded from database)
+//   - Database repositories for data access
+//   - Sub-models for each screen (preserves screen-specific state)
+//   - Game system managers (chat, factions, quests, etc.)
+//   - Error and loading state
+//
+// State Lifecycle:
+//   1. Model is initialized via NewModel() or NewLoginModel()
+//   2. Init() loads player data asynchronously
+//   3. Update() handles messages and state changes
+//   4. View() renders the current screen
+//   5. Sub-models are updated/viewed based on current screen
+//
+// Screen State Preservation:
+//   - Each screen has a dedicated sub-model (e.g., m.trading for ScreenTrading)
+//   - Screen state is preserved when switching between screens
+//   - This allows users to return to screens with their previous state intact
+//
+// Database Access:
+//   - All database operations go through repositories (playerRepo, systemRepo, etc.)
+//   - Async operations use tea.Cmd to avoid blocking the UI
+//   - Results are communicated via custom message types (e.g., playerLoadedMsg)
+//
+// Manager Integration:
+//   - Managers handle game systems (achievements, chat, factions, etc.)
+//   - Managers are thread-safe and can be called from any screen
+//   - Managers often run background goroutines for periodic tasks
 type Model struct {
-	// Current screen
+	// ===== Screen Routing =====
+
+	// screen is the currently active screen (determines which view is rendered)
 	screen Screen
 
-	// Player data
-	player      *models.Player
-	playerID    uuid.UUID
-	username    string
+	// ===== Player State =====
+
+	// player contains the current player's data (loaded from database)
+	// nil during login/registration or if loading failed
+	player *models.Player
+
+	// playerID is the UUID of the current player
+	// Set during authentication, used to load player data
+	playerID uuid.UUID
+
+	// username is the player's display name
+	// Set during authentication for display purposes
+	username string
+
+	// currentShip is the player's active ship (loaded from database)
+	// nil if player doesn't have a ship yet
 	currentShip *models.Ship
 
-	// Database repositories
-	playerRepo *database.PlayerRepository
-	systemRepo *database.SystemRepository
-	sshKeyRepo *database.SSHKeyRepository
-	shipRepo   *database.ShipRepository
-	marketRepo *database.MarketRepository
-	mailRepo   *database.MailRepository
-	socialRepo *database.SocialRepository
-	itemRepo   *database.ItemRepository
+	// ===== Database Repositories =====
+	// Repositories provide typed CRUD operations for database access
+	// All database operations should go through repositories, never direct SQL
 
-	// Screen dimensions
-	width  int
+	playerRepo *database.PlayerRepository // Player accounts and stats
+	systemRepo *database.SystemRepository // Star systems and connections
+	sshKeyRepo *database.SSHKeyRepository // SSH public keys for authentication
+	shipRepo   *database.ShipRepository   // Player ships and equipment
+	marketRepo *database.MarketRepository // Market prices and commodities
+	mailRepo   *database.MailRepository   // Player mail system
+	socialRepo *database.SocialRepository // Friends, blocks, etc.
+	itemRepo   *database.ItemRepository   // Items and equipment
+
+	// ===== Terminal Dimensions =====
+
+	// width is the terminal width in characters (updated on WindowSizeMsg)
+	width int
+
+	// height is the terminal height in characters (updated on WindowSizeMsg)
 	height int
 
-	// Sub-models for different screens
-	mainMenu          mainMenuModel
-	gameView          gameViewModel
-	registration      registrationModel
-	navigation        navigationModel
-	trading           tradingModel
-	cargo             cargoModel
-	shipyard          shipyardModel
-	outfitter         outfitterModel
-	shipManagement    shipManagementModel
-	combat            combatModel
-	missions          missionsModel
-	achievementsUI    achievementsModel
-	encounterModel    encounterModel
-	newsModel         newsModel
-	leaderboardsModel leaderboardsModel
-	playersModel      playersModel
-	chatModel         chatModel
-	factionsModel     factionsModel
-	tradeModel        tradeModel
-	pvpModel          pvpModel
-	helpModel         helpModel
-	outfitterEnhanced outfitterEnhancedModel
-	settingsModel     settingsModel
-	adminModel        adminModel
-	tutorialModel     tutorialModel
-	questsModel       questsModel
-	loginModel        loginModel
-	spaceView         spaceViewModel
-	landing               landingModel
-	tradingEnhanced       tradingEnhancedModel
-	shipyardEnhanced      shipyardEnhancedModel
-	missionBoardEnhanced  missionBoardEnhancedModel
-	navigationEnhanced    navigationEnhancedModel
-	combatEnhanced        combatEnhancedModel
-	questBoardEnhanced    questBoardEnhancedModel
-	tradeRoutes           tradeRoutesState
-	mail                  mailState
-	fleet                 fleetState
-	friends               friendsState
-	marketplace           marketplaceState
-	notifications         notificationsState
+	// ===== Screen Sub-Models =====
+	// Each screen has a dedicated model to preserve state between screen switches
+	// Sub-models are initialized in NewModel() and persist for the session
 
-	// Achievement tracking
-	achievementManager  *achievements.Manager
-	pendingAchievements []*models.Achievement // Newly unlocked, pending display
+	mainMenu             mainMenuModel             // Main menu after login
+	gameView             gameViewModel             // Primary game view (minimal, mostly redirects)
+	registration         registrationModel         // New account registration
+	navigation           navigationModel           // Legacy system navigation
+	trading              tradingModel              // Legacy commodity trading
+	cargo                cargoModel                // Cargo hold management
+	shipyard             shipyardModel             // Legacy ship purchasing
+	outfitter            outfitterModel            // Legacy equipment management
+	shipManagement       shipManagementModel       // Ship services (repair, refuel)
+	combat               combatModel               // Turn-based combat
+	missions             missionsModel             // Mission board
+	achievementsUI       achievementsModel         // Achievement tracking
+	encounterModel       encounterModel            // Random encounters
+	newsModel            newsModel                 // News articles
+	leaderboardsModel    leaderboardsModel         // Player rankings
+	playersModel         playersModel              // Online players list
+	chatModel            chatModel                 // Multi-channel chat
+	factionsModel        factionsModel             // Faction management
+	tradeModel           tradeModel                // Player trading
+	pvpModel             pvpModel                  // PvP challenges
+	helpModel            helpModel                 // Context-sensitive help
+	outfitterEnhanced    outfitterEnhancedModel    // Enhanced equipment browser
+	settingsModel        settingsModel             // Player preferences
+	adminModel           adminModel                // Server administration
+	tutorialModel        tutorialModel             // Interactive tutorials
+	questsModel          questsModel               // Quest progression
+	loginModel           loginModel                // Login screen
+	spaceView            spaceViewModel            // 3D space visualization
+	landing              landingModel              // Planet landing
+	tradingEnhanced      tradingEnhancedModel      // Enhanced trading interface
+	shipyardEnhanced     shipyardEnhancedModel     // Enhanced ship browser
+	missionBoardEnhanced missionBoardEnhancedModel // Enhanced mission board
+	navigationEnhanced   navigationEnhancedModel   // Enhanced navigation
+	combatEnhanced       combatEnhancedModel       // Enhanced combat
+	questBoardEnhanced   questBoardEnhancedModel   // Enhanced quest board
+	tradeRoutes          tradeRoutesState          // Trade route analysis
+	mail                 mailState                 // Mail system
+	fleet                fleetState                // Fleet management
+	friends              friendsState              // Friends list
+	marketplace          marketplaceState          // Player marketplace
+	notifications        notificationsState        // Notifications
 
-	// News system
-	newsManager *news.Manager
+	// ===== Game System Managers =====
+	// Managers encapsulate game systems and often run background workers
+	// Managers are thread-safe and can be accessed from any screen
 
-	// Leaderboards system
-	leaderboardManager *leaderboards.Manager
+	achievementManager   *achievements.Manager   // Achievement tracking and unlocks
+	newsManager          *news.Manager           // News generation from events
+	leaderboardManager   *leaderboards.Manager   // Player ranking calculations
+	presenceManager      *presence.Manager       // Online player tracking
+	chatManager          *chat.Manager           // Multi-channel chat system
+	mailManager          *mail.Manager           // Player mail system
+	fleetManager         *fleet.Manager          // Multi-ship management
+	friendsManager       *friends.Manager        // Social connections
+	notificationsManager *notifications.Manager  // Game notifications
+	marketplaceManager   *marketplace.Manager    // Player marketplace
+	factionManager       *factions.Manager       // Player factions
+	territoryManager     *territory.Manager      // Territory control
+	tradeManager         *trade.Manager          // Player trading
+	pvpManager           *pvp.Manager            // PvP combat
+	encounterManager     *encounters.Manager     // Random encounters
+	outfittingManager    *outfitting.Manager     // Equipment management
+	settingsManager      *settings.Manager       // Player settings
+	adminManager         *admin.Manager          // Server administration
+	tutorialManager      *tutorial.Manager       // Tutorial system
+	questManager         *quests.Manager         // Quest system
+	missionManager       *missions.Manager       // Mission system
 
-	// Presence system
-	presenceManager *presence.Manager
+	// ===== Achievement Display Queue =====
 
-	// Chat system
-	chatManager *chat.Manager
+	// pendingAchievements holds newly unlocked achievements waiting to be displayed
+	// Achievements are added via checkAchievements() and displayed via getAchievementNotification()
+	// The queue allows multiple achievements to be shown sequentially without blocking gameplay
+	pendingAchievements []*models.Achievement
 
-	// Mail system
-	mailManager *mail.Manager
+	// ===== Error Handling and Loading State =====
 
-	// Fleet system
-	fleetManager *fleet.Manager
+	// err holds any error that occurred during async operations
+	// Checked in View() to display error screens when non-nil
+	err error
 
-	// Friends system
-	friendsManager *friends.Manager
+	// errorMessage is a user-friendly error message for display
+	errorMessage string
 
-	// Notifications system
-	notificationsManager *notifications.Manager
+	// showErrorDialog controls whether to show an error dialog overlay
+	showErrorDialog bool
 
-	// Marketplace system
-	marketplaceManager *marketplace.Manager
+	// loadingOperation describes the current loading operation (e.g., "Loading player data...")
+	loadingOperation string
 
-	// Faction system
-	factionManager *factions.Manager
-
-	// Territory system
-	territoryManager *territory.Manager
-
-	// Trade system
-	tradeManager *trade.Manager
-
-	// PvP system
-	pvpManager *pvp.Manager
-
-	// Encounter system
-	encounterManager *encounters.Manager
-
-	// Outfitting system
-	outfittingManager *outfitting.Manager
-
-	// Settings system
-	settingsManager *settings.Manager
-
-	// Admin system
-	adminManager *admin.Manager
-
-	// Tutorial system
-	tutorialManager *tutorial.Manager
-
-	// Quest system
-	questManager *quests.Manager
-
-	// Mission system
-	missionManager *missions.Manager
-
-	// Error handling
-	err               error
-	errorMessage      string
-	showErrorDialog   bool
-	loadingOperation  string
-	isLoading         bool
+	// isLoading indicates whether an async operation is in progress
+	isLoading bool
 }
 
-// NewModel creates a new TUI model
+// NewModel creates a new TUI model for an authenticated player.
+//
+// This constructor is used when the player has already been authenticated
+// (e.g., via SSH public key or password). It initializes:
+//   - All screen sub-models
+//   - All game system managers
+//   - Database repositories
+//   - Player state (playerID and username)
+//
+// The model starts on ScreenMainMenu and will load player data in Init().
+//
+// Parameters:
+//   - playerID: UUID of the authenticated player
+//   - username: Display name of the player
+//   - Various repositories and managers for game systems
+//
+// Returns:
+//   - Initialized Model ready for use with BubbleTea
+//
+// Usage:
+//   model := NewModel(playerID, username, playerRepo, systemRepo, ...)
+//   program := tea.NewProgram(model)
+//   program.Run()
 func NewModel(
 	playerID uuid.UUID,
 	username string,
@@ -458,7 +634,21 @@ func NewRegistrationModel(
 	}
 }
 
-// Init initializes the model
+// Init initializes the model and returns initial commands.
+//
+// This is the first method called by BubbleTea after creating the model.
+// It performs initial setup and kicks off any async operations needed.
+//
+// Behavior:
+//   - Always clears the screen to prevent terminal artifacts
+//   - If on login/registration screen: returns only tea.ClearScreen
+//   - If authenticated: loads player data via m.loadPlayer()
+//
+// The player data loading happens asynchronously via tea.Cmd.
+// The result is communicated back via playerLoadedMsg in Update().
+//
+// Returns:
+//   - tea.Cmd to execute (clear screen and optionally load player)
 func (m Model) Init() tea.Cmd {
 	// Clear screen on initialization to prevent artifacts
 	// If we're on the login screen, don't load player data yet
@@ -468,7 +658,35 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(tea.ClearScreen, m.loadPlayer())
 }
 
-// Update handles messages and updates the model
+// Update handles messages and updates the model.
+//
+// This is the core of the BubbleTea MVU pattern. It receives messages,
+// updates the model state, and returns optional commands to execute.
+//
+// Message Flow:
+//   1. User input (tea.KeyMsg) triggers actions
+//   2. Async operations complete and send custom messages (e.g., playerLoadedMsg)
+//   3. Update() processes the message and updates state
+//   4. Update() may return tea.Cmd for further async operations
+//   5. Cycle repeats
+//
+// Message Handling Order:
+//   1. Global messages (Ctrl+C for quit, WindowSize for resize)
+//   2. Common async messages (playerLoadedMsg, etc.)
+//   3. Screen-specific messages (delegated to screen update functions)
+//
+// Screen Routing:
+//   - Each screen has its own update function (e.g., updateCombat, updateTrading)
+//   - Update() delegates to the appropriate function based on m.screen
+//   - Screen updates may change m.screen to transition to other screens
+//
+// Thread Safety:
+//   - Update() is called sequentially by BubbleTea, so no locking needed
+//   - However, managers and repositories may be accessed concurrently
+//
+// Returns:
+//   - Updated tea.Model (always return m, not Model)
+//   - Optional tea.Cmd for async operations
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -585,7 +803,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// View renders the model
+// View renders the model to a string for display.
+//
+// This is the "View" part of the BubbleTea MVU pattern. It converts
+// the current model state into a string that will be displayed in the terminal.
+//
+// Rendering Priority:
+//   1. Error screens (if m.err is set and not on login/registration)
+//   2. Loading screens (if player data not loaded and not on login/registration)
+//   3. Screen-specific views (based on m.screen)
+//
+// Screen Routing:
+//   - Each screen has its own view function (e.g., viewCombat, viewTrading)
+//   - View() delegates to the appropriate function based on m.screen
+//   - Screen views can access all model state (player, managers, etc.)
+//
+// Performance Notes:
+//   - View() is called frequently (on every Update() and periodically)
+//   - Avoid expensive operations in view functions
+//   - Pre-calculate and cache expensive computations in Update()
+//
+// Styling:
+//   - Use lipgloss for terminal styling (colors, borders, etc.)
+//   - Use ui_components.go helpers for common UI elements
+//   - Respect terminal dimensions (m.width, m.height)
+//
+// Returns:
+//   - String to display in the terminal
 func (m Model) View() string {
 	// Show error if present (but not on login screen)
 	if m.err != nil && m.screen != ScreenLogin && m.screen != ScreenRegistration {
@@ -691,14 +935,48 @@ func (m Model) ViewWithTutorial(content string) string {
 	return m.renderTutorialOverlay(content)
 }
 
-// playerLoadedMsg is sent when player data is loaded
+// playerLoadedMsg is sent when player data has been loaded from the database.
+//
+// This message is the result of the async m.loadPlayer() command.
+// It's processed in Update() to populate m.player and m.currentShip.
+//
+// Fields:
+//   - player: The loaded player data (nil if error)
+//   - ship: The player's current ship (nil if no ship or error)
+//   - err: Any error that occurred during loading (nil if successful)
+//
+// Message Flow:
+//   1. Init() or screen transition calls m.loadPlayer()
+//   2. loadPlayer() returns a tea.Cmd that runs asynchronously
+//   3. When complete, tea.Cmd sends playerLoadedMsg back to Update()
+//   4. Update() handles playerLoadedMsg and updates m.player/m.currentShip
 type playerLoadedMsg struct {
 	player *models.Player
 	ship   *models.Ship
 	err    error
 }
 
-// loadPlayer loads player data from the database
+// loadPlayer loads player data from the database asynchronously.
+//
+// This function returns a tea.Cmd that will:
+//   1. Query the database for player data via playerRepo
+//   2. Load the player's current ship via shipRepo (if they have one)
+//   3. Send a playerLoadedMsg with the results
+//
+// The actual database operations happen in a goroutine managed by BubbleTea,
+// ensuring the UI remains responsive during the load.
+//
+// Error Handling:
+//   - If player not found: returns playerLoadedMsg with err set
+//   - If ship load fails: logs error but doesn't fail (ship may be nil)
+//   - Errors are handled in Update() when playerLoadedMsg is received
+//
+// Thread Safety:
+//   - Uses context.Background() for database operations
+//   - Repositories are thread-safe and can be called from goroutines
+//
+// Returns:
+//   - tea.Cmd that will send playerLoadedMsg when complete
 func (m Model) loadPlayer() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
@@ -721,17 +999,53 @@ func (m Model) loadPlayer() tea.Cmd {
 	}
 }
 
-// changeScreen changes the current screen
+// changeScreen changes the current screen and returns a clear screen command.
+//
+// This is the standard way to transition between screens in the TUI.
+// It updates m.screen and returns tea.ClearScreen to prevent terminal artifacts.
+//
+// Usage:
+//   return m.changeScreen(ScreenCombat)
+//
+// Note: This is a helper method used by screen update functions. The actual
+// screen transition logic is handled in the Update() function's switch statement.
+//
+// Parameters:
+//   - screen: The new screen to display
+//
+// Returns:
+//   - tea.ClearScreen command to clear the terminal before rendering new screen
 func (m *Model) changeScreen(screen Screen) tea.Cmd {
 	m.screen = screen
 	// Clear screen to prevent artifacts when transitioning
 	return tea.ClearScreen
 }
 
-// checkAchievements checks for newly unlocked achievements and queues them for display
+// checkAchievements checks for newly unlocked achievements and queues them for display.
 //
-// This should be called after any player action that might unlock achievements
-// (kills, trades, mission completions, etc.)
+// This should be called after any player action that might unlock achievements:
+//   - Enemy kills (combat victories)
+//   - Trade transactions (buy/sell commodities)
+//   - Mission completions
+//   - Quest completions
+//   - System jumps (exploration)
+//   - Credits earned/spent
+//   - Faction reputation changes
+//
+// Achievement Flow:
+//   1. checkAchievements() queries achievementManager for new unlocks
+//   2. New achievements are appended to m.pendingAchievements queue
+//   3. getAchievementNotification() displays them one at a time
+//   4. News articles are generated for notable achievements
+//
+// Thread Safety:
+//   - Safe to call from any screen update function
+//   - Achievement manager is thread-safe
+//   - News manager is thread-safe
+//
+// Performance:
+//   - Runs synchronously, but achievement checks are fast (in-memory)
+//   - Only checks achievements that match the player's current stats
 func (m *Model) checkAchievements() {
 	if m.player == nil || m.achievementManager == nil {
 		return

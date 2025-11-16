@@ -1,10 +1,34 @@
 // File: internal/combat/loot.go
 // Project: Terminal Velocity
-// Description: Combat system: loot
-// Version: 1.0.0
+// Description: Combat system: loot - Loot generation, salvage, and rare item drops
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package combat provides the loot and salvage system for destroyed ships.
+//
+// This file implements loot generation from combat victories including:
+//   - Credit rewards based on ship value (10-20% of ship price)
+//   - Bounty collection for wanted ships
+//   - Cargo recovery (30-60% survival rate)
+//   - Equipment salvage (30-45% chance per item)
+//   - Rare item drops (artifacts, components, data, contraband)
+//
+// Loot Rarity Tiers:
+//   - Uncommon: 50% of rare drops, 25K value typical
+//   - Rare: 30% of rare drops, 50-60K value
+//   - Epic: 15% of rare drops, 75-100K value
+//   - Legendary: 5% of rare drops, 250K+ value
+//
+// Rare Item Drop Chances:
+//   - Base: 5% chance
+//   - +10-15% for military/capital ships
+//   - +8% for hostile/pirate ships (contraband)
+//   - +5% for ships worth >500K
+//   - +5% for ships worth >1M
+//   - Capped at 40% maximum
+//
+// Thread-safety: Functions are stateless and safe for concurrent calls.
 package combat
 
 import (
@@ -15,8 +39,20 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
-// LootDrop represents items dropped from a destroyed ship
-
+// LootDrop represents all items and credits recovered from a destroyed ship.
+//
+// This structure contains the complete loot package from a combat victory,
+// including credits, cargo, equipment, and rare items. The TotalValue field
+// includes credits plus 50% resale value of all salvaged equipment.
+//
+// Fields:
+//   - Credits: Direct credits awarded (ship value % + bounty)
+//   - Cargo: Recovered cargo items with quantities
+//   - Outfits: Salvaged outfit equipment IDs
+//   - Weapons: Salvaged weapon IDs
+//   - RareItems: Special rare item drops
+//   - Message: Human-readable loot summary
+//   - TotalValue: Total credit value of all loot (for sorting/display)
 type LootDrop struct {
 	Credits    int64
 	Cargo      []models.CargoItem // cargo items
@@ -27,7 +63,19 @@ type LootDrop struct {
 	TotalValue int64
 }
 
-// RareItem represents special loot with unique properties
+// RareItem represents special loot with unique properties and high value.
+//
+// Rare items are special drops from combat that can be sold for significant
+// credits or used in quests. Each rare item has a rarity tier that affects
+// drop chance and value.
+//
+// Fields:
+//   - ID: Unique identifier for this rare item type
+//   - Name: Display name
+//   - Description: Flavor text describing the item
+//   - Rarity: Tier ("uncommon", "rare", "epic", "legendary")
+//   - Value: Base credit value
+//   - Type: Category ("artifact", "component", "data", "contraband")
 type RareItem struct {
 	ID          string
 	Name        string
@@ -37,7 +85,17 @@ type RareItem struct {
 	Type        string // "artifact", "component", "data", "contraband"
 }
 
-// SalvageResult represents the outcome of salvaging a destroyed ship
+// SalvageResult represents the outcome of salvaging a specific item from wreckage.
+//
+// Used when attempting to salvage a specific item from a wreck rather than
+// using the automatic loot generation system. Success depends on luck factor
+// and item type.
+//
+// Fields:
+//   - Success: Whether salvage attempt succeeded
+//   - RecoveredQty: Number of items recovered (0 or 1 typically)
+//   - Item: Item ID that was targeted
+//   - Message: Result message for player feedback
 type SalvageResult struct {
 	Success      bool
 	RecoveredQty int
@@ -97,7 +155,31 @@ var RareItemList = []RareItem{
 	},
 }
 
-// GenerateLoot creates a loot drop from a destroyed ship
+// GenerateLoot creates a complete loot drop package from a destroyed ship.
+//
+// This is the main loot generation function that calculates all rewards from
+// a combat victory. Loot includes credits, recovered cargo, salvaged equipment,
+// and potential rare item drops.
+//
+// Loot Generation Rules:
+//   - Credits: 10-20% of ship's base value
+//   - Bounty: Added if ship had a bounty
+//   - Cargo: 30-60% survival rate (random per item)
+//   - Outfits: 40% salvage chance per outfit
+//   - Weapons: 30% salvage chance (45% for hostile ships)
+//   - Rare Items: 5-40% chance based on ship value and type
+//
+// Parameters:
+//   - destroyedShip: The ship that was destroyed (for cargo and equipment)
+//   - destroyedShipType: Ship type definition (for value calculations)
+//   - wasHostile: Whether ship was hostile (affects weapon salvage chance)
+//   - hadBounty: Whether ship had a bounty on it
+//   - bountyAmount: Bounty value to award (0 if no bounty)
+//
+// Returns:
+//   - *LootDrop: Complete loot package with all rewards and summary message
+//
+// Thread-safe: No shared state modification, safe for concurrent calls.
 func GenerateLoot(
 	destroyedShip *models.Ship,
 	destroyedShipType *models.ShipType,
@@ -304,7 +386,21 @@ func formatLootMessage(loot *LootDrop, hadBounty bool) string {
 	return msg
 }
 
-// CalculateCargoSpaceRequired calculates how much cargo space is needed for loot
+// CalculateCargoSpaceRequired calculates total cargo space needed to carry all loot.
+//
+// Different loot types have different cargo space requirements:
+//   - Cargo items: 1 ton per unit
+//   - Weapons: 5 tons each
+//   - Outfits: 3 tons each
+//   - Rare items: 1 ton each
+//
+// Parameters:
+//   - loot: Loot drop to calculate space for
+//
+// Returns:
+//   - int: Total cargo space required in tons
+//
+// Thread-safe: No shared state, safe for concurrent calls.
 func CalculateCargoSpaceRequired(loot *LootDrop) int {
 	totalSpace := 0
 
@@ -325,7 +421,20 @@ func CalculateCargoSpaceRequired(loot *LootDrop) int {
 	return totalSpace
 }
 
-// CanCarryLoot checks if player has enough cargo space
+// CanCarryLoot checks if player's ship has sufficient cargo space for loot.
+//
+// Compares required cargo space for loot against available cargo capacity.
+// Accounts for currently used cargo space in player's ship.
+//
+// Parameters:
+//   - playerShip: Player's ship (for current cargo calculation)
+//   - playerShipType: Ship type (for max cargo capacity)
+//   - loot: Loot to check space requirements for
+//
+// Returns:
+//   - bool: true if player has enough space, false otherwise
+//
+// Thread-safe: No shared state modification, safe for concurrent calls.
 func CanCarryLoot(playerShip *models.Ship, playerShipType *models.ShipType, loot *LootDrop) bool {
 	currentCargo := playerShip.GetCargoUsed()
 	lootSpace := CalculateCargoSpaceRequired(loot)
@@ -334,7 +443,32 @@ func CanCarryLoot(playerShip *models.Ship, playerShipType *models.ShipType, loot
 	return lootSpace <= availableSpace
 }
 
-// ApplyLoot adds loot to player's ship and credits
+// ApplyLoot transfers all loot to the player's ship and inventory.
+//
+// This function handles the complete loot collection process:
+//   1. Validates cargo space availability
+//   2. Adds cargo items to player's cargo hold
+//   3. Converts weapons and outfits to credits (50% resale value)
+//   4. Adds all credits to player
+//   5. Generates detailed summary message
+//
+// Note: Currently weapons and outfits are auto-sold for 50% of their value.
+// In future implementation, these could be added to player inventory.
+//
+// Parameters:
+//   - playerShip: Player's ship - modified by this function (cargo and credits)
+//   - playerShipType: Ship type (for cargo capacity validation)
+//   - loot: Loot to apply to player
+//
+// Returns:
+//   - bool: true if loot was successfully applied, false if insufficient space
+//   - string: Detailed summary of collected loot or error message
+//
+// Side Effects:
+//   - Modifies playerShip.Cargo (adds loot cargo)
+//   - Modifies playerShip.Credits (adds loot credits - via player reference if applicable)
+//
+// Thread-safe: Modifies only passed parameters, safe for single player context.
 func ApplyLoot(playerShip *models.Ship, playerShipType *models.ShipType, loot *LootDrop) (bool, string) {
 	// Check cargo space
 	if !CanCarryLoot(playerShip, playerShipType, loot) {
@@ -417,7 +551,26 @@ func formatLootSummary(loot *LootDrop, totalCredits int64) string {
 	return msg
 }
 
-// SalvageSpecificItem attempts to salvage a specific item from wreckage
+// SalvageSpecificItem attempts to salvage a specific item from ship wreckage.
+//
+// Unlike GenerateLoot which creates a random loot drop, this function targets
+// a specific item for recovery. Success is based on a base 30% chance modified
+// by a luck factor.
+//
+// Use Cases:
+//   - Player targeting specific equipment from wreck
+//   - Quest objectives requiring specific salvage
+//   - Specialized salvage gameplay mechanics
+//
+// Parameters:
+//   - itemType: Type of item being salvaged (for message generation)
+//   - itemID: Specific item identifier
+//   - luck: Luck multiplier (0.0 to 2.0 typically), 1.0 = normal chance
+//
+// Returns:
+//   - *SalvageResult: Result with success status and message
+//
+// Thread-safe: No shared state, safe for concurrent calls.
 func SalvageSpecificItem(itemType string, itemID string, luck float64) *SalvageResult {
 	baseChance := 0.3
 
@@ -440,7 +593,24 @@ func SalvageSpecificItem(itemType string, itemID string, luck float64) *SalvageR
 	return result
 }
 
-// CalculateSalvageTime returns the time (in turns) required to salvage
+// CalculateSalvageTime returns the time required to collect loot from wreckage.
+//
+// Salvage time varies based on the quantity and complexity of loot:
+//   - Base: 2 turns
+//   - +1 turn for large cargo hauls (>5 items)
+//   - +1 turn for multiple weapons/outfits (>3 items)
+//   - +1 turn if rare items present (careful handling required)
+//
+// This creates a risk/reward tradeoff in dangerous areas where staying
+// to salvage may expose player to additional threats.
+//
+// Parameters:
+//   - loot: Loot drop to calculate salvage time for
+//
+// Returns:
+//   - int: Number of combat turns required to collect loot (2-5 typically)
+//
+// Thread-safe: No shared state, safe for concurrent calls.
 func CalculateSalvageTime(loot *LootDrop) int {
 	// Base time: 2 turns
 	time := 2
@@ -463,7 +633,18 @@ func CalculateSalvageTime(loot *LootDrop) int {
 	return time
 }
 
-// GetRareItemByID retrieves a rare item by its ID
+// GetRareItemByID retrieves a rare item definition by its unique ID.
+//
+// Used to look up rare item details when displaying inventory, quest objectives,
+// or loot information.
+//
+// Parameters:
+//   - id: Unique rare item identifier
+//
+// Returns:
+//   - *RareItem: Rare item definition, or nil if not found
+//
+// Thread-safe: Reads only static data, safe for concurrent calls.
 func GetRareItemByID(id string) *RareItem {
 	for _, item := range RareItemList {
 		if item.ID == id {

@@ -1,9 +1,36 @@
 // File: internal/tui/combat.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for combat
-// Version: 1.2.0
+// Description: Combat screen - Turn-based space combat interface
+// Version: 1.3.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The combat screen provides turn-based tactical combat:
+// - Turn-based combat with player and enemy phases
+// - Tactical display with ship status, radar, and combat log
+// - Weapon selection with cooldown and ammo tracking
+// - Target selection for multiple enemies
+// - AI opponents with 5 difficulty levels (Easy, Medium, Hard, Ace, Legendary)
+// - Shield and hull damage system with regeneration
+// - Weapon states: cooldowns, ammo, accuracy, range
+// - Victory/defeat handling with rewards and penalties
+//
+// Combat Mechanics:
+// - Player acts first, then all enemies take turns
+// - Shields absorb damage first, overflow goes to hull
+// - Shields regenerate each turn based on ship type
+// - Weapons have cooldowns and limited ammo (missiles)
+// - Accuracy affected by range, weapon type, and AI difficulty
+// - Enemy AI uses tactical decisions (fire, retreat, evade)
+// - Defeat: 10% credits penalty, ship restored to 10% hull
+// - Victory: Loot drops, kill count, combat rating, achievements
+//
+// Combat Flow:
+// - Player turn: Select weapon and target, fire or end turn
+// - Enemy turn: AI evaluates targets and executes actions
+// - Turn counter advances
+// - Victory when all enemies destroyed
+// - Defeat when player ship hull reaches 0
 
 package tui
 
@@ -17,40 +44,44 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// combatModel contains the state for the combat screen.
+// Manages turn-based tactical combat between player and enemy ships.
 type combatModel struct {
 	// Mode: "tactical", "weapons", "target_select"
-	mode string
+	mode string // Current combat mode (tactical view, weapon selection, target selection)
 
 	// Combat state
-	playerShip   *models.Ship
-	playerType   *models.ShipType
-	enemyShips   []*models.Ship
-	enemyTypes   map[string]*models.ShipType
-	enemyAI      map[string]*combat.AIState // AI states for enemies (keyed by ship ID)
-	allyShips    []*models.Ship
-	weaponStates []*combat.WeaponState
+	playerShip   *models.Ship                    // Player's ship in combat
+	playerType   *models.ShipType                // Player's ship type for stats
+	enemyShips   []*models.Ship                  // All enemy ships in combat
+	enemyTypes   map[string]*models.ShipType     // Enemy ship types by type ID
+	enemyAI      map[string]*combat.AIState      // AI states for each enemy (keyed by ship ID)
+	allyShips    []*models.Ship                  // Allied ships (future feature)
+	weaponStates []*combat.WeaponState           // Weapon cooldowns and ammo tracking
 
 	// UI state
-	selectedTarget int // Index in enemyShips
-	selectedWeapon int // Index in playerShip.Weapons
-	cursor         int // General cursor position
-	radarZoom      int // 1-5, zoom level for radar
-	combatLog      []string
-	maxLogLines    int
+	selectedTarget int      // Currently selected enemy target (index in enemyShips)
+	selectedWeapon int      // Currently selected weapon (index in playerShip.Weapons)
+	cursor         int      // General cursor position for mode-specific navigation
+	radarZoom      int      // Radar zoom level (1-5, higher = more zoomed in)
+	combatLog      []string // Scrolling combat log with recent events
+	maxLogLines    int      // Maximum combat log lines to display
 
 	// Radar/Scanner
-	radarSize    int
-	radarCenterX int
-	radarCenterY int
+	radarSize    int // Size of ASCII radar grid
+	radarCenterX int // X coordinate of radar center (player position)
+	radarCenterY int // Y coordinate of radar center (player position)
 
 	// Turn tracking
-	turnNumber int
-	playerTurn bool
+	turnNumber int  // Current turn number
+	playerTurn bool // True if it's player's turn, false if enemy turn
 
-	loading bool
-	error   string
+	loading bool   // True while initializing combat
+	error   string // Error or status message to display
 }
 
+// newCombatModel creates and initializes a new combat screen model.
+// Sets up radar, combat log, and initial turn state.
 func newCombatModel() combatModel {
 	return combatModel{
 		mode:         "tactical",
@@ -68,6 +99,44 @@ func newCombatModel() combatModel {
 	}
 }
 
+// updateCombat handles input and state updates for the combat screen.
+//
+// Key Bindings (Tactical Mode):
+//   - esc/backspace: Return to main menu (after combat ends)
+//   - up/k, down/j: Navigate (context-sensitive)
+//   - t: Enter target selection mode
+//   - w: Enter weapon selection mode
+//   - f: Fire selected weapon at selected target
+//   - e: End turn (triggers enemy AI phase)
+//   - +/=: Zoom in radar
+//   - -/_: Zoom out radar
+//
+// Key Bindings (Target Selection):
+//   - esc: Return to tactical mode
+//   - up/k, down/j: Navigate target list
+//   - enter/space: Select target
+//
+// Key Bindings (Weapon Selection):
+//   - esc: Return to tactical mode
+//   - up/k, down/j: Navigate weapon list
+//   - enter/space: Select weapon
+//
+// Combat Turn Flow:
+//   1. Player selects target (t key)
+//   2. Player selects weapon (w key)
+//   3. Player fires weapon (f key) - damage applied, log updated
+//   4. Player ends turn (e key)
+//   5. Enemy AI phase begins
+//   6. Each enemy evaluates targets and takes action
+//   7. Enemy attacks applied to player ship
+//   8. Shields regenerate for all ships
+//   9. Weapon cooldowns updated
+//   10. Turn counter advances
+//   11. Check victory/defeat conditions
+//   12. Return to player turn if combat continues
+//
+// Message Handling:
+//   - No custom messages (combat updates happen synchronously)
 func (m Model) updateCombat(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -458,6 +527,38 @@ func (m *Model) addCombatLog(message string) {
 	}
 }
 
+// viewCombat renders the combat screen.
+//
+// Layout (Tactical Mode):
+//   - Header: Player stats (name, credits, "Combat")
+//   - Title: "=== Combat - Turn N ===" (dynamic turn counter)
+//   - Player Ship Status: Hull/shields with percentage bars
+//   - Target Ship Status: Hull/shields of selected enemy
+//   - Tactical Radar: ASCII grid showing player (P), enemies (E), target (T)
+//   - Combat Log: Scrolling log of recent combat events (10 lines max)
+//   - Weapon Status: List of equipped weapons with cooldowns and ammo
+//   - Footer: Key bindings help
+//
+// Layout (Target Selection):
+//   - Title: "=== Select Target ==="
+//   - Target Table: Enemy name, hull, shields (with percentages)
+//   - Selected target highlighted with cursor
+//   - Footer: Selection keys
+//
+// Layout (Weapon Selection):
+//   - Title: "=== Select Weapon ==="
+//   - Weapon Table: Name, damage, range, type, status/cooldown, ammo
+//   - Selected weapon highlighted with cursor
+//   - Footer: Selection keys
+//
+// Visual Features:
+//   - Status bars: Filled (█) and empty (░) characters
+//   - Hull warnings: Red color when < 30%
+//   - Radar zoom levels: Adjustable with +/- keys
+//   - Combat log auto-scrolls, keeping recent 10 messages
+//   - Weapon cooldowns shown in seconds
+//   - Ammo display for missile weapons
+//   - Turn indicator shows player/enemy turn status
 func (m Model) viewCombat() string {
 	s := renderHeader(m.username, m.player.Credits, "Combat")
 	s += "\n"

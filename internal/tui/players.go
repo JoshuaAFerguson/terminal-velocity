@@ -1,9 +1,37 @@
 // File: internal/tui/players.go
 // Project: Terminal Velocity
-// Description: Player list UI displaying online players and their status
-// Version: 1.0.0
+// Description: Players screen - Online player list with real-time presence and filtering
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The players screen provides:
+// - Real-time online player list with presence tracking
+// - Multiple filter modes (All, Same System, Nearby, In Combat)
+// - Multiple sort modes (Name, Combat Rating, Online Time, Activity)
+// - Player status indicators (docked, in space, trading, combat)
+// - Ship information display
+// - Combat rating visualization
+// - Online duration tracking
+// - Criminal player warnings
+//
+// Filter Modes:
+//   - All: Shows all online players across the server
+//   - Same System: Players in the same star system
+//   - Nearby: Players within interaction range
+//   - In Combat: Players currently engaged in combat
+//
+// Sort Modes:
+//   - Name: Alphabetical by username
+//   - Rating: By combat rating (highest first)
+//   - Online Time: By session duration (longest first)
+//   - Activity: By current activity type
+//
+// Visual Features:
+//   - Criminal indicator (⚠️) for wanted players
+//   - Color-coded ship names
+//   - Status strings (🛬 Docked, 🚀 In Space, ⚔️ Combat, 💰 Trading)
+//   - Online duration strings (e.g., "5m", "2h", "3d")
 
 package tui
 
@@ -16,13 +44,17 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// playersModel contains the state for the online players screen.
+// Manages filtering, sorting, and cursor position for player list.
 type playersModel struct {
-	cursor         int
-	filterMode     string // "all", "same_system", "nearby", "combat"
-	sortMode       string // "name", "rating", "online_time", "activity"
-	selectedPlayer *models.PlayerPresence
+	cursor         int                    // Current cursor position in player list
+	filterMode     string                 // Current filter: "all", "same_system", "nearby", "combat"
+	sortMode       string                 // Current sort: "name", "rating", "online_time", "activity"
+	selectedPlayer *models.PlayerPresence // Selected player (if viewing details)
 }
 
+// newPlayersModel creates and initializes a new players screen model.
+// Starts with all players filter and name sort mode.
 func newPlayersModel() playersModel {
 	return playersModel{
 		cursor:     0,
@@ -31,12 +63,30 @@ func newPlayersModel() playersModel {
 	}
 }
 
+// updatePlayers handles input and state updates for the players screen.
+//
+// Key Bindings:
+//   - esc/backspace/q: Return to main menu
+//   - up/k: Move cursor up in player list
+//   - down/j: Move cursor down in player list
+//   - r: Refresh player list (updates from presence manager)
+//   - s: Cycle through sort modes (name → rating → online_time → activity → name)
+//   - 1-4: Switch filter mode
+//     - 1: All players
+//     - 2: Same system only
+//     - 3: Nearby players
+//     - 4: Players in combat
+//
+// Features:
+//   - Automatic list refresh when filter/sort changes
+//   - Cursor clamping to available players
+//   - Empty state messages for each filter mode
 func (m Model) updatePlayers(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc", "backspace", "q":
-			// Go back to main menu
+			// Return to main menu
 			m.screen = ScreenMainMenu
 			return m, nil
 
@@ -92,6 +142,21 @@ func (m Model) updatePlayers(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewPlayers renders the online players screen.
+//
+// Layout:
+//   - Title: "👥 ONLINE PLAYERS"
+//   - Stats Header: Online count with activity breakdown
+//   - Filter Tabs: 4 filters with active indicator
+//   - Sort Indicator: Current sort mode with 's' hint
+//   - Player List Table: Player, Ship, Rating, Status, Online Time
+//   - Footer: Navigation controls
+//
+// Visual Features:
+//   - Criminal players highlighted with ⚠️
+//   - Activity icons (⚔️🛬💰🚀)
+//   - Truncated names/ships that are too long
+//   - "... and N more" indicator if list exceeds display limit (12)
 func (m Model) viewPlayers() string {
 	s := titleStyle.Render("👥 ONLINE PLAYERS") + "\n\n"
 
@@ -178,6 +243,8 @@ func (m Model) viewPlayers() string {
 	return s
 }
 
+// getFilteredPlayers returns the player list filtered by current filter mode.
+// Applies the selected filter, excludes self from "same_system" filter, and sorts results.
 func (m Model) getFilteredPlayers() []*models.PlayerPresence {
 	var players []*models.PlayerPresence
 
@@ -211,6 +278,8 @@ func (m Model) getFilteredPlayers() []*models.PlayerPresence {
 	return players
 }
 
+// sortPlayers sorts the player list according to the current sort mode.
+// Modifies the slice in-place using Go's sort.Slice.
 func (m Model) sortPlayers(players []*models.PlayerPresence) {
 	switch m.playersModel.sortMode {
 	case "name":
@@ -235,6 +304,9 @@ func (m Model) sortPlayers(players []*models.PlayerPresence) {
 	}
 }
 
+// renderPlayerList renders the player table with formatted entries.
+// Displays up to 12 players with truncation indicator for larger lists.
+// Highlights criminals and formats online duration.
 func (m Model) renderPlayerList(players []*models.PlayerPresence) string {
 	var s strings.Builder
 

@@ -1,10 +1,136 @@
 // File: internal/security/activity.go
 // Project: Terminal Velocity
 // Description: Account activity logging for security events and audit trail
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-11-14
 
+// Package security - Activity logging for security audit trails and forensics.
+//
+// This file implements comprehensive logging of security-related events including
+// authentication attempts, account changes, suspicious activity, and admin actions.
+// It maintains an in-memory circular buffer for fast access and provides export
+// capabilities for long-term archival.
+//
+// Features:
+//   - Comprehensive Event Logging: 20+ event types tracked
+//   - Risk-Level Classification: Automatic risk assessment (none/low/medium/high/critical)
+//   - Circular Buffer: 10,000 event in-memory cache (configurable)
+//   - Player History: Quick access to per-player event history
+//   - IP Tracking: Tracks known IPs per player for new-IP detection
+//   - High-Risk Filtering: Query events by risk level and timeframe
+//   - JSON Export: Export events for archival or external analysis
+//   - Automatic Logging: Events automatically logged to system logger by risk level
+//
+// Event Types (20+):
+//   Authentication:
+//   - login_success, login_failure, logout, session_expired, session_kicked
+//
+//   Account Management:
+//   - password_changed, email_changed, 2fa_enabled, 2fa_disabled
+//
+//   Security Events:
+//   - suspicious_login, new_ip_login, new_location_login
+//   - account_locked, account_unlocked
+//   - password_reset_requested, password_reset_completed
+//
+//   Admin Actions:
+//   - admin_action, permission_changed
+//
+//   Game Security (optional):
+//   - rapid_actions, anomalous_trading
+//
+// Risk Levels:
+//   - none: Normal activity (login_success, logout)
+//   - low: Minor events (session_expired, email_changed)
+//   - medium: Moderate concern (login_failure, password_changed, 2fa_disabled)
+//   - high: Significant concern (new_ip_login, password_reset_requested)
+//   - critical: Immediate attention (account_locked, suspicious_login)
+//
+// Event Structure:
+//
+//	type ActivityEvent struct {
+//	    ID          uuid.UUID              // Unique event ID
+//	    PlayerID    uuid.UUID              // Player involved (Nil for unknown)
+//	    Username    string                 // Username attempted/used
+//	    EventType   ActivityType           // Type of event
+//	    IPAddress   string                 // Source IP address
+//	    UserAgent   string                 // User agent (optional)
+//	    Timestamp   time.Time              // When event occurred
+//	    Success     bool                   // Whether action succeeded
+//	    Details     map[string]interface{} // Additional context
+//	    RiskLevel   RiskLevel              // Auto-calculated risk
+//	}
+//
+// Automatic Features:
+//   - Risk auto-calculation based on event type
+//   - Automatic logging to system logger (level based on risk)
+//   - IP tracking for new-IP detection
+//   - Circular buffer management (auto-trim oldest events)
+//
+// Thread Safety:
+// All ActivityLogger methods are thread-safe using sync.RWMutex.
+//
+// Usage Example:
+//
+//	// Initialize activity logger
+//	logger := security.NewActivityLogger(10000) // 10k event buffer
+//
+//	// Log successful login
+//	logger.LogLoginSuccess(playerID, username, ipAddress, isNewIP)
+//
+//	// Log failed login
+//	logger.LogLoginFailure(username, ipAddress, "invalid_password")
+//
+//	// Log custom event
+//	logger.Log(playerID, username, security.ActivityPasswordChanged, ipAddress, true, nil)
+//
+//	// Log event with details
+//	logger.Log(playerID, username, security.ActivitySuspiciousLogin, ipAddress, true,
+//	    map[string]interface{}{
+//	        "anomalies": []string{"new_ip", "unusual_time"},
+//	        "risk_score": 65,
+//	    })
+//
+//	// Query player history
+//	events := logger.GetPlayerEvents(playerID, 50) // Last 50 events
+//	for _, event := range events {
+//	    fmt.Printf("%s: %s from %s (risk: %s)\n",
+//	        event.Timestamp, event.EventType, event.IPAddress, event.RiskLevel)
+//	}
+//
+//	// Get high-risk events from last 24 hours
+//	since := time.Now().Add(-24 * time.Hour)
+//	highRisk := logger.GetHighRiskEvents(since)
+//	if len(highRisk) > 0 {
+//	    log.Warn("Found %d high-risk events in last 24 hours", len(highRisk))
+//	}
+//
+//	// Export to JSON for archival
+//	recentEvents := logger.GetRecentEvents(1000)
+//	jsonData, err := logger.ExportJSON(recentEvents)
+//	if err == nil {
+//	    saveToFile("security_audit.json", jsonData)
+//	}
+//
+//	// Get statistics
+//	stats := logger.GetStats()
+//	fmt.Printf("Total events: %d\n", stats["total_events"])
+//	fmt.Printf("Tracked players: %d\n", stats["tracked_players"])
+//
+// Integration with Main Security Manager:
+// Manager uses ActivityLogger to log all security events automatically.
+// Events are logged at appropriate system log levels based on risk.
+//
+// Best Practices:
+//   - Export events daily for long-term archival
+//   - Monitor high-risk events regularly
+//   - Correlate events across players to detect attack patterns
+//   - Use details field for event-specific context
+//   - Set buffer size based on activity level (1000-50000 events)
+//
+// Version: 1.1.0
+// Last Updated: 2025-11-16
 package security
 
 import (

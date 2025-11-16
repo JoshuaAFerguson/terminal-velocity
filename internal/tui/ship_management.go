@@ -1,9 +1,27 @@
 // File: internal/tui/ship_management.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for ship_management
-// Version: 1.0.0
+// Description: Ship management screen - Multi-ship inventory and switching interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The ship management screen allows players to:
+// - View all owned ships with their current status
+// - Switch active ship for flying
+// - Rename ships with custom names
+// - View detailed ship information including cargo and equipment
+// - Monitor ship health (hull/shields), fuel, and crew
+// - See cargo contents and equipment loadouts
+//
+// Ship Management Features:
+// - List all owned ships with key stats
+// - Active ship clearly marked with asterisk (*)
+// - Switch between ships (updates player's current ship)
+// - Rename ships with live input (max 30 characters)
+// - Detailed view shows full ship status and equipment
+// - Color-coded damage warnings (hull < 50% shown in red)
+// - Cargo contents expanded with commodity names
+// - Equipment lists (weapons and outfits) with names and stats
 
 package tui
 
@@ -16,32 +34,42 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// shipManagementModel contains the state for the ship management screen.
+// Manages multiple ship inventory, switching, and renaming operations.
 type shipManagementModel struct {
-	cursor       int
-	mode         string // "list", "details", "rename", "confirm_switch"
-	selectedShip *models.Ship
-	ownedShips   []*models.Ship
-	renameInput  string
-	loading      bool
-	error        string
+	cursor       int            // Current cursor position in ship list
+	mode         string         // Current mode: "list", "details", "rename", "confirm_switch"
+	selectedShip *models.Ship   // Ship selected for viewing or operations
+	ownedShips   []*models.Ship // All ships owned by the player
+	renameInput  string         // Input buffer for ship renaming
+	loading      bool           // True while loading ship data
+	error        string         // Error or status message to display
 }
 
+// shipsLoadedMsg is sent when owned ships have been loaded from database.
+// Contains all ships owned by the player.
 type shipsLoadedMsg struct {
-	ships []*models.Ship
-	err   error
+	ships []*models.Ship // Player's owned ships
+	err   error          // Error if loading failed
 }
 
+// shipSwitchedMsg is sent when player switches active ship.
+// Contains the newly active ship and success status.
 type shipSwitchedMsg struct {
-	success bool
-	ship    *models.Ship
-	err     error
+	success bool         // True if switch succeeded
+	ship    *models.Ship // The newly active ship
+	err     error        // Error if switch failed
 }
 
+// shipRenamedMsg is sent when a ship rename operation completes.
+// Contains success status and any error that occurred.
 type shipRenamedMsg struct {
-	success bool
-	err     error
+	success bool  // True if rename succeeded
+	err     error // Error if rename failed
 }
 
+// newShipManagementModel creates and initializes a new ship management screen model.
+// Sets loading flag to true to trigger ship list load.
 func newShipManagementModel() shipManagementModel {
 	return shipManagementModel{
 		cursor:  0,
@@ -50,6 +78,42 @@ func newShipManagementModel() shipManagementModel {
 	}
 }
 
+// updateShipManagement handles input and state updates for the ship management screen.
+//
+// Key Bindings (List Mode):
+//   - esc/backspace: Return to main menu
+//   - up/k: Move cursor up in ship list
+//   - down/j: Move cursor down in ship list
+//   - enter/space: View detailed ship information
+//
+// Key Bindings (Details Mode):
+//   - esc: Return to ship list
+//   - s: Switch to this ship (if not already active)
+//   - r: Rename this ship
+//
+// Key Bindings (Rename Mode):
+//   - esc: Cancel rename
+//   - enter: Save new name
+//   - backspace: Delete character
+//   - Any character: Add to name (max 30 chars)
+//
+// Key Bindings (Confirm Switch Mode):
+//   - esc: Cancel switch
+//   - enter/space: Confirm switch
+//
+// Ship Switch Workflow:
+//   1. Select ship from list
+//   2. View ship details
+//   3. Press 's' to initiate switch
+//   4. Confirm switch operation
+//   5. Player's active ship updated in database
+//   6. Reload player data
+//   7. Return to list with success message
+//
+// Message Handling:
+//   - shipsLoadedMsg: Display owned ships
+//   - shipSwitchedMsg: Update player state, show success
+//   - shipRenamedMsg: Reload ships, show success
 func (m Model) updateShipManagement(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -178,6 +242,41 @@ func (m Model) updateShipManagement(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewShipManagement renders the ship management screen.
+//
+// Layout (List Mode):
+//   - Header: Player stats (name, credits, "Ship Management")
+//   - Title: "=== Ship Management ==="
+//   - Active Ship: Current active ship name
+//   - Ship Count: Total ships owned
+//   - Ship Table: Name, type, hull, shields, cargo, fuel (active marked with *)
+//   - Footer: Key bindings help
+//
+// Layout (Details Mode):
+//   - Ship name and type (active status if applicable)
+//   - Current Status: Hull, shields, fuel, crew (with health warnings)
+//   - Cargo Hold: Space used/max, contents list
+//   - Equipment: Weapons and outfits lists
+//   - Footer: Switch/rename options
+//
+// Layout (Rename Mode):
+//   - Current name display
+//   - Live input field with cursor
+//   - Character count and instructions
+//   - Footer: Confirm or cancel
+//
+// Layout (Confirm Switch Mode):
+//   - From/to ship names
+//   - New ship stats preview
+//   - Confirmation prompt
+//   - Footer: Confirm or cancel
+//
+// Visual Features:
+//   - Active ship marked with asterisk (*)
+//   - Damaged ships shown with red health warnings (hull < 50%)
+//   - Selected ship highlighted with cursor
+//   - Cargo percentage displayed with current/max
+//   - Equipment lists expanded with item names
 func (m Model) viewShipManagement() string {
 	// Header with player stats
 	s := renderHeader(m.username, m.player.Credits, "Ship Management")

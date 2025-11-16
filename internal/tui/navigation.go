@@ -1,9 +1,23 @@
 // File: internal/tui/navigation.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for navigation
-// Version: 1.0.1
+// Description: Navigation screen - System jumping and hyperspace travel interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The navigation screen allows players to:
+// - View their current star system and connected systems
+// - Initiate hyperspace jumps to connected systems
+// - Monitor fuel costs for jumps
+// - Experience animated jump sequences with progress tracking
+// - Encounter random events after jumping (pirates, traders, etc.)
+//
+// Jump Mechanics:
+// - Fuel cost calculated based on system distance
+// - Travel time: 1-5 seconds based on distance
+// - Cannot jump while already jumping
+// - Must have sufficient fuel to jump
+// - Random encounter chance after completing jump
 
 package tui
 
@@ -18,40 +32,52 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// navigationModel contains the state for the navigation screen.
+// Manages system data, jump sequences, and progress tracking.
 type navigationModel struct {
-	cursor           int
-	currentSystem    *models.StarSystem
-	connectedSystems []*models.StarSystem
-	loading          bool
-	error            string
-	jumping          bool
-	jumpTarget       *models.StarSystem
-	jumpProgress     int
-	jumpTotal        int
+	cursor           int                    // Current cursor position in system list
+	currentSystem    *models.StarSystem     // Player's current star system
+	connectedSystems []*models.StarSystem   // Systems reachable via jump routes
+	loading          bool                   // True while loading system data
+	error            string                 // Error message to display
+	jumping          bool                   // True during jump sequence
+	jumpTarget       *models.StarSystem     // Destination system for current jump
+	jumpProgress     int                    // Current jump progress (seconds elapsed)
+	jumpTotal        int                    // Total jump time (seconds)
 }
 
+// systemsLoadedMsg is sent when system data has been loaded from database.
+// Contains current system, connected systems, and any error that occurred.
 type systemsLoadedMsg struct {
-	current   *models.StarSystem
-	connected []*models.StarSystem
-	err       error
+	current   *models.StarSystem     // Current star system
+	connected []*models.StarSystem   // Connected star systems via jump routes
+	err       error                  // Error if loading failed
 }
 
+// jumpCompleteMsg is sent when a hyperspace jump completes.
+// Contains success status, destination system, and any error.
 type jumpCompleteMsg struct {
-	success bool
-	system  *models.StarSystem
-	err     error
+	success bool               // True if jump succeeded
+	system  *models.StarSystem // Destination system
+	err     error              // Error if jump failed
 }
 
+// jumpInitiatedMsg is sent when a jump sequence begins.
+// Contains target system and calculated travel time.
 type jumpInitiatedMsg struct {
-	targetSystem *models.StarSystem
-	travelTime   int // seconds
+	targetSystem *models.StarSystem // Destination system
+	travelTime   int                // Travel duration in seconds
 }
 
+// jumpProgressMsg is sent periodically during jump to update progress bar.
+// Contains elapsed time and total travel time.
 type jumpProgressMsg struct {
-	elapsed int
-	total   int
+	elapsed int // Seconds elapsed
+	total   int // Total seconds for jump
 }
 
+// newNavigationModel creates and initializes a new navigation screen model.
+// Sets loading flag to true to trigger system data load.
 func newNavigationModel() navigationModel {
 	return navigationModel{
 		cursor:  0,
@@ -59,20 +85,44 @@ func newNavigationModel() navigationModel {
 	}
 }
 
+// updateNavigation handles input and state updates for the navigation screen.
+//
+// Key Bindings:
+//   - esc/backspace: Return to main menu
+//   - up/k: Move cursor up in system list
+//   - down/j: Move cursor down in system list
+//   - enter/space: Initiate jump to selected system
+//
+// Jump Sequence:
+//   1. Validate ship availability and fuel
+//   2. Calculate fuel cost and travel time
+//   3. Set jumping flag to prevent multiple jumps
+//   4. Start progress ticker and async jump execution
+//   5. Update progress bar every second
+//   6. Complete jump, update player location, consume fuel
+//   7. Check for random encounters
+//
+// Message Handling:
+//   - systemsLoadedMsg: System data loaded, display systems
+//   - jumpProgressMsg: Update progress bar during jump
+//   - jumpCompleteMsg: Jump finished, update location, check encounters
 func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc", "backspace":
+			// Return to main menu
 			m.screen = ScreenMainMenu
 			return m, nil
 
 		case "up", "k":
+			// Move cursor up (vi-style navigation supported with k)
 			if m.navigation.cursor > 0 {
 				m.navigation.cursor--
 			}
 
 		case "down", "j":
+			// Move cursor down (vi-style navigation supported with j)
 			if m.navigation.cursor < len(m.navigation.connectedSystems)-1 {
 				m.navigation.cursor++
 			}

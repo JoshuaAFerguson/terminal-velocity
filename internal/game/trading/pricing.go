@@ -5,6 +5,36 @@
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package trading implements a dynamic commodity pricing and market simulation system.
+//
+// The economy is based on realistic supply/demand mechanics with additional factors:
+//
+// Price Calculation:
+//
+//	finalPrice = basePrice × techModifier × supplyDemandModifier
+//	buybackPrice = sellPrice × (0.60-0.80)  // 60-80% of sell price
+//
+// Tech Level Effects:
+//   - Systems can only produce commodities at or below their tech level
+//   - Higher tech systems have better production (more stock)
+//   - Price modifiers handled by models.GetPriceModifier()
+//
+// Supply/Demand Mechanics:
+//   - Stock decreases when players buy, increases when players sell
+//   - Demand increases when players buy, decreases when players sell
+//   - Markets naturally recover toward equilibrium over time (5% per hour)
+//   - Random market events (5% chance per hour): supply shocks, demand surges, etc.
+//
+// Trading Effects:
+//   - Player purchases: Stock -N, Demand +N/2 (demand increases slower)
+//   - Player sales: Stock +N, Demand -N/3 (demand decreases even slower)
+//   - Asymmetric response rates prevent market manipulation
+//
+// This creates an economy where:
+//   - Profitable trade routes exist (buy low tech, sell high tech)
+//   - Markets respond to player activity
+//   - Excessive trading impacts prices (prevents infinite money exploits)
+//   - Markets gradually return to equilibrium when left alone
 package trading
 
 import (
@@ -15,20 +45,69 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
-// PricingEngine handles dynamic price calculation
-
+// PricingEngine handles dynamic commodity price calculation and market simulation.
+//
+// The engine maintains a random source for:
+//   - Buyback price variance (60-80% of sell price)
+//   - Initial stock/demand generation (±30-40% variance)
+//   - Random market events (supply shocks, demand surges)
+//
+// Thread Safety: NOT thread-safe. The internal rand.Rand must not be shared across
+// goroutines. Create separate engines for concurrent use or synchronize access.
 type PricingEngine struct {
-	rand *rand.Rand
+	rand *rand.Rand  // Random source for price variance and market events
 }
 
-// NewPricingEngine creates a new pricing engine
+// NewPricingEngine creates a new pricing engine with its own random source.
+//
+// Each engine gets a time-seeded random source, so creating multiple engines
+// simultaneously will produce different results (good for market variety).
+//
+// Returns:
+//
+//	Initialized pricing engine ready for price calculations
 func NewPricingEngine() *PricingEngine {
 	return &PricingEngine{
 		rand: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
-// CalculateMarketPrice calculates buy and sell prices for a commodity at a planet
+// CalculateMarketPrice calculates buy and sell prices for a commodity at a planet's market.
+//
+// This is the core pricing function that combines all economic factors:
+//
+// Price Formula:
+//
+//	sellPrice = basePrice × techModifier × supplyDemandModifier
+//	buyPrice = sellPrice × randomPercent(0.60-0.80)
+//
+// Tech Modifier:
+//   - Determined by models.GetPriceModifier(commodityTech, planetTech, false)
+//   - Higher planet tech = better prices for manufactured goods
+//   - Lower planet tech = worse prices (scarcity/poor infrastructure)
+//
+// Supply/Demand Modifier:
+//   - Oversupply (stock > demand): Price decreases up to -70%
+//   - Undersupply (stock < demand): Price increases up to +150%
+//   - No supply + demand: Price up to +200% + (demand × 10%)
+//   - No demand + supply: Price down to 30%
+//
+// Buyback Mechanics:
+//   - Players sell to planets at 60-80% of the sell price
+//   - Randomized to prevent perfect arbitrage
+//   - Creates natural profit margins for trading
+//
+// Parameters:
+//   - commodity: The commodity being priced (provides basePrice)
+//   - planet: The planet market (provides techLevel)
+//   - stock: Current inventory of this commodity at the planet
+//   - demand: Current demand for this commodity at the planet
+//
+// Returns:
+//   - buyPrice: What the planet will pay when player sells to it
+//   - sellPrice: What the planet charges when player buys from it
+//
+// Both prices are clamped to minimum of 1 credit to prevent zero/negative prices.
 func (e *PricingEngine) CalculateMarketPrice(
 	commodity *models.Commodity,
 	planet *models.Planet,
@@ -61,7 +140,39 @@ func (e *PricingEngine) CalculateMarketPrice(
 	return buyPrice, sellPrice
 }
 
-// calculateSupplyDemandModifier calculates price modifier based on supply and demand
+// calculateSupplyDemandModifier calculates price modifier based on supply and demand.
+//
+// This implements realistic economic scarcity/surplus pricing:
+//
+// Algorithm:
+//  1. Handle edge cases:
+//     - Zero stock + positive demand = scarce (2.0+ multiplier)
+//     - Zero demand + positive stock = worthless (0.3 multiplier)
+//  2. Calculate supply/demand ratio
+//  3. If oversupply (ratio > 1.0):
+//     - Price decreases: 1.0 - min(ratio-1.0, 1.0) × 0.4
+//     - Floor at 0.3 (30% of base price)
+//  4. If undersupply (ratio < 1.0):
+//     - Price increases: 1.0 + (1.0 - ratio) × 0.8
+//     - Cap at 2.5 (250% of base price)
+//
+// Price Ranges:
+//   - Extreme oversupply: 0.3× (70% discount)
+//   - Balanced market: 1.0× (no modifier)
+//   - Extreme scarcity: 2.5×+ (150%+ markup)
+//
+// Examples:
+//   - stock=100, demand=50: ratio=2.0, modifier=0.6 (40% discount due to surplus)
+//   - stock=50, demand=100: ratio=0.5, modifier=1.4 (40% markup due to scarcity)
+//   - stock=0, demand=100: modifier=2.0+ (extreme scarcity)
+//
+// Parameters:
+//   - stock: Current inventory
+//   - demand: Current demand
+//
+// Returns:
+//
+//	Price multiplier (0.3 to 2.5+)
 func (e *PricingEngine) calculateSupplyDemandModifier(stock, demand int) float64 {
 	if stock == 0 && demand > 0 {
 		// No supply, high demand = very expensive
@@ -202,7 +313,40 @@ func (e *PricingEngine) UpdateMarketPrice(
 	price.LastUpdate = time.Now().Unix()
 }
 
-// SimulateMarketTick simulates market changes over time
+// SimulateMarketTick simulates market evolution over time without player interaction.
+//
+// This creates a living economy where markets naturally recover from player trading
+// and experience random events. Called when players return to a system after time away.
+//
+// Market Recovery Algorithm (per hour):
+//  1. Calculate target stock/demand (equilibrium values)
+//  2. Move current values 5% toward target:
+//     - stock += (target - stock) × 0.05
+//     - demand += (target - demand) × 0.05
+//  3. 5% chance of random market event:
+//     - Supply shock: Stock × 0.7 (production failure)
+//     - Demand surge: Demand × 1.3 (increased consumption)
+//     - Production boom: Stock × 1.4 (good harvest/production)
+//     - Demand drop: Demand × 0.8 (reduced consumption)
+//  4. Recalculate prices
+//
+// Recovery Rate:
+//   - 5% per hour means ~14 hours to recover 50% from disturbance
+//   - Full recovery takes days, giving players time to exploit opportunities
+//   - Gradual recovery prevents instant market resets
+//
+// Random Events:
+//   - Keep markets dynamic even without player interaction
+//   - Create trading opportunities for returning players
+//   - Prevent markets from becoming perfectly stable
+//
+// Parameters:
+//   - price: Market price data (modified in-place)
+//   - commodity: Commodity being traded
+//   - planet: Planet market location
+//   - deltaHours: Hours elapsed since last update
+//
+// Thread Safety: NOT thread-safe. Caller must synchronize access to price.
 func (e *PricingEngine) SimulateMarketTick(
 	price *models.MarketPrice,
 	commodity *models.Commodity,

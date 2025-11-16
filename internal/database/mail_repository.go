@@ -1,7 +1,7 @@
 // File: internal/database/mail_repository.go
 // Project: Terminal Velocity
-// Description: Database repository for player mail
-// Version: 1.0.0
+// Description: Repository for player-to-player mail messaging system
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -17,9 +17,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// MailRepository handles mail data access
+// MailRepository handles all database operations for player mail.
+//
+// Manages the in-game mail system:
+//   - Creating and sending mail messages
+//   - Inbox and sent message retrieval
+//   - Read/unread status tracking
+//   - Message deletion (soft delete)
+//   - Unread count queries
+//   - Mail statistics
+//
+// Thread-safety:
+//   - All methods are thread-safe
 type MailRepository struct {
-	db *DB
+	db *DB // Database connection pool
 }
 
 // NewMailRepository creates a new mail repository

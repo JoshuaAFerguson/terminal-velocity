@@ -1,10 +1,123 @@
 // File: internal/security/anomaly.go
 // Project: Terminal Velocity
 // Description: Login anomaly detection for suspicious activity
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-11-14
 
+// Package security - Anomaly detection for suspicious login patterns.
+//
+// This file implements behavioral analysis to detect account compromise, credential
+// theft, and unusual access patterns. It learns normal login behavior for each player
+// and flags deviations as potential security risks.
+//
+// Features:
+//   - Behavioral Profiling: Tracks normal login patterns per player
+//   - Multi-Factor Analysis: Detects anomalies across IP, device, time, location
+//   - Risk Scoring: Calculates 0-100 risk score based on detected anomalies
+//   - Pattern Learning: Builds profile from last 100 logins per player
+//   - Challenge Triggers: Optionally require additional verification for high-risk logins
+//
+// Detected Anomalies:
+//   - new_ip: Login from never-before-seen IP address
+//   - new_device: Login from different user agent (new device/browser)
+//   - unusual_time: Login at atypical hour compared to normal pattern
+//   - rapid_ip_change: IP change within 1 hour (possible session hijack)
+//   - impossible_travel: Geo-location change too fast to be legitimate (future)
+//
+// Risk Scoring:
+//   Each anomaly contributes to risk score:
+//   - new_ip: +20 points
+//   - new_device: +15 points
+//   - unusual_time: +10 points
+//   - rapid_ip_change: +30 points
+//   - impossible_travel: +50 points (future with GeoIP)
+//
+//   Score Thresholds:
+//   - 0-25: Low risk (normal behavior)
+//   - 26-50: Medium risk (mildly suspicious)
+//   - 51-75: High risk (requires attention)
+//   - 76-100: Critical risk (likely compromise)
+//
+// How It Works:
+//
+//	1. Track Logins:
+//	   - RecordLogin() stores IP, user agent, timestamp
+//	   - Maintains last 100 logins per player
+//	   - Builds typical behavior profile
+//
+//	2. Detect Anomalies:
+//	   - DetectAnomalies() compares current login to history
+//	   - Returns list of detected anomaly types
+//	   - Checks: IP, device, time patterns, geo-location
+//
+//	3. Calculate Risk:
+//	   - GetRiskScore() sums anomaly scores
+//	   - Returns 0-100 risk value
+//	   - Used to trigger challenges or alerts
+//
+//	4. Take Action:
+//	   - Low/Medium: Allow but log
+//	   - High: Require email/2FA verification
+//	   - Critical: Block and alert admin
+//
+// Limitations (Current Implementation):
+//   - No GeoIP database (impossible travel not implemented)
+//   - Simple time-of-day analysis (hour-based)
+//   - No VPN/Proxy detection
+//   - No device fingerprinting beyond user agent
+//
+// Future Enhancements:
+//   - Integrate MaxMind GeoIP for location tracking
+//   - Velocity-based impossible travel detection
+//   - Machine learning for better pattern recognition
+//   - VPN/Tor exit node detection
+//   - Browser fingerprinting
+//
+// Thread Safety:
+// All AnomalyDetector methods are thread-safe using sync.RWMutex.
+//
+// Usage Example:
+//
+//	// Initialize anomaly detector
+//	detector := security.NewAnomalyDetector()
+//
+//	// On successful login, record for pattern learning
+//	detector.RecordLogin(playerID, ipAddress, userAgent)
+//
+//	// On login attempt, detect anomalies
+//	anomalies := detector.DetectAnomalies(playerID, ipAddress, userAgent)
+//	if len(anomalies) > 0 {
+//	    log.Warn("Login anomalies detected: %v", anomalies)
+//
+//	    // Calculate risk score
+//	    riskScore := detector.GetRiskScore(playerID, ipAddress, userAgent)
+//	    log.Info("Risk score: %d", riskScore)
+//
+//	    // Take action based on risk
+//	    if riskScore >= 50 {
+//	        // High risk - require 2FA
+//	        log.Warn("High-risk login detected, requiring 2FA")
+//	        return errors.New("additional verification required")
+//	    } else if riskScore >= 25 {
+//	        // Medium risk - log but allow
+//	        log.Info("Medium-risk login, logging event")
+//	        logSecurityEvent("suspicious_login", playerID, anomalies)
+//	    }
+//	}
+//
+//	// Determine if should challenge
+//	if detector.ShouldChallenge(playerID, ipAddress, userAgent) {
+//	    // Trigger 2FA or email verification
+//	    sendVerificationChallenge(playerID)
+//	}
+//
+// Integration with Main Security Manager:
+// Manager.ValidateLogin() automatically calls DetectAnomalies() and logs suspicious
+// logins. High-risk logins can trigger additional verification challenges.
+//
+// Version: 1.1.0
+// Last Updated: 2025-11-16
 package security
 
 import (

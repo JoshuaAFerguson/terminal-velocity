@@ -1,9 +1,46 @@
 // File: internal/tui/chat.go
 // Project: Terminal Velocity
-// Description: Chat UI for multiplayer communication across multiple channels
-// Version: 1.1.0
+// Description: Chat screen - Multiplayer communication across multiple channels with commands
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The chat screen provides:
+// - 5 distinct chat channels (Global, System, Faction, Direct, Trade)
+// - Real-time message broadcasting and receiving
+// - Input mode for typing messages (200 char limit)
+// - Chat commands (/help, /dm, /clear, /me)
+// - Message scrolling (15 lines visible)
+// - Direct message conversation management
+// - ANSI escape code sanitization for security
+// - Channel-specific access control
+// - Message history per channel
+//
+// Channels:
+//   - Global: All players server-wide
+//   - System: Players in the same star system
+//   - Faction: Faction members only (requires faction membership)
+//   - Direct: Private 1-on-1 conversations
+//   - Trade: Trade-focused channel for all players
+//
+// Chat Commands:
+//   - /help: Display command help
+//   - /dm <username> <message>: Send direct message
+//   - /clear: Clear current channel history
+//   - /me <action>: Send action message (e.g., "*player waves*")
+//
+// Security:
+//   - ANSI escape code stripping to prevent terminal injection
+//   - Control character filtering
+//   - Message length limits (200 chars)
+//   - Muted player filtering
+//
+// Visual Features:
+//   - Sender highlighting (own messages in green)
+//   - System messages in gray
+//   - Channel tabs with active indicator
+//   - Scroll pagination indicator
+//   - Input cursor (_) when typing
 
 package tui
 
@@ -18,16 +55,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// chatModel contains the state for the chat screen.
+// Manages channels, message input, scrolling, and conversation state.
 type chatModel struct {
-	currentChannel   models.ChatChannel
-	inputBuffer      string
-	dmRecipient      string // For direct messages
-	scrollOffset     int
-	inputMode        bool     // true when typing a message
-	selectedDMChat   int      // Index of selected DM conversation
-	availableDMChats []string // List of active DM conversations
+	currentChannel   models.ChatChannel // Currently active channel
+	inputBuffer      string             // Current message being typed
+	dmRecipient      string             // Target username for direct messages
+	scrollOffset     int                // Scroll position in message history
+	inputMode        bool               // True when typing a message
+	selectedDMChat   int                // Index of selected DM conversation in list
+	availableDMChats []string           // List of active DM conversations (usernames)
 }
 
+// newChatModel creates and initializes a new chat screen model.
+// Starts in Global channel with no active input.
 func newChatModel() chatModel {
 	return chatModel{
 		currentChannel:   models.ChatChannelGlobal,
@@ -40,6 +81,38 @@ func newChatModel() chatModel {
 	}
 }
 
+// updateChat handles input and state updates for the chat screen.
+//
+// Key Bindings (Input Mode):
+//   - esc: Cancel message input, clear buffer
+//   - enter: Send message (or execute command if starts with /)
+//   - backspace: Delete character from input buffer
+//   - Any printable char: Add to input buffer (with sanitization)
+//
+// Key Bindings (Normal Mode):
+//   - esc/backspace/q: Return to main menu
+//   - up/k: Scroll messages up
+//   - down/j: Scroll messages down
+//   - i/enter: Enter input mode to type message
+//   - 1-5: Switch chat channel
+//     - 1: Global channel
+//     - 2: System channel
+//     - 3: Faction channel
+//     - 4: Direct messages
+//     - 5: Trade channel
+//   - c: Clear current channel history
+//
+// Message Flow:
+//   1. User presses 'i' or Enter to start typing
+//   2. Type message (up to 200 chars, sanitized)
+//   3. Press Enter to send or Esc to cancel
+//   4. Command messages (/) handled by handleChatCommand()
+//   5. Regular messages sent via sendChatMessage()
+//
+// Security:
+//   - ANSI escape codes stripped via validation.StripANSI()
+//   - Control characters filtered (except escape for ANSI)
+//   - Buffer limited to 200 characters
 func (m Model) updateChat(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -135,6 +208,23 @@ func (m Model) updateChat(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewChat renders the chat screen.
+//
+// Layout:
+//   - Title: Icon + "CHAT - [Channel Name]"
+//   - Channel Tabs: 5 channels with active indicator
+//   - Separator line
+//   - Message Display Area: 15 visible lines with scroll
+//   - Separator line
+//   - Input Area: Prompt or status message
+//   - Footer: Controls help
+//
+// Visual Features:
+//   - Active channel highlighted
+//   - Own messages in green (successStyle)
+//   - System messages in gray (helpStyle)
+//   - Scroll pagination indicator
+//   - Input cursor when typing
 func (m Model) viewChat() string {
 	icon := models.GetChannelIcon(m.chatModel.currentChannel)
 	displayName := models.GetChannelDisplayName(m.chatModel.currentChannel)
@@ -193,6 +283,9 @@ func (m Model) viewChat() string {
 	return s
 }
 
+// renderChatMessages renders the message list for the current channel.
+// Handles pagination, scrolling, and empty states for each channel type.
+// Shows DM conversation list when in Direct channel with no recipient selected.
 func (m Model) renderChatMessages() string {
 	var messages []*models.ChatMessage
 
@@ -263,6 +356,8 @@ func (m Model) renderChatMessages() string {
 	return s.String()
 }
 
+// renderDMConversationsList renders the list of active direct message conversations.
+// Shows conversation preview with most recent message excerpt.
 func (m Model) renderDMConversationsList() string {
 	chats := m.chatModel.availableDMChats
 
@@ -299,6 +394,9 @@ func (m Model) renderDMConversationsList() string {
 	return s.String()
 }
 
+// sendChatMessage sends a chat message to the current channel.
+// Handles channel-specific sending logic and permission checking.
+// Commands (starting with /) are routed to handleChatCommand() instead.
 func (m *Model) sendChatMessage() {
 	content := strings.TrimSpace(m.chatModel.inputBuffer)
 	if content == "" {
@@ -364,6 +462,9 @@ func (m *Model) sendChatMessage() {
 	}
 }
 
+// handleChatCommand processes chat slash commands.
+// Supported commands: /help, /dm, /clear, /me
+// Unknown commands show error message in chat.
 func (m *Model) handleChatCommand(command string) {
 	parts := strings.Fields(command)
 	if len(parts) == 0 {

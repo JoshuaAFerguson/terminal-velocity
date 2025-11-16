@@ -1,9 +1,37 @@
 // File: internal/tui/notifications.go
 // Project: Terminal Velocity
-// Description: Notifications system TUI screen
-// Version: 1.0.0
+// Description: Notifications system TUI screen for viewing and managing game notifications
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
+//
+// This file implements the notifications screen where players can:
+//   - View all notifications (system, quest, mission, achievement, social, etc.)
+//   - Filter notifications by type or read status
+//   - Mark notifications as read
+//   - Dismiss individual notifications
+//   - Clear all dismissed notifications
+//
+// The notifications screen supports multiple modes:
+//   - All: Shows all notifications
+//   - Unread: Shows only unread notifications
+//   - By Type: Filters by notification type (quest, mission, achievement, etc.)
+//   - View: Shows detailed view of a single notification
+//
+// Notification Types:
+//   - System: Server announcements, maintenance, etc.
+//   - Quest: Quest updates and completions
+//   - Mission: Mission assignments and completions
+//   - Achievement: Achievement unlocks
+//   - Event: Event updates and rewards
+//   - Social: Friend requests, messages
+//   - Faction: Faction invites, promotions
+//   - Trade: Trade offers and completions
+//   - Combat: PvP challenges, territory attacks
+//
+// Thread Safety:
+//   - Update functions are called sequentially by BubbleTea
+//   - Notifications manager is thread-safe for concurrent access
 
 package tui
 
@@ -18,26 +46,39 @@ import (
 	"github.com/google/uuid"
 )
 
-// Notifications screen modes
+// ===== Notifications Screen Modes =====
+// Constants defining the different modes/views of the notifications screen
+
 const (
-	notificationsModeAll    = "all"
-	notificationsModeUnread = "unread"
-	notificationsModeByType = "by_type"
-	notificationsModeView   = "view"
+	notificationsModeAll    = "all"     // View all notifications (read and unread)
+	notificationsModeUnread = "unread"  // View only unread notifications
+	notificationsModeByType = "by_type" // Filter notifications by type
+	notificationsModeView   = "view"    // View detailed single notification
 )
 
-// Notifications screen state
+// notificationsState holds the state for the notifications screen.
+//
+// This struct preserves state when switching between screens, allowing
+// players to return to the notifications screen with their previous
+// filter/selection intact.
+//
+// State Management:
+//   - mode: Current view mode (all, unread, by_type, view)
+//   - selectedIndex: Index of currently selected notification in list
+//   - currentNotif: Notification being viewed in detail (view mode only)
+//   - loading: Whether async operation is in progress
+//   - error: Error message to display (if any)
 type notificationsState struct {
-	mode            string
-	notifications   []models.Notification
-	selectedIndex   int
-	currentNotif    *models.Notification
-	loading         bool
-	error           string
-	unreadCount     int
-	selectedType    string // For filtering by type
-	availableTypes  []string
-	typeSelectIndex int
+	mode            string                  // Current screen mode
+	notifications   []models.Notification   // Currently displayed notifications
+	selectedIndex   int                     // Index of selected notification
+	currentNotif    *models.Notification    // Notification being viewed (view mode)
+	loading         bool                    // Loading state
+	error           string                  // Error message (if any)
+	unreadCount     int                     // Total unread count (for display)
+	selectedType    string                  // Selected type filter (by_type mode)
+	availableTypes  []string                // Available notification types for filtering
+	typeSelectIndex int                     // Index in type selection list
 }
 
 func newNotificationsState() notificationsState {
@@ -662,14 +703,28 @@ func (m *Model) clearDismissedNotifications() tea.Cmd {
 	}
 }
 
-// Messages
+// ===== Messages =====
+// Custom message types for notifications screen async operations
 
+// notificationsLoadedMsg is sent when notifications have been loaded from the manager.
+//
+// This message is returned by:
+//   - loadAllNotifications()
+//   - loadUnreadNotifications()
+//   - loadNotificationsByType()
 type notificationsLoadedMsg struct {
-	notifications []models.Notification
-	unreadCount   int
-	err           string
+	notifications []models.Notification // Loaded notifications
+	unreadCount   int                   // Total unread count
+	err           string                // Error message (if loading failed)
 }
 
+// notificationActionMsg is sent when a notification action has completed.
+//
+// Actions include:
+//   - Mark as read
+//   - Dismiss notification
+//   - Mark all as read
+//   - Clear dismissed notifications
 type notificationActionMsg struct {
-	err string
+	err string // Error message (if action failed)
 }

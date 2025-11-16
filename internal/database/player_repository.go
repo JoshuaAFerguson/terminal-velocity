@@ -1,7 +1,8 @@
 // File: internal/database/player_repository.go
 // Project: Terminal Velocity
-// Description: Database repository for player_repository
-// Version: 1.0.0
+// Description: Repository for player account management including authentication,
+//              credits, reputation, and account lifecycle operations
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -20,28 +21,88 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Player-related errors returned by repository methods.
 var (
-	ErrPlayerNotFound     = errors.New("player not found")
-	ErrUsernameExists     = errors.New("username already exists")
+	// ErrPlayerNotFound indicates the requested player does not exist in the database.
+	ErrPlayerNotFound = errors.New("player not found")
+
+	// ErrUsernameExists indicates a player with this username already exists.
+	// This enforces the unique constraint on player usernames.
+	ErrUsernameExists = errors.New("username already exists")
+
+	// ErrInvalidCredentials indicates authentication failed due to incorrect
+	// username or password. Returns the same error for both cases to prevent
+	// username enumeration attacks.
 	ErrInvalidCredentials = errors.New("invalid username or password")
 )
 
-// PlayerRepository handles player data access
+// PlayerRepository handles all database operations for player accounts.
+//
+// This repository manages:
+//   - Player account creation (password and SSH key authentication)
+//   - Authentication and credential verification
+//   - Player data retrieval and updates
+//   - Credits and reputation management
+//   - Location tracking
+//   - Online status
+//
+// Thread-safety:
+//   - All methods are thread-safe
+//   - Uses database-level locking for concurrent updates
+//   - Reputation is stored in a separate table for scalability
 type PlayerRepository struct {
-	db *DB
+	db *DB // Database connection pool
 }
 
-// NewPlayerRepository creates a new player repository
+// NewPlayerRepository creates a new PlayerRepository instance.
+//
+// Parameters:
+//   - db: Database connection pool
+//
+// Returns:
+//   - *PlayerRepository: Ready-to-use repository
 func NewPlayerRepository(db *DB) *PlayerRepository {
 	return &PlayerRepository{db: db}
 }
 
-// Create creates a new player account with password
+// Create creates a new player account with password authentication.
+//
+// This is a convenience wrapper around CreateWithEmail for backwards compatibility.
+// New code should use CreateWithEmail directly to provide email addresses.
+//
+// The password is hashed with bcrypt before storage (never stored in plaintext).
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - username: Unique username (will error if already exists)
+//   - password: Plaintext password (will be hashed)
+//
+// Returns:
+//   - *models.Player: Newly created player account
+//   - error: ErrUsernameExists if username taken, or other database error
 func (r *PlayerRepository) Create(ctx context.Context, username, password string) (*models.Player, error) {
 	return r.CreateWithEmail(ctx, username, password, "")
 }
 
-// CreateWithEmail creates a new player account with optional email
+// CreateWithEmail creates a new player account with optional email address.
+//
+// This is the primary account creation method. It supports both password-based
+// and SSH-key-only authentication (password can be empty string for SSH-only).
+//
+// Security features:
+//   - Passwords hashed with bcrypt (cost 10)
+//   - Username uniqueness enforced by database constraint
+//   - Passwords never logged or exposed
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - username: Unique username (alphanumeric recommended)
+//   - password: Plaintext password (empty string for SSH-only accounts)
+//   - email: Optional email address for account recovery
+//
+// Returns:
+//   - *models.Player: Newly created player with default starting values
+//   - error: ErrUsernameExists if username taken, or other database error
 func (r *PlayerRepository) CreateWithEmail(ctx context.Context, username, password, email string) (*models.Player, error) {
 	// Hash the password if provided
 	var hashedPassword *string
@@ -97,7 +158,28 @@ func (r *PlayerRepository) CreateWithSSHKey(ctx context.Context, username, email
 	return r.CreateWithEmail(ctx, username, "", email)
 }
 
-// Authenticate verifies a player's credentials and returns the player if valid
+// Authenticate verifies a player's credentials and returns the player if valid.
+//
+// This method implements secure password-based authentication with protection
+// against timing attacks and username enumeration. It loads the player's full
+// data including reputation for authenticated sessions.
+//
+// Security features:
+//   - Constant-time password comparison (bcrypt.CompareHashAndPassword)
+//   - Returns same error for invalid username or password
+//   - Rejects SSH-only accounts (no password set)
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - username: Username to authenticate
+//   - password: Plaintext password to verify
+//
+// Returns:
+//   - *models.Player: Authenticated player with full data loaded
+//   - error: ErrInvalidCredentials if auth fails, or other database error
+//
+// Thread-safety:
+//   - Safe for concurrent authentication attempts
 func (r *PlayerRepository) Authenticate(ctx context.Context, username, password string) (*models.Player, error) {
 	query := `
 		SELECT id, username, password_hash, email, credits, current_system, combat_rating,
@@ -368,7 +450,35 @@ func (r *PlayerRepository) SetOnlineStatus(ctx context.Context, id uuid.UUID, on
 	return nil
 }
 
-// ModifyCredits adds or subtracts credits from a player
+// ModifyCredits adds or subtracts credits from a player atomically.
+//
+// This method uses a database-level check to prevent credits from going negative,
+// ensuring the player always has sufficient funds. This prevents exploit bugs
+// where players could spend more credits than they have through race conditions.
+//
+// Important for game economy:
+//   - Atomic operation (safe for concurrent modifications)
+//   - Prevents negative balances at database level
+//   - Returns error if transaction would result in negative credits
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - id: Player UUID
+//   - amount: Credits to add (positive) or subtract (negative)
+//
+// Returns:
+//   - error: "insufficient credits" if amount would make credits negative,
+//     ErrPlayerNotFound if player doesn't exist, or other database error
+//
+// Thread-safety:
+//   - Safe for concurrent modifications
+//   - Database ensures atomic updates
+//
+// Example:
+//
+//	// Deduct purchase cost
+//	err := repo.ModifyCredits(ctx, playerID, -1000)
+//	if err != nil { return errors.New("insufficient credits") }
 func (r *PlayerRepository) ModifyCredits(ctx context.Context, id uuid.UUID, amount int64) error {
 	query := `
 		UPDATE players
@@ -418,7 +528,34 @@ func (r *PlayerRepository) UpdateCredits(ctx context.Context, id uuid.UUID, cred
 	return nil
 }
 
-// UpdateReputation updates a player's reputation with a faction
+// UpdateReputation updates a player's reputation with a faction atomically.
+//
+// Reputation is stored in a separate table (player_reputation) for performance
+// and scalability. This method uses PostgreSQL's UPSERT to create or update
+// reputation values, and clamps them between -100 and +100.
+//
+// Reputation mechanics:
+//   - Range: -100 (hostile) to +100 (allied)
+//   - Automatically clamped to valid range
+//   - Creates initial entry if player has no reputation with faction
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - playerID: Player UUID
+//   - factionID: Faction identifier (government name)
+//   - change: Reputation delta (can be positive or negative)
+//
+// Returns:
+//   - error: Database error (rare)
+//
+// Thread-safety:
+//   - Safe for concurrent updates
+//   - Uses UPSERT for atomic create-or-update
+//
+// Example:
+//
+//	// Increase rep by 10 after completing mission
+//	err := repo.UpdateReputation(ctx, playerID, "Federation", 10)
 func (r *PlayerRepository) UpdateReputation(ctx context.Context, playerID uuid.UUID, factionID string, change int) error {
 	query := `
 		INSERT INTO player_reputation (player_id, faction_id, reputation)

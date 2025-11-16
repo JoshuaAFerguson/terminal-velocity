@@ -1,7 +1,8 @@
 // File: internal/database/ship_repository.go
 // Project: Terminal Velocity
-// Description: Database repository for ship_repository
-// Version: 1.1.0
+// Description: Repository for ship management including cargo, weapons, outfits,
+//              and combat damage tracking
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -16,10 +17,27 @@ import (
 	"github.com/google/uuid"
 )
 
-// ShipRepository handles ship data persistence
-
+// ShipRepository handles all database operations for ships.
+//
+// Manages:
+//   - Ship creation, retrieval, updates, deletion
+//   - Cargo management (add/remove commodities)
+//   - Weapons and ammunition tracking
+//   - Outfits (equipment) management
+//   - Combat damage (hull/shields)
+//   - Fuel levels
+//
+// Data model:
+//   - Ships stored in 'ships' table
+//   - Cargo in 'ship_cargo' table (many-to-many with commodities)
+//   - Weapons in 'ship_weapons' table with ammo counts
+//   - Outfits in 'ship_outfits' table
+//
+// Thread-safety:
+//   - All methods are thread-safe
+//   - Cargo operations check for sufficient quantity before removal
 type ShipRepository struct {
-	db *DB
+	db *DB // Database connection pool
 }
 
 // NewShipRepository creates a new ship repository
@@ -306,7 +324,21 @@ func (r *ShipRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// AddCargo adds cargo to a ship
+// AddCargo adds cargo to a ship using UPSERT for quantity accumulation.
+//
+// If the commodity already exists in cargo, quantities are added together.
+// Uses ON CONFLICT to handle concurrent additions safely.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - shipID: Ship UUID
+//   - commodityID: Commodity identifier (e.g., "food", "minerals")
+//   - quantity: Amount to add (must be positive)
+//
+// Returns:
+//   - error: Database error
+//
+// Note: Does NOT check cargo capacity - caller must verify before calling.
 func (r *ShipRepository) AddCargo(ctx context.Context, shipID uuid.UUID, commodityID string, quantity int) error {
 	query := `
 		INSERT INTO ship_cargo (ship_id, commodity_id, quantity)
@@ -323,7 +355,22 @@ func (r *ShipRepository) AddCargo(ctx context.Context, shipID uuid.UUID, commodi
 	return nil
 }
 
-// RemoveCargo removes cargo from a ship
+// RemoveCargo removes cargo from a ship with quantity validation.
+//
+// Checks that sufficient cargo exists before removal to prevent negative quantities.
+// Deletes the row entirely if quantity reaches zero.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - shipID: Ship UUID
+//   - commodityID: Commodity identifier
+//   - quantity: Amount to remove (must be positive)
+//
+// Returns:
+//   - error: "insufficient cargo" if not enough quantity, "commodity not in cargo" if not found
+//
+// Thread-safety:
+//   - Safe for concurrent cargo operations
 func (r *ShipRepository) RemoveCargo(ctx context.Context, shipID uuid.UUID, commodityID string, quantity int) error {
 	// First check if we have enough
 	var current int

@@ -1,9 +1,78 @@
 // File: internal/models/settings.go
 // Project: Terminal Velocity
-// Description: Player settings and configuration
-// Version: 1.0.0
+// Description: Player settings and preferences system
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// This file defines the player settings system which allows customization
+// of UI, gameplay, controls, privacy, and notifications. Settings are
+// persisted to the database and loaded on login.
+//
+// Settings Categories (6):
+//   1. Display: Visual presentation (colors, animations, layout)
+//   2. Audio: Sound effects and music (future implementation)
+//   3. Gameplay: Game behavior (difficulty, auto-save, tutorials)
+//   4. Controls: Keybindings and input preferences
+//   5. Privacy: Visibility to other players and social settings
+//   6. Notifications: Alert preferences and message settings
+//
+// Display Settings:
+//   - 5 color schemes (default, dark, light, high contrast, colorblind)
+//   - Animation toggles
+//   - Compact mode for limited screen space
+//   - Tutorial tips toggle
+//   - Terminal size preferences
+//
+// Gameplay Settings:
+//   - Auto-save interval (0 = disabled, default 5 min)
+//   - Confirmation dialogs for dangerous actions
+//   - Combat display options (damage numbers, etc.)
+//   - Fast travel options
+//   - Tutorial mode
+//   - Difficulty level (easy, normal, hard, expert)
+//   - Permadeath mode toggle
+//
+// Controls:
+//   - Customizable keybindings for all actions
+//   - Vim mode support (hjkl navigation)
+//   - Emacs mode support (emacs-style keybindings)
+//   - Multi-key shortcuts support (e.g., "up,k" for up)
+//
+// Privacy Settings:
+//   - Online status visibility
+//   - Location sharing
+//   - Ship info visibility
+//   - Trade request acceptance
+//   - PvP challenge acceptance
+//   - Party invite acceptance
+//   - Block list (player IDs)
+//   - Friends list (player IDs)
+//
+// Notification Settings:
+//   - Achievement unlock alerts
+//   - Level up notifications
+//   - Trade completion alerts
+//   - Combat log visibility
+//   - Player join/leave notifications
+//   - News update alerts
+//   - Encounter notifications
+//   - System message display
+//   - Chat notification alerts
+//   - Notification duration (seconds or until dismissed)
+//
+// Color Schemes:
+//   - Default: Classic green-on-black terminal
+//   - Dark: Modern dark theme
+//   - Light: High visibility light theme
+//   - High Contrast: Maximum visibility (accessibility)
+//   - Colorblind: Colorblind-friendly palette
+//
+// Settings Persistence:
+//   - Stored as JSON in database
+//   - Loaded on player login
+//   - Updated immediately on change
+//   - Default settings created for new players
 
 package models
 
@@ -13,9 +82,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// Settings represents player-specific configuration
-
-type Settings struct {
+// Settings represents player-specific configuration and preferences.
+//
+// Settings are organized into six categories for ease of management.
+// All settings have sensible defaults and are validated before saving.
+type Settings struct{
 	ID        uuid.UUID `json:"id"`
 	PlayerID  uuid.UUID `json:"player_id"`
 	UpdatedAt time.Time `json:"updated_at"`

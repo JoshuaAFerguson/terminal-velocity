@@ -1,9 +1,47 @@
 // File: internal/models/faction.go
 // Project: Terminal Velocity
-// Description: Data models for faction
-// Version: 1.0.0
+// Description: Data models for player-created factions and organizations
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// This file defines the data structures for player factions - player-created
+// organizations that enable cooperative gameplay. Factions provide:
+//
+// Membership System:
+//   - Hierarchical ranks: Leader, Officer, Member, Recruit
+//   - Member limits that increase with faction level
+//   - Invite/application system with approval workflow
+//
+// Territory and Resources:
+//   - Home system designation
+//   - Multiple system control
+//   - Shared faction treasury
+//   - Passive income from controlled territory
+//
+// Progression:
+//   - Level-based progression (1-10)
+//   - Experience from faction activities
+//   - Unlockable perks and upgrades
+//
+// Customization:
+//   - Faction tag (3-4 char identifier)
+//   - Alignment (trader, mercenary, explorer, pirate, corporate)
+//   - Custom settings (public profile, recruitment, requirements)
+//
+// Economic Model:
+//   - Members contribute via optional tax rate
+//   - Treasury managed by leader/officers
+//   - Funds used for territory control, perks, faction activities
+//
+// Reputation:
+//   - Faction-wide reputation with NPC governments
+//   - Affects prices, access, and encounters for all members
+//
+// Thread Safety Note:
+//   - These are pure data models (no concurrent access protection)
+//   - Faction manager handles thread-safe operations
+//   - Database transactions ensure consistency
 
 package models
 
@@ -13,8 +51,31 @@ import (
 	"github.com/google/uuid"
 )
 
-// PlayerFaction represents a player-created organization
-
+// PlayerFaction represents a player-created organization.
+//
+// Factions enable cooperative multiplayer gameplay by providing:
+//   - Shared resources (treasury, controlled systems)
+//   - Hierarchical leadership (leader, officers, members)
+//   - Progression system (levels, experience, perks)
+//   - Customization (alignment, settings, tag)
+//
+// A faction is created by a founder who becomes the initial leader.
+// The leader can promote officers, manage treasury, and control settings.
+// Members benefit from faction perks, shared reputation, and cooperation.
+//
+// Lifecycle:
+//   1. Created by founder (NewPlayerFaction)
+//   2. Members join (via invite or application)
+//   3. Faction progresses through activities (levels up)
+//   4. Controls territory for passive income
+//   5. Disbanded when leader leaves and no succession plan
+//
+// Constraints:
+//   - Member limit starts at 10, increases by 5 per level (max 60 at level 10)
+//   - Only leader can disband faction
+//   - Officers have limited management permissions
+//   - Reputation affects all members
+//   - Treasury can only be withdrawn by authorized members
 type PlayerFaction struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`

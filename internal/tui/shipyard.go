@@ -1,9 +1,31 @@
 // File: internal/tui/shipyard.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for shipyard
-// Version: 1.0.1
+// Description: Shipyard screen - Ship purchasing and comparison interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The shipyard screen allows players to:
+// - Browse available ships filtered by tech level and combat rating
+// - View detailed ship specifications and stats
+// - Purchase ships outright or trade in current ship
+// - Compare two ships side-by-side with visual stat bars
+// - View upgrade recommendations based on player's current ship
+// - See affordability indicators and requirement warnings
+//
+// Ship Purchase Mechanics:
+// - Ships require minimum combat rating
+// - Tech level restrictions based on planet
+// - Trade-in offers 70% of ship's base value
+// - Cargo transfers automatically on purchase
+// - Multiple owned ships can be managed from Ship Management screen
+//
+// Comparison Features:
+// - Visual stat bars for direct comparison
+// - Performance ratings (combat, trading, speed, overall)
+// - Cost-benefit analysis with trade-in calculations
+// - Star ratings (0-10) for each category
+// - Upgrade recommendations based on value per credit
 
 package tui
 
@@ -18,31 +40,39 @@ import (
 	"github.com/google/uuid"
 )
 
+// shipyardModel contains the state for the shipyard screen.
+// Manages ship browsing, comparison, and purchase operations.
 type shipyardModel struct {
-	cursor         int
-	mode           string // "list", "details", "confirm_buy", "confirm_trade", "compare", "compare_select"
-	selectedShip   *models.ShipType
-	compareShip1   *models.ShipType
-	compareShip2   *models.ShipType
-	availableShips []models.ShipType
-	currentPlanet  *models.Planet
-	tradeInValue   int64
-	loading        bool
-	error          string
+	cursor         int                  // Current cursor position in ship list
+	mode           string               // Current mode: "list", "details", "confirm_buy", "confirm_trade", "compare", "compare_select"
+	selectedShip   *models.ShipType     // Ship selected for purchase or comparison
+	compareShip1   *models.ShipType     // First ship in comparison mode
+	compareShip2   *models.ShipType     // Second ship in comparison mode
+	availableShips []models.ShipType    // Ships available at current location
+	currentPlanet  *models.Planet       // Current planet (determines tech level filtering)
+	tradeInValue   int64                // Calculated trade-in value for current ship
+	loading        bool                 // True while loading shipyard data
+	error          string               // Error or status message to display
 }
 
+// shipyardLoadedMsg is sent when shipyard data has been loaded.
+// Contains available ships filtered by tech level and requirements.
 type shipyardLoadedMsg struct {
-	ships  []models.ShipType
-	planet *models.Planet
-	err    error
+	ships  []models.ShipType   // Ships available for purchase
+	planet *models.Planet      // Current planet data
+	err    error               // Error if loading failed
 }
 
+// shipPurchasedMsg is sent when a ship purchase completes.
+// Contains the newly purchased ship and success status.
 type shipPurchasedMsg struct {
-	success bool
-	newShip *models.Ship
-	err     error
+	success bool         // True if purchase succeeded
+	newShip *models.Ship // The newly purchased ship
+	err     error        // Error if purchase failed
 }
 
+// newShipyardModel creates and initializes a new shipyard screen model.
+// Sets loading flag to true to trigger ship data load on screen entry.
 func newShipyardModel() shipyardModel {
 	return shipyardModel{
 		cursor:  0,
@@ -51,6 +81,37 @@ func newShipyardModel() shipyardModel {
 	}
 }
 
+// updateShipyard handles input and state updates for the shipyard screen.
+//
+// Key Bindings (List Mode):
+//   - esc/backspace: Return to main menu
+//   - up/k: Move cursor up in ship list
+//   - down/j: Move cursor down in ship list
+//   - enter/space: View detailed ship information
+//   - c: Enter comparison mode to compare two ships
+//
+// Key Bindings (Details Mode):
+//   - esc: Return to ship list
+//   - enter: Show purchase confirmation
+//   - t: Show trade-in confirmation (if player has ship)
+//
+// Key Bindings (Comparison Mode):
+//   - esc: Return to ship list
+//   - c: Start new comparison
+//   - enter: Select ship for comparison (select 2 ships)
+//
+// Purchase Workflow:
+//   1. Browse ships filtered by tech level and combat rating
+//   2. View ship details and stats
+//   3. Optionally compare with other ships
+//   4. Choose purchase or trade-in
+//   5. Confirm transaction (validates credits and requirements)
+//   6. Ship purchased, player credits updated
+//   7. Return to list with success message
+//
+// Message Handling:
+//   - shipyardLoadedMsg: Display available ships
+//   - shipPurchasedMsg: Update player/ship data, show success
 func (m Model) updateShipyard(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -164,6 +225,38 @@ func (m Model) updateShipyard(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewShipyard renders the shipyard screen.
+//
+// Layout (List Mode):
+//   - Header: Player stats (name, credits, location)
+//   - Title: "=== Shipyard ==="
+//   - Current Ship: Name, type, and value
+//   - Ship Table: Name, class, price, cargo, speed, weapons
+//   - Footer: Key bindings help
+//
+// Layout (Details Mode):
+//   - Ship name and description
+//   - Price and affordability indicator
+//   - Combat stats: hull, shields, weapon slots
+//   - Performance stats: speed, maneuverability
+//   - Capacity stats: cargo, fuel, crew, outfit space
+//   - Requirements: combat rating, tech level
+//   - Trade-in option if player has ship
+//   - Footer: Purchase/trade-in options
+//
+// Layout (Comparison Mode):
+//   - Side-by-side ship names and classes
+//   - Stat-by-stat comparison with visual bars
+//   - Performance ratings with star display
+//   - Upgrade recommendations
+//   - Footer: Comparison controls
+//
+// Visual Features:
+//   - Unaffordable ships displayed in dimmed text
+//   - Selected ship highlighted with cursor
+//   - Stat bars show relative values
+//   - Color-coded difference indicators (green=better, red=worse)
+//   - Star ratings (★) for 0-10 scale
 func (m Model) viewShipyard() string {
 	// Header with player stats
 	locationName := "Space"

@@ -1,10 +1,36 @@
 // File: internal/combat/reputation.go
 // Project: Terminal Velocity
-// Description: Combat system: reputation
-// Version: 1.0.0
+// Description: Combat system: reputation - Faction reputation and bounty system
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package combat provides the reputation and legal system for faction relationships.
+//
+// This file implements reputation changes from combat actions and bounty tracking:
+//   - Reputation changes from combat events (-100 to +100 scale)
+//   - Legal status tracking (clean, offender, wanted, fugitive)
+//   - Bounty system with expiration
+//   - Faction reinforcement mechanics
+//   - Cascading reputation effects (allies/enemies)
+//
+// Reputation Scale:
+//   - +75 to +100: Allied (maximum cooperation)
+//   - +25 to +74: Friendly (favorable treatment)
+//   - -24 to +24: Neutral (standard interactions)
+//   - -49 to -25: Unfriendly (hostility, higher prices)
+//   - -74 to -50: Hostile (attacked on sight)
+//   - -100 to -75: At War (kill on sight, reinforcements)
+//
+// Reputation Events and Changes:
+//   - Kill Hostile: +5 rep with faction's enemies
+//   - Kill Ally: -25 rep with faction (-35 if player was friendly)
+//   - Kill Neutral: -15 rep with faction
+//   - Kill Civilian: -30 rep with faction, -10 with all lawful factions
+//   - Defend Ally: +10 rep with faction
+//   - Bounty Collected: +8 rep with issuing faction
+//
+// Thread-safety: Functions are stateless and safe for concurrent calls.
 package combat
 
 import (
@@ -13,15 +39,32 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
-// ReputationChange represents a change in faction reputation
-
+// ReputationChange represents a single reputation modification with a faction.
+//
+// Reputation changes are generated from combat events and applied to the player's
+// standing with various factions. Multiple changes can result from a single action
+// due to cascading effects through faction alliances and rivalries.
+//
+// Fields:
+//   - FactionID: Faction whose reputation is changing
+//   - Amount: Reputation delta (negative = loss, positive = gain)
+//   - Reason: Human-readable explanation for the change
 type ReputationChange struct {
 	FactionID string
 	Amount    int
 	Reason    string
 }
 
-// BountyInfo tracks bounties on a player
+// BountyInfo tracks an active bounty placed on a player by a faction.
+//
+// Bounties are placed when players commit crimes against a faction. They can be
+// collected by other players or NPCs, or paid off at a station for 1.5x the amount.
+//
+// Fields:
+//   - FactionID: Faction that issued the bounty
+//   - Amount: Bounty value in credits
+//   - Reason: Description of the crime
+//   - Expires: Unix timestamp when bounty expires (0 = never)
 type BountyInfo struct {
 	FactionID string
 	Amount    int64
@@ -29,7 +72,23 @@ type BountyInfo struct {
 	Expires   int64 // Unix timestamp
 }
 
-// LegalStatus represents a player's legal standing with a faction
+// LegalStatus represents a player's legal standing with a specific faction.
+//
+// Each faction tracks the player's criminal record independently. Status
+// degrades with crimes and can improve over time or by paying off bounties.
+//
+// Status Levels:
+//   - "clean": No criminal record
+//   - "offender": Minor crimes committed
+//   - "wanted": Significant criminal activity
+//   - "fugitive": Severe crimes, hunted actively
+//
+// Fields:
+//   - FactionID: Faction tracking this legal status
+//   - Status: Current legal standing
+//   - CrimesCount: Number of crimes committed
+//   - LastOffense: Timestamp of most recent crime
+//   - ActiveBounty: Current bounty if any
 type LegalStatus struct {
 	FactionID    string
 	Status       string // "clean", "offender", "wanted", "fugitive"
@@ -38,7 +97,11 @@ type LegalStatus struct {
 	ActiveBounty *BountyInfo
 }
 
-// ReputationEvent represents the type of combat event that affects reputation
+// ReputationEvent represents the type of combat event that affects reputation.
+//
+// These constants define all combat actions that trigger reputation changes.
+// Each event type has specific reputation effects on the victim's faction,
+// their allies, and their enemies.
 type ReputationEvent string
 
 const (
@@ -52,7 +115,30 @@ const (
 	EventBountyCleared ReputationEvent = "bounty_cleared" // Cleared bounty
 )
 
-// CalculateCombatReputation calculates reputation changes from combat
+// CalculateCombatReputation calculates all reputation changes from a combat event.
+//
+// This function generates reputation changes for the player based on their actions
+// in combat. A single combat event can affect reputation with multiple factions due
+// to alliance and rivalry relationships.
+//
+// Cascading Effects:
+//   - Attacking a faction also affects their allies (penalty) and enemies (bonus)
+//   - Helping a faction also benefits their allies
+//   - Civilian attacks anger all lawful factions
+//
+// Special Modifiers:
+//   - Low reputation provides bonus gains when helping (+2 bonus if negative rep)
+//   - High reputation increases penalties for betrayal (-10 extra if >+25 rep)
+//
+// Parameters:
+//   - event: Type of combat event (kill hostile, kill ally, etc.)
+//   - victimFactionID: Faction of the ship involved in the event
+//   - attackerReputation: Player's current reputation with victim faction
+//
+// Returns:
+//   - []ReputationChange: All reputation changes to apply (can be multiple factions)
+//
+// Thread-safe: No shared state modification, safe for concurrent calls.
 func CalculateCombatReputation(
 	event ReputationEvent,
 	victimFactionID string,
@@ -216,7 +302,25 @@ func UpdateLegalStatus(current *LegalStatus, crimeSeverity int) {
 	}
 }
 
-// CalculateBountyAmount calculates bounty amount for a crime
+// CalculateBountyAmount calculates the bounty placed on player for a crime.
+//
+// Bounty amounts vary based on crime severity and victim ship value:
+//   - Base bounty: 10,000 credits minimum
+//   - Ship value bonus: 20% of ship value
+//   - Multipliers by crime type:
+//     * Kill Civilian: 3.0x (severe)
+//     * Kill Ally: 2.0x (major)
+//     * Kill Neutral: 1.5x (moderate)
+//     * Piracy: 1.0x (standard)
+//
+// Parameters:
+//   - event: Type of crime committed
+//   - shipValue: Value of victim ship (affects bounty size)
+//
+// Returns:
+//   - int64: Bounty amount in credits (0 if event doesn't warrant bounty)
+//
+// Thread-safe: No shared state, safe for concurrent calls.
 func CalculateBountyAmount(event ReputationEvent, shipValue int64) int64 {
 	var multiplier float64
 
@@ -239,7 +343,23 @@ func CalculateBountyAmount(event ReputationEvent, shipValue int64) int64 {
 	return baseBounty + shipBounty
 }
 
-// GetHostilityLevel returns hostility level based on reputation
+// GetHostilityLevel converts reputation score to hostility status.
+//
+// Reputation Ranges:
+//   - 75-100: "allied"
+//   - 25-74: "friendly"
+//   - -24-24: "neutral"
+//   - -49--25: "unfriendly"
+//   - -74--50: "hostile"
+//   - -100--75: "at_war"
+//
+// Parameters:
+//   - reputation: Reputation score (-100 to +100)
+//
+// Returns:
+//   - string: Hostility level identifier
+//
+// Thread-safe: No shared state, safe for concurrent calls.
 func GetHostilityLevel(reputation int) string {
 	switch {
 	case reputation >= 75:
@@ -257,7 +377,29 @@ func GetHostilityLevel(reputation int) string {
 	}
 }
 
-// WillFactionsReinforce checks if a faction will send reinforcements
+// WillFactionsReinforce determines if a faction will send reinforcements to combat.
+//
+// Reinforcements are sent when:
+//   1. Combat is in faction's territory or allied territory
+//   2. Player has negative reputation with faction
+//   3. Sufficient combat turns have elapsed (delay depends on reputation)
+//
+// Reinforcement Delays:
+//   - Reputation <-50: 2 turns (high priority)
+//   - Reputation -50 to -25: 4 turns (medium priority)
+//   - Reputation -25 to 0: 6 turns (low priority)
+//   - Reputation >0: No reinforcements (friendly)
+//
+// Parameters:
+//   - factionID: Faction to check for reinforcements
+//   - reputation: Player's reputation with faction
+//   - systemControllingFaction: Faction that controls current system
+//   - combatTurns: Number of turns combat has lasted
+//
+// Returns:
+//   - bool: true if reinforcements will arrive this turn
+//
+// Thread-safe: No shared state, safe for concurrent calls.
 func WillFactionsReinforce(
 	factionID string,
 	reputation int,
@@ -346,7 +488,23 @@ func GetReinforcementDelay(factionPatrolStrength int) int {
 	}
 }
 
-// ApplyReputationChanges applies a list of reputation changes to a player
+// ApplyReputationChanges applies multiple reputation changes to player's standings.
+//
+// This function updates the player's reputation map with all changes from a combat
+// event. Reputation values are clamped between -100 and +100.
+//
+// Parameters:
+//   - playerReputation: Current reputation map (faction ID -> reputation score)
+//   - changes: List of reputation changes to apply
+//
+// Returns:
+//   - map[string]int: Updated reputation map with all changes applied
+//
+// Side Effects:
+//   - Modifies playerReputation map in place
+//   - Also returns the modified map for convenience
+//
+// Thread-safe: Modifies only passed parameter, safe for single player context.
 func ApplyReputationChanges(
 	playerReputation map[string]int,
 	changes []ReputationChange,

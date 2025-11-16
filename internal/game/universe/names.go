@@ -5,6 +5,18 @@
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package universe provides procedural universe generation including star system names,
+// planet names, and descriptive text generation.
+//
+// The name generation system uses multiple strategies to create diverse and realistic-sounding
+// names for celestial bodies:
+//   - Greek letter + Constellation combinations (e.g., "Alpha Centauri")
+//   - Real star names from Earth's night sky (e.g., "Sirius", "Vega")
+//   - Catalog-style designations (e.g., "Kepler-452", "Ross-128")
+//   - Compound descriptive names (e.g., "New Haven", "Proxima Station")
+//
+// All generated names are guaranteed to be unique within a universe through collision detection
+// and fallback mechanisms.
 package universe
 
 import (
@@ -12,14 +24,37 @@ import (
 	"math/rand"
 )
 
-// NameGenerator generates star system names
-
+// NameGenerator generates unique star system and planet names using procedural algorithms.
+//
+// The generator maintains a registry of used names to ensure uniqueness and employs
+// multiple naming strategies to create diverse nomenclature:
+//
+// Naming Strategies:
+//   1. Greek + Constellation (25% chance) - Scientific naming convention used for many real stars
+//   2. Real Star Names (25% chance) - Names from Earth's visible stars
+//   3. Catalog Designation (25% chance) - Survey-style numbering (Kepler-N, Ross-N, etc.)
+//   4. Compound Names (25% chance) - Descriptive combinations (New Haven, Omega Terminal)
+//
+// Thread Safety:
+//
+//	NameGenerator is NOT thread-safe. Each generator should be used by a single goroutine
+//	or protected with external synchronization if shared across goroutines.
 type NameGenerator struct {
-	rand      *rand.Rand
-	usedNames map[string]bool
+	rand      *rand.Rand       // Seeded random number generator for reproducible names
+	usedNames map[string]bool  // Registry of already-generated names to prevent duplicates
 }
 
-// NewNameGenerator creates a new name generator
+// NewNameGenerator creates a new name generator with the given random source.
+//
+// Parameters:
+//   - r: Seeded random number generator for reproducible name generation across server restarts
+//
+// Returns:
+//
+//	A new NameGenerator ready to produce unique star system and planet names
+//
+// The generator starts with an empty name registry and will track all generated names
+// to ensure uniqueness.
 func NewNameGenerator(r *rand.Rand) *NameGenerator {
 	return &NameGenerator{
 		rand:      r,
@@ -27,14 +62,24 @@ func NewNameGenerator(r *rand.Rand) *NameGenerator {
 	}
 }
 
-// Greek letter prefixes for star names
+// greekLetters contains the 24 letters of the Greek alphabet used in the Bayer designation
+// system for naming stars. In astronomy, the brightest star in a constellation is typically
+// designated Alpha, the second brightest Beta, and so on.
+//
+// This list is used to generate scientifically-plausible star names when combined with
+// constellation names (e.g., "Alpha Centauri", "Beta Orionis").
 var greekLetters = []string{
 	"Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta",
 	"Iota", "Kappa", "Lambda", "Mu", "Nu", "Xi", "Omicron", "Pi",
 	"Rho", "Sigma", "Tau", "Upsilon", "Phi", "Chi", "Psi", "Omega",
 }
 
-// Constellation names for star suffixes
+// constellations contains genitive (possessive) forms of constellation names used in
+// the Bayer designation system. For example, "Centauri" is the genitive of "Centaurus",
+// so "Alpha Centauri" means "Alpha of Centaurus".
+//
+// These are combined with Greek letters to create realistic-sounding star system names
+// following astronomical naming conventions.
 var constellations = []string{
 	"Centauri", "Eridani", "Ceti", "Draconis", "Leonis", "Aquarii", "Orionis",
 	"Scorpii", "Cassiopeiae", "Andromedae", "Lyrae", "Cygni", "Aquilae",
@@ -43,7 +88,13 @@ var constellations = []string{
 	"Herculis", "Ophiuchi", "Serpentis", "Coronae", "Hydrae",
 }
 
-// Real star names (for variety)
+// realStars contains names of the brightest stars visible from Earth, including stars
+// from various cultures and historical astronomical catalogs. These names add variety
+// and familiarity to the generated universe.
+//
+// Many of these names have Arabic or Latin origins and are the traditional names
+// used in modern astronomy (e.g., Sirius is the brightest star in Earth's night sky,
+// Betelgeuse is the red supergiant in Orion).
 var realStars = []string{
 	"Sirius", "Canopus", "Arcturus", "Vega", "Capella", "Rigel", "Procyon",
 	"Betelgeuse", "Achernar", "Altair", "Aldebaran", "Antares", "Spica",
@@ -54,20 +105,51 @@ var realStars = []string{
 	"Mirzam", "Alphard", "Hamal", "Polaris", "Alderamin", "Denebola",
 }
 
-// Procedural name components
+// namePrefix contains prefixes for catalog-style and compound names. These include:
+//   - Directional/Temporal: New, Neo, Nova, Prima, Proxima, Ultima
+//   - Astronomer surnames: Kepler, Ross, Gliese, Wolf, Lacaille, Luyten, Barnard, etc.
+//
+// Astronomer names are used in real star catalogs (e.g., Barnard's Star, Ross 128).
 var namePrefix = []string{
 	"New", "Neo", "Nova", "Omega", "Proxima", "Ultima", "Prima", "Kepler",
 	"Ross", "Gliese", "Wolf", "Lacaille", "Luyten", "Barnard", "Kruger",
 	"Groombridge", "Lalande", "Struve", "Innes", "van", "Stein",
 }
 
+// nameSuffix contains suffixes for compound names, including:
+//   - Latin ordinals: Prime, Secundus, Tertius
+//   - Relative size: Major, Minor
+//   - Settlement types: Station, Outpost, Haven, Refuge, Bastion
+//   - Infrastructure: Gate, Nexus, Hub, Terminal, Crossing
+//
+// These create evocative names suggesting human colonization and space infrastructure.
 var nameSuffix = []string{
 	"Prime", "Secundus", "Tertius", "Major", "Minor", "Station", "Outpost",
 	"Haven", "Refuge", "Bastion", "Forge", "Reach", "Crossing", "Gate",
 	"Nexus", "Hub", "Point", "Junction", "Terminal", "Threshold",
 }
 
-// GenerateSystemName generates a unique star system name
+// GenerateSystemName generates a unique star system name using one of four strategies.
+//
+// Algorithm:
+//  1. Select naming strategy (25% chance each):
+//     - Greek + Constellation: "Alpha Centauri"
+//     - Real star name: "Sirius"
+//     - Catalog designation: "Kepler-442"
+//     - Compound name: "New Haven"
+//  2. Check if generated name is unique
+//  3. If collision detected, retry up to 100 times
+//  4. If all retries fail, fall back to guaranteed unique "System-N" format
+//
+// Returns:
+//
+//	A unique system name that hasn't been used before in this generator
+//
+// The 100-attempt limit prevents infinite loops in edge cases where the name space
+// is nearly exhausted, though this is unlikely in practice with thousands of possible
+// combinations.
+//
+// Thread Safety: NOT thread-safe. Callers must serialize access if used concurrently.
 func (ng *NameGenerator) GenerateSystemName() string {
 	maxAttempts := 100
 
@@ -101,28 +183,71 @@ func (ng *NameGenerator) GenerateSystemName() string {
 	return ng.generateFallbackName()
 }
 
-// generateGreekConstellation generates Greek letter + constellation name
+// generateGreekConstellation generates a Bayer designation-style name by combining
+// a Greek letter with a constellation genitive form.
+//
+// Examples: "Alpha Centauri", "Beta Orionis", "Gamma Draconis"
+//
+// This follows the real astronomical naming convention established by Johann Bayer
+// in 1603, where stars are designated by Greek letters within their constellations.
+//
+// Returns:
+//
+//	A Greek letter + constellation name combination (e.g., "Alpha Centauri")
 func (ng *NameGenerator) generateGreekConstellation() string {
 	greek := greekLetters[ng.rand.Intn(len(greekLetters))]
 	constellation := constellations[ng.rand.Intn(len(constellations))]
 	return fmt.Sprintf("%s %s", greek, constellation)
 }
 
-// generateCatalogName generates catalog-style name (e.g., "Kepler-442")
+// generateCatalogName generates a star catalog-style designation with an astronomer's
+// name followed by a catalog number.
+//
+// Examples: "Kepler-442", "Ross-128", "Gliese-581"
+//
+// This mimics real astronomical catalogs like the Kepler catalog (exoplanet discoveries),
+// Ross catalog (nearby stars), and Gliese catalog (nearby stars < 25 parsecs).
+//
+// Returns:
+//
+//	A catalog-style name with format "<Astronomer>-<Number>" where number is 1-9999
 func (ng *NameGenerator) generateCatalogName() string {
 	prefix := namePrefix[ng.rand.Intn(len(namePrefix))]
 	number := ng.rand.Intn(9999) + 1
 	return fmt.Sprintf("%s-%d", prefix, number)
 }
 
-// generateCompoundName generates compound name (e.g., "New Horizon")
+// generateCompoundName generates a two-word compound name suggesting human settlement
+// or infrastructure.
+//
+// Examples: "New Haven", "Proxima Station", "Nova Terminal"
+//
+// These names evoke colonization efforts and space infrastructure, giving systems
+// a sense of human presence and purpose.
+//
+// Returns:
+//
+//	A compound name with format "<Prefix> <Suffix>"
 func (ng *NameGenerator) generateCompoundName() string {
 	prefix := namePrefix[ng.rand.Intn(len(namePrefix))]
 	suffix := nameSuffix[ng.rand.Intn(len(nameSuffix))]
 	return fmt.Sprintf("%s %s", prefix, suffix)
 }
 
-// generateFallbackName generates guaranteed unique name
+// generateFallbackName generates a guaranteed unique name using sequential numbering.
+//
+// This is used as a last resort when all other naming strategies have failed to produce
+// a unique name after 100 attempts. The counter-based approach ensures uniqueness by
+// using the size of the usedNames map as an incrementing ID.
+//
+// Format: "System-<N>" where N is the count of previously generated names
+//
+// Returns:
+//
+//	A sequential system name that is guaranteed to be unique
+//
+// The generated name is immediately added to the usedNames registry to prevent
+// future collisions.
 func (ng *NameGenerator) generateFallbackName() string {
 	counter := len(ng.usedNames)
 	name := fmt.Sprintf("System-%d", counter)
@@ -130,7 +255,9 @@ func (ng *NameGenerator) generateFallbackName() string {
 	return name
 }
 
-// System descriptions based on faction and type
+// coreDescriptions contains flavor text for systems in the galactic core (within 30 LY of Sol).
+// These systems are highly developed with advanced technology, large populations, and
+// significant infrastructure. They represent the heart of human civilization in space.
 var coreDescriptions = []string{
 	"A highly developed core world with massive orbital installations and billions of inhabitants.",
 	"Capital of a sector, this system hosts impressive military and civilian infrastructure.",
@@ -139,6 +266,9 @@ var coreDescriptions = []string{
 	"A major trade nexus where goods from across the galaxy change hands.",
 }
 
+// midDescriptions contains flavor text for mid-range systems (30-60 LY from Sol).
+// These are colonized but less developed than core worlds, focusing on trade,
+// mining, and agriculture to support the growing human presence in space.
 var midDescriptions = []string{
 	"A prosperous trade station serves as the heart of this busy system.",
 	"Mining operations and refineries dot the asteroid belts of this resource-rich system.",
@@ -147,6 +277,9 @@ var midDescriptions = []string{
 	"This system's strategic location makes it a valuable waypoint for traders.",
 }
 
+// outerDescriptions contains flavor text for frontier systems (60-100 LY from Sol).
+// These remote systems are barely settled, dangerous, and far from central authority.
+// They represent the edge of civilized space where law enforcement is scarce.
 var outerDescriptions = []string{
 	"A rugged frontier settlement where hardy colonists eke out a living.",
 	"Distant from central authority, this system is a haven for independent traders and prospectors.",
@@ -155,6 +288,9 @@ var outerDescriptions = []string{
 	"A lonely outpost at the edge of civilized space, where self-reliance is everything.",
 }
 
+// edgeDescriptions contains flavor text for edge systems (> 100 LY from Sol).
+// These mysterious systems are controlled by the Auroran Empire and feature
+// incomprehensible alien technology beyond human understanding.
 var edgeDescriptions = []string{
 	"An alien world of incomprehensible architecture and technology.",
 	"Mysterious signals emanate from the installations orbiting these strange planets.",
@@ -163,6 +299,9 @@ var edgeDescriptions = []string{
 	"Advanced technology beyond human understanding is evident throughout this system.",
 }
 
+// independentDescriptions contains flavor text for independent systems not controlled
+// by major factions. These systems maintain neutrality and autonomy, serving as
+// neutral meeting grounds for all factions.
 var independentDescriptions = []string{
 	"An independent system that jealously guards its autonomy.",
 	"Free from major faction control, this system charts its own course.",
@@ -171,7 +310,29 @@ var independentDescriptions = []string{
 	"A hodgepodge of different cultures and peoples call this diverse system home.",
 }
 
-// GenerateDescription generates a system description based on government and distance
+// GenerateDescription generates a procedural description for a star system based on
+// its governing faction and distance from Sol.
+//
+// Algorithm:
+//  1. Determine description pool based on government type:
+//     - UEF/ROM: Use distance-based descriptions (core/mid)
+//     - Free Traders Guild: Use midDescriptions
+//     - Frontier Worlds: Use outerDescriptions
+//     - Auroran Empire: Use edgeDescriptions
+//     - Independent: Use independentDescriptions
+//  2. Randomly select one description from the appropriate pool
+//
+// Parameters:
+//   - governmentID: The ID of the faction controlling this system
+//   - distanceFromSol: Distance in light-years from Sol (Earth's system)
+//
+// Returns:
+//
+//	A procedurally-selected description string appropriate for the system's
+//	location and political affiliation
+//
+// The distance thresholds (30 LY, 60 LY, 100 LY) correspond to the core, mid, outer,
+// and edge radius configuration values used during universe generation.
 func GenerateDescription(governmentID string, distanceFromSol float64) string {
 	descriptions := independentDescriptions
 

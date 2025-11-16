@@ -1,10 +1,52 @@
 // File: internal/events/manager.go
 // Project: Terminal Velocity
 // Description: Dynamic event management and scheduling
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package events provides dynamic event management and scheduling.
+//
+// This package handles:
+// - Event template registration and management (10 event types)
+// - Player participation tracking
+// - Event leaderboards with rankings
+// - Event notifications (starting, ending, complete, progress)
+// - Automated event scheduling and state transitions
+// - Community goals and individual objectives
+// - Progress tracking and rewards distribution
+//
+// Event Types:
+// - Trading: Trading competitions with profit goals
+// - Tournament: Combat tournaments with bracket systems
+// - Expedition: Community exploration events
+// - Boss: Cooperative boss encounters
+// - Festival: Server-wide bonus multipliers
+// - Race: Speed-based challenges
+// - Defense: Territory defense events
+// - Invasion: NPC invasion events
+// - Discovery: Discovery and research events
+// - Limited: Time-limited exclusive events
+//
+// Event Lifecycle:
+// 1. Event created and registered (scheduled state)
+// 2. Event starts (active state)
+// 3. 5 minutes before end: ending state (warning notification)
+// 4. Event ends (ended state, rewards distributed)
+//
+// Background Worker:
+// Manager runs a background goroutine (eventScheduler) that:
+// - Checks event timers every 1 minute
+// - Transitions events between states
+// - Sends notifications to participants
+// - Cleans up expired events
+//
+// Thread Safety:
+// All Manager methods are thread-safe using sync.RWMutex. Background
+// worker coordinates with API methods via mutex.
+//
+// Version: 1.1.0
+// Last Updated: 2025-11-16
 package events
 
 import (
@@ -17,22 +59,33 @@ import (
 	"github.com/google/uuid"
 )
 
-// Manager handles server events and scheduling
-
+// Manager handles server events and scheduling.
+// It maintains event templates, participations, leaderboards, and runs
+// a background worker for automated event state management.
+// All operations are thread-safe.
 type Manager struct {
-	mu             sync.RWMutex
-	events         map[string]*models.Event
-	participations map[uuid.UUID][]*models.EventParticipation // playerID -> participations
-	leaderboards   map[string]*models.EventLeaderboard
-	notifications  map[uuid.UUID][]*models.EventNotification
+	mu             sync.RWMutex                                    // Protects all fields
+	events         map[string]*models.Event                        // All events indexed by event ID
+	participations map[uuid.UUID][]*models.EventParticipation      // Player participations indexed by player ID
+	leaderboards   map[string]*models.EventLeaderboard             // Event leaderboards indexed by event ID
+	notifications  map[uuid.UUID][]*models.EventNotification       // Player notifications indexed by player ID (max 50 per player)
 
-	// Background worker
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	// Background worker for event scheduling
+	ctx    context.Context      // Context for goroutine cancellation
+	cancel context.CancelFunc   // Cancel function to stop background worker
+	wg     sync.WaitGroup       // Wait group to track background goroutines
 }
 
-// NewManager creates a new event manager
+// NewManager creates a new event manager with default events and background worker.
+//
+// Initializes event templates (trading, tournament, expedition, boss, festival)
+// and starts background scheduler goroutine that checks event timers every minute.
+//
+// Returns:
+//   - Pointer to new Manager with scheduler running
+//
+// Thread Safety:
+// Safe to call concurrently. Call Shutdown() to gracefully stop background worker.
 func NewManager() *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -371,7 +424,20 @@ func (m *Manager) GetNotifications(playerID uuid.UUID) []*models.EventNotificati
 	return unread
 }
 
-// eventScheduler periodically checks and updates event statuses
+// eventScheduler periodically checks and updates event statuses.
+//
+// Background goroutine that runs every 1 minute to:
+// - Check event timers
+// - Transition events to ending state (5 min before end)
+// - End events when time expires
+// - Send notifications to participants
+//
+// Goroutine Lifecycle:
+// Started in NewManager(), stopped via Shutdown(). Coordinates with
+// other methods via Manager mutex.
+//
+// Thread Safety:
+// Acquires mutex for all operations. Can run concurrently with API calls.
 func (m *Manager) eventScheduler() {
 	defer m.wg.Done()
 
@@ -388,7 +454,15 @@ func (m *Manager) eventScheduler() {
 	}
 }
 
-// updateEvents checks event timers and transitions states
+// updateEvents checks event timers and transitions states.
+//
+// Called by eventScheduler every minute. Handles:
+// - Active → Ending transition (5 min warning)
+// - Active/Ending → Ended transition (time expired)
+// - Participant notifications
+//
+// Thread Safety:
+// NOT thread-safe. Must be called with m.mu lock held.
 func (m *Manager) updateEvents() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -426,13 +500,24 @@ func (m *Manager) updateEvents() {
 	}
 }
 
-// notifyPlayerUnsafe sends notification (must hold lock)
+// notifyPlayerUnsafe sends notification (internal helper).
+//
+// Maintains max 50 notifications per player (oldest removed first).
+//
+// Thread Safety:
+// NOT thread-safe. Must be called with m.mu lock held.
 func (m *Manager) notifyPlayerUnsafe(playerID uuid.UUID, eventID string, notifType models.EventNotificationType, message string) {
 	notif := models.NewEventNotification(playerID, eventID, notifType, message)
 	m.notifications[playerID] = append(m.notifications[playerID], notif)
 }
 
-// Shutdown gracefully shuts down the event manager
+// Shutdown gracefully shuts down the event manager.
+//
+// Stops background scheduler goroutine and waits for it to complete.
+// Should be called before server shutdown to prevent goroutine leaks.
+//
+// Thread Safety:
+// Thread-safe. Blocks until background worker exits.
 func (m *Manager) Shutdown() {
 	m.cancel()
 	m.wg.Wait()

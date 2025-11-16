@@ -1,9 +1,26 @@
 // File: internal/tui/trading.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for trading
-// Version: 1.2.0
+// Description: Trading screen - Commodity market and dynamic economy interface
+// Version: 1.3.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The trading screen provides access to planetary commodity markets:
+// - View market prices for all 15 commodities
+// - Buy commodities with credit and cargo space checks
+// - Sell commodities from ship's cargo hold
+// - Real-time price adjustments based on supply and demand
+// - Tech level filtering (higher tech planets offer more commodities)
+// - Illegal goods detection and warnings
+// - Trade profit/loss tracking for player progression
+// - Achievement notifications for trading milestones
+//
+// Trading Mechanics:
+// - Prices fluctuate based on stock and demand
+// - Player trades affect market conditions
+// - Cargo space limits enforced by ship type
+// - Transaction rollback on database errors
+// - 50% price adjustment on supply/demand changes
 
 package tui
 
@@ -20,32 +37,41 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// tradingModel contains the state for the trading screen.
+// Manages market display, buy/sell operations, and pricing calculations.
 type tradingModel struct {
-	cursor            int
-	mode              string // "market", "buy", "sell", "confirm"
-	selectedCommodity *models.Commodity
-	quantity          int
-	marketPrices      []*models.MarketPrice
-	commodities       []models.Commodity
-	currentPlanet     *models.Planet
-	loading           bool
-	error             string
-	pricingEngine     *trading.PricingEngine
+	cursor            int                     // Current cursor position in commodity list
+	mode              string                  // Current mode: "market", "buy", "sell", "confirm"
+	selectedCommodity *models.Commodity       // Commodity selected for trade operation
+	quantity          int                     // Quantity to buy/sell (adjustable with +/-)
+	marketPrices      []*models.MarketPrice   // Current market prices for all commodities
+	commodities       []models.Commodity      // List of all available commodities
+	currentPlanet     *models.Planet          // Current planet (market location)
+	loading           bool                    // True while loading market data
+	error             string                  // Error or status message to display
+	pricingEngine     *trading.PricingEngine  // Engine for dynamic price calculations
 }
 
+// marketLoadedMsg is sent when market data has been loaded from database.
+// Contains commodity list, prices, planet data, and any loading error.
 type marketLoadedMsg struct {
-	prices      []*models.MarketPrice
-	commodities []models.Commodity
-	planet      *models.Planet
-	err         error
+	prices      []*models.MarketPrice   // Market prices for current planet
+	commodities []models.Commodity      // All commodity definitions
+	planet      *models.Planet          // Current planet data
+	err         error                   // Error if loading failed
 }
 
+// tradeCompleteMsg is sent when a buy/sell transaction completes.
+// Contains success status, profit/loss amount, and any transaction error.
 type tradeCompleteMsg struct {
-	success bool
-	profit  int64
-	err     error
+	success bool   // True if trade succeeded
+	profit  int64  // Profit (positive for sell) or cost (negative for buy)
+	err     error  // Error if trade failed
 }
 
+// newTradingModel creates and initializes a new trading screen model.
+// Sets loading flag to true to trigger market data load on screen entry.
+// Initializes pricing engine for dynamic market calculations.
 func newTradingModel() tradingModel {
 	return tradingModel{
 		cursor:        0,
@@ -56,6 +82,35 @@ func newTradingModel() tradingModel {
 	}
 }
 
+// updateTrading handles input and state updates for the trading screen.
+//
+// Key Bindings (Market Mode):
+//   - esc: Cancel operation or return to main menu
+//   - backspace: Quick return to main menu
+//   - up/k: Move cursor up in commodity list
+//   - down/j: Move cursor down in commodity list
+//   - b: Enter buy mode for selected commodity
+//   - s: Enter sell mode for selected commodity
+//
+// Key Bindings (Buy/Sell Mode):
+//   - esc: Cancel and return to market mode
+//   - +/=: Increase quantity
+//   - -/_: Decrease quantity
+//   - enter/space: Confirm transaction
+//
+// Trading Workflow:
+//   1. Market loads with prices and commodities
+//   2. Player selects commodity and mode (buy/sell)
+//   3. Player adjusts quantity with +/-
+//   4. Player confirms with enter
+//   5. Transaction executes with validation (credits, cargo, stock)
+//   6. Market prices update based on new supply/demand
+//   7. Player stats update (credits, trading rating, achievements)
+//   8. Return to market mode with success message
+//
+// Message Handling:
+//   - marketLoadedMsg: Display market with prices and commodities
+//   - tradeCompleteMsg: Update player state, show profit/loss, check achievements
 func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -192,6 +247,27 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewTrading renders the trading screen.
+//
+// Layout (Market Mode):
+//   - Header: Player stats (name, credits, planet location)
+//   - Title: "=== Commodity Market ==="
+//   - Planet Info: Planet name and tech level
+//   - Cargo Info: Current/max cargo space
+//   - Market Table: Commodities with buy/sell prices, stock, demand
+//   - Footer: Key bindings help
+//
+// Layout (Buy/Sell Mode):
+//   - Commodity Info: Name, description
+//   - Price Info: Unit price and total cost/revenue
+//   - Validation: Credit/cargo/stock checks with error messages
+//   - Footer: Quantity adjustment and confirmation help
+//
+// Visual Features:
+//   - Illegal goods highlighted in red with [ILLEGAL] tag
+//   - Insufficient resources shown in dimmed text with warnings
+//   - Selected item highlighted with cursor
+//   - Sorted by category, then name
 func (m Model) viewTrading() string {
 	// Header with player stats
 	locationName := "Space"

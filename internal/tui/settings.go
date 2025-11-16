@@ -1,9 +1,60 @@
 // File: internal/tui/settings.go
 // Project: Terminal Velocity
-// Description: Settings and configuration UI
-// Version: 1.0.0
+// Description: Settings screen - Player preferences and configuration across 6 categories
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The settings screen provides:
+// - 6 configuration categories (Display, Audio, Gameplay, Controls, Privacy, Notifications)
+// - Boolean toggle settings with Enter/Space
+// - Multi-option settings with up/down cycling
+// - Settings persistence to database (JSON format)
+// - Reset to defaults functionality
+// - Real-time setting changes
+//
+// Categories:
+//   - Display: Color scheme, animations, compact mode, tutorial tips, icons
+//   - Audio: Audio enable, sound effects, music, notifications (not yet implemented)
+//   - Gameplay: Auto-save, confirmations, damage numbers, autopilot, encounters, fast travel, tutorial mode, difficulty, permadeath
+//   - Controls: Keybindings for movement, actions, combat (view-only, customization coming soon)
+//   - Privacy: Online status, location, ship info visibility, trade/PvP/party requests, blocklist, friends list
+//   - Notifications: Achievement, level up, trade, combat, player joined, news, encounters, system messages, chat notifications
+//
+// Display Settings:
+//   - Color Scheme: default, dark, light, high_contrast, colorblind
+//   - Show Animations: ON/OFF
+//   - Compact Mode: ON/OFF
+//   - Show Tutorial Tips: ON/OFF
+//   - Show Icons: ON/OFF
+//
+// Gameplay Settings:
+//   - Auto-Save: ON/OFF
+//   - Confirm Dangerous Actions: ON/OFF
+//   - Show Damage Numbers: ON/OFF
+//   - Auto-Pilot Hints: ON/OFF
+//   - Pause on Encounter: ON/OFF
+//   - Fast Travel: ON/OFF
+//   - Tutorial Mode: ON/OFF
+//   - Difficulty Level: easy, normal, hard, expert
+//   - Permadeath Mode: ON/OFF
+//
+// Privacy Settings:
+//   - Show Online Status: ON/OFF
+//   - Show Location: ON/OFF
+//   - Show Ship Info: ON/OFF
+//   - Allow Trade Requests: ON/OFF
+//   - Allow PvP Challenges: ON/OFF
+//   - Allow Party Invites: ON/OFF
+//   - Blocked Players count
+//   - Friends list count
+//
+// Visual Features:
+//   - [EDITING] indicator on active setting
+//   - ON/OFF display for booleans
+//   - Multi-option values shown inline
+//   - Active setting highlighted
+//   - Help text for categories
 
 package tui
 
@@ -26,13 +77,17 @@ const (
 	settingsViewNotifications = "notifications"
 )
 
+// settingsModel contains the state for the settings screen.
+// Manages category navigation, setting editing, and persistence.
 type settingsModel struct {
-	viewMode string
-	cursor   int
-	editing  bool
-	settings *models.Settings
+	viewMode string           // Current view: "main" or category name
+	cursor   int              // Current cursor position in setting list
+	editing  bool             // True when editing a setting value
+	settings *models.Settings // Player's current settings (loaded from database)
 }
 
+// newSettingsModel creates and initializes a new settings screen model.
+// Starts in main category selection view.
 func newSettingsModel() settingsModel {
 	return settingsModel{
 		viewMode: settingsViewMain,
@@ -41,6 +96,20 @@ func newSettingsModel() settingsModel {
 	}
 }
 
+// updateSettings handles input and state updates for the settings screen.
+//
+// Key Bindings (Category/List Mode):
+//   - esc/backspace: Return to main menu (or main from category)
+//   - up/k: Move cursor up in setting list
+//   - down/j: Move cursor down in setting list
+//   - enter/space: Edit selected setting (or select category in main)
+//   - r: Reset current category to defaults
+//
+// Key Bindings (Editing Mode):
+//   - esc: Cancel editing
+//   - enter/space: Confirm value change
+//
+// Settings are automatically saved to database when changed.
 func (m Model) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -87,6 +156,8 @@ func (m Model) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateSettingsEditing handles input when editing a setting value.
+// Toggles boolean values or cycles through multi-option values.
 func (m Model) updateSettingsEditing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Handle editing mode (toggle boolean values)
 	switch msg.String() {
@@ -103,6 +174,8 @@ func (m Model) updateSettingsEditing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleSettingsSelect handles Enter/Space key in main or category view.
+// Navigates to category or enters editing mode for a setting.
 func (m Model) handleSettingsSelect() (tea.Model, tea.Cmd) {
 	if m.settingsModel.viewMode == settingsViewMain {
 		// Navigate to category
@@ -119,6 +192,9 @@ func (m Model) handleSettingsSelect() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// toggleSettingValue toggles the value of the currently selected setting.
+// Handles boolean toggles and multi-option cycling based on category.
+// Automatically saves updated settings to database.
 func (m *Model) toggleSettingValue() {
 	if m.settingsModel.settings == nil {
 		return
@@ -145,6 +221,8 @@ func (m *Model) toggleSettingValue() {
 	})
 }
 
+// toggleDisplaySetting toggles display category settings.
+// Handles color scheme cycling and boolean toggles.
 func (m *Model) toggleDisplaySetting() {
 	switch m.settingsModel.cursor {
 	case 0: // Color scheme
@@ -166,6 +244,7 @@ func (m *Model) toggleDisplaySetting() {
 	}
 }
 
+// toggleAudioSetting toggles audio category settings.
 func (m *Model) toggleAudioSetting() {
 	switch m.settingsModel.cursor {
 	case 0:
@@ -179,6 +258,8 @@ func (m *Model) toggleAudioSetting() {
 	}
 }
 
+// toggleGameplaySetting toggles gameplay category settings.
+// Handles difficulty cycling and boolean toggles.
 func (m *Model) toggleGameplaySetting() {
 	switch m.settingsModel.cursor {
 	case 0:
@@ -208,11 +289,14 @@ func (m *Model) toggleGameplaySetting() {
 	}
 }
 
+// toggleControlSetting toggles control category settings.
+// Currently view-only; keybinding customization coming soon.
 func (m *Model) toggleControlSetting() {
 	// Controls would require more complex input handling
 	// For now, just show them
 }
 
+// togglePrivacySetting toggles privacy category settings.
 func (m *Model) togglePrivacySetting() {
 	switch m.settingsModel.cursor {
 	case 0:
@@ -230,6 +314,7 @@ func (m *Model) togglePrivacySetting() {
 	}
 }
 
+// toggleNotificationSetting toggles notification category settings.
 func (m *Model) toggleNotificationSetting() {
 	switch m.settingsModel.cursor {
 	case 0:
@@ -253,6 +338,8 @@ func (m *Model) toggleNotificationSetting() {
 	}
 }
 
+// getSettingsMaxCursor returns the maximum cursor position for current view.
+// Different categories have different numbers of settings.
 func (m Model) getSettingsMaxCursor() int {
 	switch m.settingsModel.viewMode {
 	case settingsViewMain:
@@ -273,6 +360,7 @@ func (m Model) getSettingsMaxCursor() int {
 	return 0
 }
 
+// viewSettings renders the settings screen (dispatches to category-specific views).
 func (m Model) viewSettings() string {
 	s := renderHeader(m.username, m.player.Credits, "Settings")
 	s += "\n"
@@ -299,6 +387,7 @@ func (m Model) viewSettings() string {
 	return s
 }
 
+// viewSettingsMain renders the main category selection view.
 func (m Model) viewSettingsMain() string {
 	s := "Select a category:\n\n"
 
@@ -328,6 +417,7 @@ func (m Model) viewSettingsMain() string {
 	return s
 }
 
+// viewSettingsDisplay renders the display settings category.
 func (m Model) viewSettingsDisplay() string {
 	if m.settingsModel.settings == nil {
 		return helpStyle.Render("Settings not loaded") + "\n"
@@ -364,6 +454,8 @@ func (m Model) viewSettingsDisplay() string {
 	return s
 }
 
+// viewSettingsAudio renders the audio settings category.
+// Audio not yet implemented, settings shown as disabled.
 func (m Model) viewSettingsAudio() string {
 	if m.settingsModel.settings == nil {
 		return helpStyle.Render("Settings not loaded") + "\n"
@@ -396,6 +488,7 @@ func (m Model) viewSettingsAudio() string {
 	return s
 }
 
+// viewSettingsGameplay renders the gameplay settings category.
 func (m Model) viewSettingsGameplay() string {
 	if m.settingsModel.settings == nil {
 		return helpStyle.Render("Settings not loaded") + "\n"
@@ -436,6 +529,8 @@ func (m Model) viewSettingsGameplay() string {
 	return s
 }
 
+// viewSettingsControls renders the controls settings category.
+// Currently view-only; keybinding customization coming soon.
 func (m Model) viewSettingsControls() string {
 	if m.settingsModel.settings == nil {
 		return helpStyle.Render("Settings not loaded") + "\n"
@@ -465,6 +560,7 @@ func (m Model) viewSettingsControls() string {
 	return s
 }
 
+// viewSettingsPrivacy renders the privacy settings category.
 func (m Model) viewSettingsPrivacy() string {
 	if m.settingsModel.settings == nil {
 		return helpStyle.Render("Settings not loaded") + "\n"
@@ -506,6 +602,7 @@ func (m Model) viewSettingsPrivacy() string {
 	return s
 }
 
+// viewSettingsNotifications renders the notifications settings category.
 func (m Model) viewSettingsNotifications() string {
 	if m.settingsModel.settings == nil {
 		return helpStyle.Render("Settings not loaded") + "\n"
@@ -546,6 +643,7 @@ func (m Model) viewSettingsNotifications() string {
 	return s
 }
 
+// boolToString converts a boolean to ON/OFF string for display.
 func boolToString(b bool) string {
 	if b {
 		return "ON"

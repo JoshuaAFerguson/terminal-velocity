@@ -1,7 +1,8 @@
 // File: internal/database/social_repository.go
 // Project: Terminal Velocity
-// Description: Repository for social features (friends, blocks, mail, notifications)
-// Version: 1.0.0
+// Description: Repository for social features including friends, blocks, mail,
+//              notifications, and player profiles
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
 
@@ -17,9 +18,27 @@ import (
 	"github.com/google/uuid"
 )
 
-// SocialRepository handles database operations for social features
+// SocialRepository handles all database operations for social features.
+//
+// Manages multiplayer social interactions:
+//   - Friend system (requests, acceptance, removal)
+//   - Block/ignore system
+//   - Mail with attachments (credits and items)
+//   - Notifications system
+//   - Player profiles and playtime
+//
+// Features:
+//   - Bidirectional friendships (both directions stored)
+//   - Friend requests with pending/accepted/declined states
+//   - Block prevents mail and interactions
+//   - Mail supports credit/item attachments with escrow
+//   - Notifications with expiration and action data
+//
+// Thread-safety:
+//   - All methods are thread-safe
+//   - Uses transactions for multi-step operations
 type SocialRepository struct {
-	db *DB
+	db *DB // Database connection pool
 }
 
 // NewSocialRepository creates a new social repository
