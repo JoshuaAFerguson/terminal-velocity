@@ -1,10 +1,75 @@
 // File: cmd/server/main.go
 // Project: Terminal Velocity
 // Description: Main SSH game server entry point
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package main provides the entry point for the Terminal Velocity SSH game server.
+//
+// Server Overview:
+// This binary starts the Terminal Velocity multiplayer space trading game server.
+// Players connect via SSH and play through a terminal user interface (TUI).
+//
+// Execution Flow:
+//   1. Parse command-line flags (config file, port, logging)
+//   2. Initialize logging system
+//   3. Set up signal handling for graceful shutdown
+//   4. Create and initialize server
+//   5. Start server (blocks until shutdown signal)
+//   6. Clean shutdown on SIGINT/SIGTERM
+//
+// Command-Line Flags:
+//   -config <file>     Path to YAML configuration file (default: configs/config.yaml)
+//   -port <number>     SSH server port (default: 2222)
+//   -log-level <level> Logging verbosity: debug, info, warn, error (default: info)
+//   -log-file <path>   Log file path, empty for stdout only (default: stdout)
+//   -version           Show version information and exit
+//
+// Example Usage:
+//   # Start with defaults (port 2222, stdout logging)
+//   ./server
+//
+//   # Start with custom config
+//   ./server -config /etc/terminal-velocity/config.yaml
+//
+//   # Start with debug logging to file
+//   ./server -log-level debug -log-file /var/log/terminal-velocity.log
+//
+//   # Check version
+//   ./server -version
+//
+// Configuration:
+// Server reads configuration from YAML file with fallback to defaults:
+//   - Database connection (host, port, credentials)
+//   - Server settings (host, port, max players)
+//   - Metrics (enabled, port)
+//   - Rate limiting (enabled, thresholds)
+//   - Authentication (password, SSH keys, registration)
+//
+// Logging:
+// Structured logging to stdout and/or file with:
+//   - Log levels (debug, info, warn, error)
+//   - Component tags (server, database, tui, etc.)
+//   - Caller information (file:line)
+//   - Timestamp
+//
+// Graceful Shutdown:
+// SIGINT (Ctrl+C) or SIGTERM triggers graceful shutdown:
+//   1. Stop accepting new connections
+//   2. Close active player sessions
+//   3. Stop metrics server
+//   4. Close database connections
+//   5. Flush logs
+//   6. Exit cleanly
+//
+// Version Information:
+// Version, commit hash, and build date are set at build time via ldflags:
+//   go build -ldflags "-X main.version=v1.0.0 -X main.commit=$(git rev-parse HEAD)"
+//
+// Exit Codes:
+//   0 - Clean shutdown
+//   1 - Initialization error (logger, server creation, startup failure)
 package main
 
 import (
@@ -20,14 +85,48 @@ import (
 )
 
 var (
-	// Version information (set during build)
+	// Version information (set during build via ldflags)
+	// Example build command:
+	//   go build -ldflags "-X main.version=v1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
 
+	// Component logger for main package
 	log = logger.WithComponent("main")
 )
 
+// main is the entry point for the Terminal Velocity server.
+//
+// Initialization Steps:
+//   1. Parse command-line flags
+//   2. Initialize logger (file and/or stdout)
+//   3. Check for version flag (exit if set)
+//   4. Set up context for cancellation
+//   5. Set up signal handler (SIGINT, SIGTERM)
+//   6. Create server instance
+//   7. Start server (blocks)
+//   8. Clean up on shutdown
+//
+// Signal Handling:
+// A goroutine listens for OS signals (SIGINT from Ctrl+C, SIGTERM from kill).
+// When received:
+//   - Logs shutdown message
+//   - Cancels context
+//   - Server.Start() returns
+//   - Deferred cleanup runs
+//   - Process exits
+//
+// Error Handling:
+// Fatal errors (logger init, server creation, start failure) are logged
+// to stderr and cause immediate exit with code 1. Non-fatal errors are
+// logged but allow server to continue.
+//
+// Resource Cleanup:
+// Deferred functions ensure proper cleanup:
+//   - Logger flushed and closed
+//   - Context cancelled
+//   - Server shutdown (connections, database, metrics)
 func main() {
 	// Parse command line flags
 	var (

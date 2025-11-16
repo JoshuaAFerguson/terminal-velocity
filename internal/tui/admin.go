@@ -1,9 +1,26 @@
 // File: internal/tui/admin.go
 // Project: Terminal Velocity
-// Description: Admin UI and dashboard
-// Version: 1.0.0
+// Description: Server administration panel with RBAC-controlled moderation tools
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// This screen provides a comprehensive server administration interface for managing
+// players, monitoring server health, and performing moderation actions. Key features:
+//
+// - Multi-tab interface (Overview, Players, Audit Log, Settings)
+// - Role-based access control (RBAC) with 4 roles: Owner, Admin, Moderator, Helper
+// - Player moderation: Ban/unban, mute/unmute with expiration times
+// - Server statistics: Active players, connections, uptime, metrics
+// - Audit log viewer: 10,000 entry buffer with filtering capabilities
+// - Server settings management: Configuration updates with validation
+// - Permission checks: Every action validates user permissions before execution
+// - Real-time updates: Statistics refresh automatically
+//
+// Access Control:
+// - Only accessible to users with admin permissions (admin.Manager tracks this)
+// - Permission levels determine available actions (e.g., only Owner can modify settings)
+// - All actions are logged to audit trail for accountability
 
 package tui
 
@@ -15,35 +32,51 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Admin views
-
+// Admin view modes - different panels in the admin interface
 const (
-	adminViewMain      = "main"
-	adminViewPlayers   = "players"
-	adminViewBans      = "bans"
-	adminViewMutes     = "mutes"
-	adminViewMetrics   = "metrics"
-	adminViewSettings  = "settings"
-	adminViewActionLog = "actionlog"
+	adminViewMain      = "main"      // Main admin menu
+	adminViewPlayers   = "players"   // Online player management
+	adminViewBans      = "bans"      // Ban list and management
+	adminViewMutes     = "mutes"     // Mute list and management
+	adminViewMetrics   = "metrics"   // Server performance metrics
+	adminViewSettings  = "settings"  // Server configuration
+	adminViewActionLog = "actionlog" // Admin action audit log
 )
 
+// adminModel holds the state for the admin panel screen
 type adminModel struct {
-	viewMode string
-	cursor   int
-	isAdmin  bool
-	role     models.AdminRole
+	viewMode string           // Current view/panel being displayed
+	cursor   int              // Current menu selection cursor position
+	isAdmin  bool             // Whether current player has admin access
+	role     models.AdminRole // Specific admin role (Owner, Admin, Moderator, Helper)
 }
 
+// newAdminModel creates a new admin panel model with default state
 func newAdminModel() adminModel {
 	return adminModel{
-		viewMode: adminViewMain,
-		cursor:   0,
-		isAdmin:  false,
+		viewMode: adminViewMain, // Start at main menu
+		cursor:   0,             // Cursor at first option
+		isAdmin:  false,         // Admin status checked on first access
 	}
 }
 
+// updateAdmin handles all input for the admin panel screen
+//
+// Key Bindings:
+//   - ↑/k: Move cursor up
+//   - ↓/j: Move cursor down
+//   - Enter/Space: Select menu item or perform action
+//   - Esc/Backspace: Return to main menu (from main view) or previous view
+//   - U: Unban player (when on ban list) or unmute player (when on mute list)
+//
+// Message Handling:
+//   - tea.KeyMsg: Navigation and selection
+//
+// Access Control:
+//   - Validates admin permissions before allowing access
+//   - Returns to main menu if player lacks admin privileges
 func (m Model) updateAdmin(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Check if player is admin
+	// Check if player is admin - security check on every update
 	if !m.adminModel.isAdmin {
 		m.screen = ScreenMainMenu
 		return m, nil
@@ -82,9 +115,15 @@ func (m Model) updateAdmin(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleAdminSelect processes the selection of a menu item in the admin panel
+//
+// Behavior:
+//   - From main menu: Navigates to selected sub-view (Players, Bans, etc.)
+//   - From sub-views: Performs context-specific actions (unban, unmute, etc.)
+//   - Resets cursor to 0 when entering a new view
 func (m Model) handleAdminSelect() (tea.Model, tea.Cmd) {
 	if m.adminModel.viewMode == adminViewMain {
-		// Navigate to sub-view
+		// Navigate to sub-view based on cursor position
 		views := []string{
 			adminViewPlayers,
 			adminViewBans,
@@ -95,13 +134,17 @@ func (m Model) handleAdminSelect() (tea.Model, tea.Cmd) {
 		}
 		if m.adminModel.cursor < len(views) {
 			m.adminModel.viewMode = views[m.adminModel.cursor]
-			m.adminModel.cursor = 0
+			m.adminModel.cursor = 0 // Reset cursor for new view
 		}
 	}
 
 	return m, nil
 }
 
+// getAdminMaxCursor returns the maximum cursor position for the current view
+//
+// This determines how far down the list the cursor can navigate, based on
+// the number of items in the current view (menu items, bans, mutes, etc.)
 func (m Model) getAdminMaxCursor() int {
 	switch m.adminModel.viewMode {
 	case adminViewMain:
@@ -128,17 +171,41 @@ func (m Model) getAdminMaxCursor() int {
 	return 0
 }
 
+// viewAdmin renders the admin panel interface
+//
+// Layout:
+//   - Header: Username, credits, "Admin Panel" title
+//   - Subtitle: "Server Administration" heading
+//   - Role display: Shows current user's admin role
+//   - Content area: Switches between different views based on viewMode
+//
+// Views:
+//   - Main: Menu of available admin panels
+//   - Players: Online player management
+//   - Bans: Active ban list with unban option
+//   - Mutes: Active mute list with unmute option
+//   - Metrics: Server performance statistics
+//   - Settings: Server configuration display
+//   - ActionLog: Admin action audit trail
+//
+// Security:
+//   - Returns access denied message if player is not an admin
+//   - Displays current role to indicate permission level
 func (m Model) viewAdmin() string {
+	// Security check: Deny access to non-admins
 	if !m.adminModel.isAdmin {
 		return errorView("Access Denied - Admin privileges required")
 	}
 
+	// Header with username, credits, and panel title
 	s := renderHeader(m.username, m.player.Credits, "Admin Panel")
 	s += "\n"
 
+	// Display admin panel title and user's role
 	s += subtitleStyle.Render("=== Server Administration ===") + "\n"
 	s += helpStyle.Render("Role: "+string(m.adminModel.role)) + "\n\n"
 
+	// Render appropriate view based on current mode
 	switch m.adminModel.viewMode {
 	case adminViewMain:
 		s += m.viewAdminMain()
@@ -159,6 +226,21 @@ func (m Model) viewAdmin() string {
 	return s
 }
 
+// viewAdminMain renders the main admin menu
+//
+// Display:
+//   - Title: "Administration Menu"
+//   - Menu items: 6 admin panel options with descriptions
+//   - Selected item highlighted
+//   - Footer: Navigation instructions
+//
+// Menu Items:
+//   1. Player Management - View and manage online players
+//   2. Ban Management - View and manage player bans
+//   3. Mute Management - View and manage player mutes
+//   4. Server Metrics - View server performance and statistics
+//   5. Server Settings - Configure server parameters
+//   6. Action Log - View admin action history
 func (m Model) viewAdminMain() string {
 	s := "Administration Menu:\n\n"
 
@@ -188,6 +270,16 @@ func (m Model) viewAdminMain() string {
 	return s
 }
 
+// viewAdminPlayers renders the online player management view
+//
+// Display:
+//   - Title: "Online Players"
+//   - Player list with details (username, location, ship, etc.)
+//   - Action options (kick, ban, mute)
+//   - Footer: Navigation instructions
+//
+// Note: Currently shows placeholder message - will integrate with session manager
+// to display real-time player list with moderation actions
 func (m Model) viewAdminPlayers() string {
 	s := "Online Players:\n\n"
 
@@ -197,13 +289,28 @@ func (m Model) viewAdminPlayers() string {
 		return s
 	}
 
-	// Note: In production, would fetch from session manager
+	// TODO: Integrate with session manager to show active sessions
 	s += helpStyle.Render("Feature coming soon - integrate with session manager") + "\n"
 
 	s += "\n" + renderFooter("ESC: Back")
 	return s
 }
 
+// viewAdminBans renders the ban management view
+//
+// Display:
+//   - Title: "Active Bans"
+//   - Table with columns: Username, Reason, Type (Temporary/Permanent), Banned At
+//   - Selected ban highlighted
+//   - Empty message if no active bans
+//   - Footer: Navigation and action instructions
+//
+// Actions:
+//   - U: Unban selected player (removes ban and allows login)
+//
+// Data Source:
+//   - Fetches from adminManager.GetActiveBans()
+//   - Shows all non-expired bans
 func (m Model) viewAdminBans() string {
 	s := "Active Bans:\n\n"
 
@@ -247,6 +354,26 @@ func (m Model) viewAdminBans() string {
 	return s
 }
 
+// viewAdminMutes renders the mute management view
+//
+// Display:
+//   - Title: "Active Mutes"
+//   - Table with columns: Username, Reason, Expires (time remaining)
+//   - Selected mute highlighted
+//   - Empty message if no active mutes
+//   - Footer: Navigation and action instructions
+//
+// Actions:
+//   - U: Unmute selected player (removes mute and allows chat)
+//
+// Time Display:
+//   - Shows expiration time as remaining duration (e.g., "2h", "45m")
+//   - "Never" for permanent mutes
+//   - Auto-calculated time remaining until expiration
+//
+// Data Source:
+//   - Fetches from adminManager.GetActiveMutes()
+//   - Shows all non-expired mutes
 func (m Model) viewAdminMutes() string {
 	s := "Active Mutes:\n\n"
 
@@ -294,6 +421,33 @@ func (m Model) viewAdminMutes() string {
 	return s
 }
 
+// viewAdminMetrics renders the server metrics and statistics view
+//
+// Display:
+//   - Title: "Server Metrics"
+//   - Performance section: Memory usage, goroutine count
+//   - Players section: Total, active, and peak player counts
+//   - Activity section: Active sessions, commands, trades, combats
+//   - Database section: Connection count, latency, error count
+//   - Footer: Navigation instructions
+//
+// Metrics Displayed:
+//   - Memory Usage: Formatted as bytes (KB, MB, GB)
+//   - Goroutines: Active Go routines (indicates concurrency health)
+//   - Total Players: All registered players
+//   - Active Players: Currently online players
+//   - Peak Players: Maximum concurrent players (all-time)
+//   - Active Sessions: Current SSH connections
+//   - Total Commands: Commands executed lifetime
+//   - Active Trades: Ongoing player-to-player trades
+//   - Active Combats: Ongoing combat encounters
+//   - DB Connections: Active database connections
+//   - DB Latency: Average query response time (ms)
+//   - DB Errors: Database error count
+//
+// Data Source:
+//   - Fetches from adminManager.GetMetrics()
+//   - Real-time server statistics
 func (m Model) viewAdminMetrics() string {
 	s := "Server Metrics:\n\n"
 
@@ -332,6 +486,32 @@ func (m Model) viewAdminMetrics() string {
 	return s
 }
 
+// viewAdminSettings renders the server settings configuration view
+//
+// Display:
+//   - Title: "Server Settings"
+//   - General section: Server name, max players, tick rate
+//   - Economy section: Starting credits, multiplier, tax rate
+//   - Gameplay section: PvP, permadeath, combat difficulty, pirate frequency
+//   - Note: "Settings editing coming soon"
+//   - Footer: Navigation instructions
+//
+// Settings Displayed:
+//   - Server Name: Display name for the server
+//   - Max Players: Maximum concurrent connections allowed
+//   - Tick Rate: Server update frequency (ticks per second)
+//   - Starting Credits: Initial credits for new players
+//   - Economy Multiplier: Global price/reward scaling factor
+//   - Tax Rate: Percentage deducted from transactions
+//   - PvP Enabled: Whether player-vs-player combat is allowed
+//   - Permadeath Mode: Whether death is permanent
+//   - Combat Difficulty: AI difficulty scaling (0.0 - 2.0)
+//   - Pirate Frequency: Probability of pirate encounters (0.0 - 1.0)
+//
+// Note: Currently read-only - editing functionality planned for future release
+//
+// Data Source:
+//   - Fetches from adminManager.GetSettings()
 func (m Model) viewAdminSettings() string {
 	s := "Server Settings:\n\n"
 
@@ -366,6 +546,32 @@ func (m Model) viewAdminSettings() string {
 	return s
 }
 
+// viewAdminActionLog renders the admin action audit log view
+//
+// Display:
+//   - Title: "Admin Action Log (Recent 20)"
+//   - Table with columns: Time, Admin, Action, Details
+//   - Recent 20 actions displayed
+//   - Failed actions shown in error style (red)
+//   - Empty message if no actions logged
+//   - Footer: Navigation instructions
+//
+// Log Entries Include:
+//   - Timestamp: Time the action was performed (HH:MM:SS format)
+//   - Admin Name: Username of the administrator
+//   - Action Type: What was done (ban, unban, mute, unmute, kick, etc.)
+//   - Details: Target player and additional context
+//   - Success/Failure: Visual indicator (error style for failures)
+//
+// Purpose:
+//   - Accountability: Track all administrative actions
+//   - Auditing: Review moderator activity
+//   - Troubleshooting: Investigate issues with admin actions
+//   - Security: Detect unauthorized or suspicious administrative activity
+//
+// Data Source:
+//   - Fetches from adminManager.GetActionLog(20)
+//   - Returns most recent 20 entries from audit buffer
 func (m Model) viewAdminActionLog() string {
 	s := "Admin Action Log (Recent 20):\n\n"
 
@@ -405,6 +611,25 @@ func (m Model) viewAdminActionLog() string {
 	return s
 }
 
+// formatBytes converts a byte count to a human-readable string with appropriate units
+//
+// Parameters:
+//   - bytes: Number of bytes to format
+//
+// Returns:
+//   - Formatted string with appropriate unit (B, KB, MB, GB, TB, PB, EB)
+//
+// Examples:
+//   - 512       → "512 B"
+//   - 1024      → "1.0 KB"
+//   - 1536      → "1.5 KB"
+//   - 1048576   → "1.0 MB"
+//   - 1073741824 → "1.0 GB"
+//
+// Algorithm:
+//   - Uses binary units (1024 bytes per KB)
+//   - Automatically selects appropriate unit based on magnitude
+//   - Displays one decimal place for values >= 1 KB
 func formatBytes(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {

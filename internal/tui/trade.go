@@ -1,6 +1,50 @@
 // File: internal/tui/trade.go
 // Project: Terminal Velocity
-// Version: 1.0.0
+// Description: Player Trading screen - Peer-to-peer item and credit trading with escrow
+// Version: 1.1.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+//
+// The player trading screen provides:
+// - Peer-to-peer trading system with escrow protection
+// - Multiple views (Received offers, Sent offers, History, Create, Detail)
+// - Credit and item trading support
+// - Trade fairness assessment
+// - Trader reputation system (trust ratings, completion rate)
+// - Time-limited offers with auto-expiration
+// - Trade offer cancellation for initiators
+// - Accept/reject controls for recipients
+//
+// View Modes:
+//   - received: Offers received from other players (pending actions)
+//   - sent: Offers sent by current player (track status)
+//   - history: Completed and cancelled trade history
+//   - create: New trade offer creation form
+//   - detail: Full offer details with accept/reject/cancel options
+//
+// Trade Flow:
+//   1. Create offer: Specify recipient, offered items/credits, requested items/credits
+//   2. Offer sent: Recipient sees pending offer
+//   3. Recipient accepts: Credits/items transferred via escrow
+//   4. Trade completes: Both parties receive their items
+//   5. Or recipient rejects: Offer cancelled, items returned
+//
+// Escrow System:
+//   - Credits/items held when offer created
+//   - Released on completion or returned on cancellation
+//   - Prevents double-spending and fraud
+//
+// Safety Features:
+//   - Both players must be in same location (system/planet)
+//   - Time limits on offers
+//   - Fairness rating (Balanced, Fair, Unfair, Very Unfair)
+//   - Trader reputation visible (completion rate, total trades)
+//
+// Visual Features:
+//   - Status icons (⏳ Pending, ✅ Completed, ❌ Cancelled, ⏰ Expired)
+//   - Fairness rating badges
+//   - Time remaining countdown
+//   - Tab navigation for view modes
 
 package tui
 
@@ -25,19 +69,23 @@ const (
 	tradeViewDetail   = "detail"   // View offer details
 )
 
+// tradeModel contains the state for the player trading screen.
+// Manages offer viewing, creation, and navigation between trade views.
 type tradeModel struct {
-	viewMode      string
-	cursor        int
-	selectedTrade *models.TradeOffer
+	viewMode      string             // Current view mode (received/sent/history/create/detail)
+	cursor        int                // Current cursor position in offer list
+	selectedTrade *models.TradeOffer // Trade offer being viewed in detail
 
 	// Create mode fields
-	createRecipient        string
-	createOfferedCredits   int64
-	createRequestedCredits int64
-	createMessage          string
-	createInputField       int // 0=recipient, 1=offered, 2=requested, 3=message
+	createRecipient        string // Username of trade recipient
+	createOfferedCredits   int64  // Credits being offered
+	createRequestedCredits int64  // Credits being requested
+	createMessage          string // Optional message to recipient
+	createInputField       int    // Active input field: 0=recipient, 1=offered, 2=requested, 3=message
 }
 
+// newTradeModel creates and initializes a new player trading screen model.
+// Starts in received offers view.
 func newTradeModel() tradeModel {
 	return tradeModel{
 		viewMode:         tradeViewReceived,
@@ -46,6 +94,13 @@ func newTradeModel() tradeModel {
 	}
 }
 
+// updateTrade handles input and state updates for the player trading screen.
+// Routes to mode-specific update handlers based on current view mode.
+//
+// View Mode Routing:
+//   - create: Handled by updateTradeCreate()
+//   - detail: Handled by updateTradeDetail()
+//   - received/sent/history: Handled by updateTradeList()
 func (m Model) updateTrade(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -62,6 +117,8 @@ func (m Model) updateTrade(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateTradeList handles input for received/sent/history list views.
+// Manages navigation, tab switching, and offer selection.
 func (m Model) updateTradeList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -125,6 +182,8 @@ func (m Model) updateTradeList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateTradeCreate handles input in trade offer creation mode.
+// Manages field navigation, input, and offer submission with location validation.
 func (m Model) updateTradeCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "tab":
@@ -242,6 +301,8 @@ func (m Model) updateTradeCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateTradeDetail handles input in offer detail view.
+// Provides accept/reject/cancel actions based on player role and offer status.
 func (m Model) updateTradeDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.tradeModel.selectedTrade == nil {
 		m.tradeModel.viewMode = tradeViewReceived
@@ -290,6 +351,7 @@ func (m Model) updateTradeDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewTrade renders the player trading screen (dispatches to mode-specific views).
 func (m Model) viewTrade() string {
 	switch m.tradeModel.viewMode {
 	case tradeViewCreate:
@@ -303,6 +365,7 @@ func (m Model) viewTrade() string {
 	}
 }
 
+// viewTradeList renders the offer list view with tabs for received/sent/history.
 func (m Model) viewTradeList() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -386,6 +449,7 @@ func (m Model) viewTradeList() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewTradeCreate renders the trade offer creation form with input fields.
 func (m Model) viewTradeCreate() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -443,6 +507,8 @@ func (m Model) viewTradeCreate() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewTradeDetail renders the full offer details with accept/reject/cancel controls.
+// Shows fairness assessment and trader reputation.
 func (m Model) viewTradeDetail() string {
 	if m.tradeModel.selectedTrade == nil {
 		return "No trade selected"
@@ -532,6 +598,8 @@ func (m Model) viewTradeDetail() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewTradeHistory renders the player's trading history with statistics.
+// Shows total trades, success rate, volume, and trust rating.
 func (m Model) viewTradeHistory() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).

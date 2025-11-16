@@ -1,7 +1,7 @@
 // File: internal/database/market_repository.go
 // Project: Terminal Velocity
-// Description: Database repository for market_repository
-// Version: 1.0.0
+// Description: Repository for market prices and commodity trading economy
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -17,10 +17,24 @@ import (
 	"github.com/google/uuid"
 )
 
-// MarketRepository handles market price data persistence
-
+// MarketRepository handles all database operations for market prices.
+//
+// Manages the dynamic trading economy:
+//   - Market prices for commodities at each planet
+//   - Stock and demand levels
+//   - Price updates based on trading activity
+//   - Stale market detection for price refresh
+//
+// Data model:
+//   - Market prices stored per (planet_id, commodity_id) pair
+//   - Prices have buy/sell values, stock, and demand
+//   - Last update timestamp for staleness tracking
+//
+// Thread-safety:
+//   - All methods are thread-safe
+//   - Uses UPSERT for atomic price updates
 type MarketRepository struct {
-	db *DB
+	db *DB // Database connection pool
 }
 
 // NewMarketRepository creates a new market repository
@@ -106,7 +120,22 @@ func (r *MarketRepository) GetMarketPricesForPlanet(ctx context.Context, planetI
 	return prices, nil
 }
 
-// UpsertMarketPrice inserts or updates a market price
+// UpsertMarketPrice inserts or updates a market price atomically.
+//
+// Uses PostgreSQL UPSERT (INSERT ... ON CONFLICT DO UPDATE) to create or
+// update market prices. This is the primary method for updating the economy
+// based on trading activity and market fluctuations.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - price: Market price with all fields populated
+//
+// Returns:
+//   - error: Database error
+//
+// Thread-safety:
+//   - Safe for concurrent price updates
+//   - UPSERT ensures atomicity
 func (r *MarketRepository) UpsertMarketPrice(ctx context.Context, price *models.MarketPrice) error {
 	query := `
 		INSERT INTO market_prices (planet_id, commodity_id, buy_price, sell_price, stock, demand, last_update)

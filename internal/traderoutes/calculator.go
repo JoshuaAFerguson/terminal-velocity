@@ -273,7 +273,52 @@ func (c *Calculator) calculateDistance(from, to *models.StarSystem) int {
 	return int(math.Sqrt(dx*dx + dy*dy))
 }
 
-// findShortestPath finds the shortest jump path between two systems using Dijkstra's algorithm
+// findShortestPath finds the shortest jump route between two systems using Dijkstra's
+// shortest path algorithm.
+//
+// Algorithm: Dijkstra's Shortest Path (without priority queue)
+//  1. Initialize:
+//     - Set distance[start] = 0, all others = ∞
+//     - Mark all nodes unvisited
+//     - Build adjacency list from ConnectedSystems
+//  2. Main loop:
+//     - Find unvisited node with minimum distance (linear search in O(V))
+//     - If found destination or no reachable nodes, stop
+//     - Mark current node as visited
+//     - For each neighbor of current node:
+//       * Calculate tentative distance = dist[current] + 1 (all edges weight 1)
+//       * If tentative < known distance, update dist[neighbor] and prev[neighbor]
+//  3. Reconstruct path:
+//     - Backtrack from destination using prev[] pointers
+//     - Build path by prepending each system until reaching start
+//
+// Time Complexity: O(V²) where V is number of systems
+//   - O(V) iterations of main loop
+//   - O(V) to find minimum distance node each iteration
+//   - O(E) total edge relaxations across all iterations
+//   - Dominated by O(V²) minimum-finding
+//
+// Note: This could be optimized to O((V + E) log V) using a priority queue/min-heap,
+// but for typical universe sizes (<1000 systems), the simpler implementation is adequate
+// and easier to understand.
+//
+// Pathfinding Properties:
+//   - All jump routes have equal cost (1 jump per edge)
+//   - This effectively makes it BFS, but Dijkstra generalizes better
+//   - Returns shortest path in terms of jump count, not distance
+//   - Path is guaranteed to be optimal (shortest possible)
+//
+// Parameters:
+//   - systems: All star systems in the universe
+//   - fromID: Starting system UUID
+//   - toID: Destination system UUID
+//   - maxJumps: Maximum jumps allowed (0 = unlimited)
+//
+// Returns:
+//   - path: Ordered list of system UUIDs from start to destination (nil if no path)
+//   - jumps: Number of jumps in path (len(path) - 1)
+//
+// Thread Safety: Safe for concurrent calls (read-only operations on systems).
 func (c *Calculator) findShortestPath(systems []*models.StarSystem, fromID, toID uuid.UUID, maxJumps int) ([]uuid.UUID, int) {
 	// Build adjacency map
 	adjacency := make(map[uuid.UUID][]uuid.UUID)

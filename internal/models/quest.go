@@ -1,9 +1,65 @@
 // File: internal/models/quest.go
 // Project: Terminal Velocity
-// Description: Quest and storyline system models
-// Version: 1.0.0
+// Description: Quest and storyline system - hand-crafted narrative content
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// Quests are hand-crafted story missions that provide narrative structure
+// and progression. Unlike missions (procedurally generated), quests are
+// pre-designed with specific storylines, characters, and branching paths.
+//
+// Quest System Features:
+//   - Branching narratives with player choices
+//   - Multiple objective types (12 types)
+//   - Dialogue and character interactions
+//   - Prerequisites and quest chains
+//   - Repeatable and one-time quests
+//   - Hidden/secret quests
+//   - Special rewards (ship unlocks, system access, etc.)
+//
+// Quest Types (7):
+//   - Main: Primary storyline quests (linear progression)
+//   - Side: Optional content (exploration, character stories)
+//   - Faction: Faction-specific storylines
+//   - Daily: Repeatable quests that reset daily
+//   - Chain: Multi-part quest series
+//   - Hidden: Secret quests unlocked by exploration/actions
+//   - Event: Limited-time special event quests
+//
+// Objective Types (12):
+//   - Deliver: Bring items to location
+//   - Destroy: Eliminate specific targets
+//   - Travel: Visit specific location
+//   - Collect: Gather items from world
+//   - Escort: Protect NPC during journey
+//   - Defend: Protect location from enemies
+//   - Investigate: Scan or examine objects
+//   - Talk: Interact with specific NPCs
+//   - Scan: Scan objects in space
+//   - Mine: Extract resources
+//   - Trade: Complete trades with NPCs
+//   - Kill: Defeat specific enemies
+//
+// Quest Progression:
+//   - Prerequisites: Quests that must be completed first
+//   - Branching: Player choices affect outcomes
+//   - Hidden objectives: Revealed during quest
+//   - Optional objectives: Bonus content
+//   - Multiple endings: Different conclusion paths
+//
+// Rewards:
+//   - Credits, items, reputation
+//   - Experience points
+//   - Ship unlocks (new ships become available)
+//   - System unlocks (new areas accessible)
+//   - Special unique rewards
+//
+// Storylines:
+//   - Connected quests form storylines
+//   - Main storyline provides core narrative
+//   - Side storylines add depth and content
+//   - Faction storylines for each major faction
 
 package models
 
@@ -13,8 +69,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// QuestStatus represents the current status of a quest
-
+// QuestStatus represents the current status of a quest.
+//
+// Status transitions:
+//   - NotStarted -> Active (when accepted)
+//   - Active -> Completed (objectives met)
+//   - Active -> Failed (failure condition met)
+//   - Active -> Abandoned (player cancels)
 type QuestStatus string
 
 const (

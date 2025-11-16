@@ -1,9 +1,35 @@
 // File: internal/tui/missions.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for missions
-// Version: 1.0.0
+// Description: Missions screen - Mission board and progress tracking interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The missions screen provides access to the mission system:
+// - Browse available missions (generated dynamically)
+// - Accept missions (max 5 active missions)
+// - View mission details with objectives and rewards
+// - Track mission progress (delivery, combat, exploration, bounty)
+// - Complete missions for credits and reputation
+// - Abandon missions (with penalties)
+// - Generate new missions (testing/debugging feature)
+//
+// Mission Types:
+// - Delivery: Transport cargo to destination
+// - Combat: Destroy specific targets
+// - Exploration: Visit specific systems
+// - Bounty: Hunt down specific ships
+// - Trading: Trade specific commodities
+// - Escort: Protect ships during travel
+//
+// Mission System:
+// - Missions generated based on player level and location
+// - Requirements: Combat rating, reputation with factions
+// - Progress tracked automatically during gameplay
+// - Rewards: Credits, reputation changes, items
+// - Time limits enforced with deadlines
+// - Failure penalties for expired or abandoned missions
+// - Icons differentiate mission types (📦, ⚔️, 💀, 💰, 🛡️, 🔭)
 
 package tui
 
@@ -19,18 +45,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// missionsModel handles the missions board UI
-
+// missionsModel contains the state for the missions screen.
+// Manages mission board display, acceptance, and progress tracking.
 type missionsModel struct {
-	mode            string // "board", "active", "details"
-	cursor          int
-	selectedMission *models.Mission
-	manager         *missions.Manager
-	message         string
-	tab             int // 0 = available, 1 = active
+	mode            string             // Current mode: "board", "active", "details"
+	cursor          int                // Current cursor position in mission list
+	selectedMission *models.Mission    // Mission selected for viewing
+	manager         *missions.Manager  // Mission management system
+	message         string             // Status or error message to display
+	tab             int                // Current tab: 0 = available, 1 = active
 }
 
-// newMissionsModel creates a new missions model
+// newMissionsModel creates and initializes a new missions screen model.
+// Initializes the mission manager for generating and tracking missions.
 func newMissionsModel() missionsModel {
 	return missionsModel{
 		mode:    "board",
@@ -40,7 +67,34 @@ func newMissionsModel() missionsModel {
 	}
 }
 
-// updateMissions handles missions screen updates
+// updateMissions handles input and state updates for the missions screen.
+//
+// Key Bindings (Board Mode):
+//   - esc/q: Return to main menu
+//   - up/k, down/j: Navigate mission list
+//   - tab: Switch between available/active tabs
+//   - enter: View mission details
+//   - g: Generate new missions (testing feature)
+//   - c: Check mission progress
+//   - a: Abandon selected mission (active missions only)
+//
+// Key Bindings (Details Mode):
+//   - esc/q: Return to mission board
+//   - a: Accept mission (if available)
+//   - d: Decline mission (if available)
+//
+// Mission Workflow:
+//   1. Browse available missions on board
+//   2. Select mission and view details
+//   3. Accept mission (validates requirements)
+//   4. Mission added to active missions (max 5)
+//   5. Progress tracked automatically during gameplay
+//   6. Check progress with 'c' key
+//   7. Complete mission when objectives met
+//   8. Receive rewards (credits, reputation, items)
+//
+// Message Handling:
+//   - All updates happen synchronously through manager
 func (m Model) updateMissions(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -203,7 +257,34 @@ func (m Model) updateMissionDetails(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewMissions renders the missions screen
+// viewMissions renders the missions screen.
+//
+// Layout (Mission Board):
+//   - ASCII border box with title "MISSION BOARD"
+//   - Tab indicators: [▶AVAILABLE◀] or [▶ACTIVE◀]
+//   - Mission list (max 10 displayed): Type icon, title, reward
+//   - Cursor indicator (▶) for selected mission
+//   - Message area for status/error messages
+//   - Footer: Key bindings help
+//
+// Layout (Mission Details):
+//   - ASCII border box with title "MISSION DETAILS"
+//   - Mission title
+//   - Type and status indicators
+//   - Description with word wrapping
+//   - Objectives: Destination, target, quantity/progress
+//   - Rewards: Credits, reputation changes
+//   - Requirements: Combat rating, faction reputation (with ✓/✗ indicators)
+//   - Deadline: Time remaining formatted
+//   - Footer: Accept/decline/back options
+//
+// Visual Features:
+//   - Mission type icons: 📦 (delivery), ⚔️ (combat), 💀 (bounty), 💰 (trading), 🛡️ (escort), 🔭 (exploration)
+//   - Credits formatted: 1.5K, 2.3M for large amounts
+//   - Requirements checked with ✓ (met) or ✗ (not met)
+//   - Duration formatting: days, hours, minutes
+//   - Word wrapping for long descriptions (68 char width)
+//   - Active tab highlighted with arrows
 func (m Model) viewMissions() string {
 	switch m.missions.mode {
 	case "board":

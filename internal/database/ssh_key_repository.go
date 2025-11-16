@@ -1,7 +1,7 @@
 // File: internal/database/ssh_key_repository.go
 // Project: Terminal Velocity
-// Description: Database repository for ssh_key_repository
-// Version: 1.0.0
+// Description: Repository for SSH public key authentication and management
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -19,15 +19,37 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// SSH key errors.
 var (
-	ErrSSHKeyNotFound   = errors.New("SSH key not found")
-	ErrSSHKeyExists     = errors.New("SSH key already exists")
+	// ErrSSHKeyNotFound indicates the requested SSH key does not exist.
+	ErrSSHKeyNotFound = errors.New("SSH key not found")
+
+	// ErrSSHKeyExists indicates this SSH key is already registered.
+	ErrSSHKeyExists = errors.New("SSH key already exists")
+
+	// ErrInvalidPublicKey indicates the public key format is invalid.
 	ErrInvalidPublicKey = errors.New("invalid public key format")
 )
 
-// SSHKeyRepository handles SSH key data access
+// SSHKeyRepository handles all database operations for SSH public keys.
+//
+// Manages SSH key-based authentication:
+//   - Adding/removing player SSH public keys
+//   - Key verification during SSH handshake
+//   - SHA256 fingerprint calculation and matching
+//   - Key activation/deactivation
+//   - Last used timestamp tracking
+//
+// Security features:
+//   - Keys validated on addition (must parse as valid SSH key)
+//   - Fingerprints stored as SHA256 hashes
+//   - Only active keys can be used for authentication
+//   - Duplicate keys prevented by fingerprint uniqueness
+//
+// Thread-safety:
+//   - All methods are thread-safe
 type SSHKeyRepository struct {
-	db *DB
+	db *DB // Database connection pool
 }
 
 // NewSSHKeyRepository creates a new SSH key repository
@@ -35,7 +57,24 @@ func NewSSHKeyRepository(db *DB) *SSHKeyRepository {
 	return &SSHKeyRepository{db: db}
 }
 
-// AddKey adds a new SSH public key for a player
+// AddKey adds and validates a new SSH public key for a player.
+//
+// Parses and validates the public key, calculates SHA256 fingerprint,
+// and stores it in the database. The key is marked as active by default.
+//
+// Security:
+//   - Key must be valid SSH format (validated by ssh.ParseAuthorizedKey)
+//   - Fingerprint uniqueness prevents duplicate keys
+//   - Supports RSA, ECDSA, Ed25519 key types
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - playerID: Player UUID
+//   - publicKeyStr: SSH public key in authorized_keys format
+//
+// Returns:
+//   - *models.SSHKey: Added key with fingerprint and metadata
+//   - error: ErrInvalidPublicKey if invalid format, ErrSSHKeyExists if duplicate
 func (r *SSHKeyRepository) AddKey(ctx context.Context, playerID uuid.UUID, publicKeyStr string) (*models.SSHKey, error) {
 	// Parse and validate the public key
 	publicKey, comment, _, _, err := ssh.ParseAuthorizedKey([]byte(publicKeyStr))

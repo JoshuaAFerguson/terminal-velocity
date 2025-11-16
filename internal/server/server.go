@@ -1,10 +1,53 @@
 // File: internal/server/server.go
 // Project: Terminal Velocity
 // Description: SSH server implementation with anonymous login and application-layer authentication
-// Version: 2.1.0
+// Version: 2.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package server implements the SSH game server for Terminal Velocity.
+//
+// Architecture Overview:
+// The server uses an anonymous SSH authentication model where all SSH connections
+// are accepted without credentials. Authentication is then handled at the application
+// layer through an interactive login screen (TUI). This design allows for:
+//   - Password-based authentication via login screen
+//   - SSH public key authentication (optional)
+//   - New user registration flow
+//   - Flexible authentication without SSH protocol limitations
+//
+// Server Lifecycle:
+//   1. Initialize configuration from YAML file or defaults
+//   2. Connect to PostgreSQL database and initialize repositories
+//   3. Load or generate persistent SSH host key
+//   4. Start metrics server (if enabled)
+//   5. Initialize rate limiter (if enabled)
+//   6. Listen for SSH connections on configured port
+//   7. Handle each connection in separate goroutine
+//   8. Graceful shutdown on context cancellation
+//
+// Session Flow:
+//   1. Client connects via SSH → accepted anonymously
+//   2. Rate limiting checks (connection and IP limits)
+//   3. SSH handshake with server host key
+//   4. Start anonymous session with login screen (TUI)
+//   5. User authenticates via application layer
+//   6. Load player data and start game session
+//   7. Run BubbleTea TUI over SSH channel
+//   8. Handle disconnection and cleanup
+//
+// Security Features:
+//   - Rate limiting per IP (connections and authentication attempts)
+//   - Auto-banning after repeated failures
+//   - Authentication lockout periods
+//   - Secure password hashing (bcrypt)
+//   - SSH public key fingerprint validation
+//   - Connection tracking and metrics
+//
+// Thread Safety:
+// The server manages concurrent connections using goroutines. Each connection
+// runs independently with its own SSH channel and TUI instance. Shared resources
+// (database, metrics, rate limiter) are protected by internal synchronization.
 package server
 
 import (
@@ -33,7 +76,33 @@ import (
 
 var log = logger.WithComponent("server")
 
-// Server represents the SSH game server
+// Server represents the SSH game server instance.
+//
+// The server manages SSH connections, player sessions, and game state.
+// It uses anonymous SSH authentication with application-layer login,
+// allowing flexible authentication methods (password, SSH keys, registration).
+//
+// Components:
+//   - config: Server configuration from YAML file or defaults
+//   - sshConfig: SSH protocol configuration (host key, auth handlers)
+//   - listener: TCP listener for incoming SSH connections
+//   - sessions: Active player sessions (currently unused, reserved for future)
+//   - db: Database connection pool
+//   - Repositories: Data access layers for different entities
+//   - Managers: Business logic managers for game features
+//   - metricsServer: Prometheus metrics HTTP server
+//   - rateLimiter: Connection and authentication rate limiting
+//
+// Lifecycle:
+//   - Created with NewServer() - initializes all dependencies
+//   - Started with Start(ctx) - begins accepting connections
+//   - Runs until context is cancelled
+//   - Shutdown with shutdown() - cleans up resources
+//
+// Thread Safety:
+// The Server struct itself is not protected by mutexes because it's typically
+// used from a single goroutine. However, it spawns goroutines for each connection,
+// and all shared resources (database, managers, metrics) have internal synchronization.
 type Server struct {
 	config        *Config
 	port          int
@@ -60,7 +129,30 @@ type Server struct {
 	marketplaceManager   *marketplace.Manager
 }
 
-// Config holds server configuration
+// Config holds server configuration loaded from YAML file or defaults.
+//
+// Configuration Sources:
+//   1. Default values (defined in loadConfig)
+//   2. YAML configuration file (optional, specified via -config flag)
+//   3. Command-line flags (port, log level, etc.)
+//
+// Configuration files use YAML format with the following structure:
+//   host: "0.0.0.0"
+//   port: 2222
+//   database:
+//     host: "localhost"
+//     port: 5432
+//     user: "terminal_velocity"
+//     password: "password"
+//   metrics_enabled: true
+//   rate_limit_enabled: true
+//
+// Fields are merged: file config overrides defaults, command-line flags override both.
+//
+// Security Considerations:
+//   - Database password should not be committed to version control
+//   - Use environment variables or separate config files for sensitive data
+//   - Host key path should have restrictive permissions (0600)
 type Config struct {
 	Host        string
 	Port        int
@@ -86,7 +178,34 @@ type Config struct {
 	RequireEmailVerify bool // Require email verification (future)
 }
 
-// loadConfig loads configuration from YAML file if it exists, otherwise uses defaults
+// loadConfig loads configuration from YAML file if it exists, otherwise uses defaults.
+//
+// Configuration Loading Strategy:
+//   1. Start with hardcoded default values
+//   2. If configFile is empty or doesn't exist, return defaults
+//   3. If configFile exists, read and parse YAML
+//   4. Merge file config with defaults (file takes precedence for non-zero values)
+//   5. Command-line port overrides file config if specified
+//
+// Parameters:
+//   - configFile: Path to YAML configuration file (empty string for defaults)
+//   - port: Port number from command-line flag (used if file doesn't specify)
+//
+// Returns:
+//   - *Config: Merged configuration with all fields populated
+//   - error: File read or YAML parse error (missing file is not an error)
+//
+// Default Configuration:
+//   - Host: "0.0.0.0" (listen on all interfaces)
+//   - Port: 2222 (standard SSH alternate port)
+//   - Database: localhost:5432 with terminal_velocity user
+//   - Metrics: enabled on port 8080
+//   - Rate limiting: enabled with conservative defaults
+//   - Authentication: password auth enabled, registration enabled
+//
+// Error Handling:
+// Missing config file is not an error (logs warning, uses defaults).
+// Invalid YAML or unreadable file returns error.
 func loadConfig(configFile string, port int) (*Config, error) {
 	// Start with defaults
 	config := &Config{
@@ -191,7 +310,36 @@ func loadConfig(configFile string, port int) (*Config, error) {
 	return config, nil
 }
 
-// NewServer creates a new game server
+// NewServer creates a new game server instance with all dependencies initialized.
+//
+// Initialization Sequence:
+//   1. Load configuration from YAML file or defaults
+//   2. Initialize database connection pool
+//   3. Create all repository instances (data access layer)
+//   4. Create all manager instances (business logic)
+//   5. Load or generate SSH host key
+//   6. Start metrics server (if enabled)
+//   7. Initialize rate limiter (if enabled)
+//
+// Parameters:
+//   - configFile: Path to YAML configuration file (empty for defaults)
+//   - port: SSH server port (overrides config file if non-zero)
+//
+// Returns:
+//   - *Server: Fully initialized server ready to Start()
+//   - error: Database connection, SSH key, or initialization error
+//
+// Resource Cleanup:
+// If initialization fails partway through, already-created resources are cleaned up:
+//   - Database connections closed
+//   - Metrics server stopped
+//   - Error returned to caller
+//
+// The server is NOT started by this function. Call Start(ctx) to begin accepting connections.
+//
+// Error Handling:
+// All initialization errors are fatal and prevent server creation.
+// Metrics server failures are non-fatal (logs warning, continues without metrics).
 func NewServer(configFile string, port int) (*Server, error) {
 	log.Debug("NewServer called with configFile=%s, port=%d", configFile, port)
 
@@ -254,7 +402,38 @@ func NewServer(configFile string, port int) (*Server, error) {
 	return srv, nil
 }
 
-// initDatabase initializes the database connection
+// initDatabase initializes the database connection pool and all data access components.
+//
+// Initialization Steps:
+//   1. Connect to PostgreSQL using pgx connection pool
+//   2. Create repository instances (PlayerRepository, SystemRepository, etc.)
+//   3. Create manager instances (FleetManager, MailManager, etc.)
+//   4. Start background workers for managers
+//
+// Repositories (Data Access Layer):
+//   - PlayerRepository: Player accounts, authentication, online status
+//   - SystemRepository: Star systems, planets, jump routes
+//   - SSHKeyRepository: SSH public keys for authentication
+//   - ShipRepository: Player ships and loadouts
+//   - MarketRepository: Market prices and commodities
+//   - MailRepository: Player mail messages
+//   - SocialRepository: Friends, notifications, social features
+//   - ItemRepository: Items and equipment
+//
+// Managers (Business Logic):
+//   - FleetManager: Fleet operations and coordination
+//   - MailManager: Mail delivery and notifications
+//   - NotificationsManager: Real-time notifications (starts background worker)
+//   - FriendsManager: Friend relationship management
+//   - MarketplaceManager: Player marketplace (starts background worker)
+//
+// Connection Pool:
+// Uses pgx/v5 connection pooling with configuration from database.Config.
+// Pool size, timeouts, and other settings are managed by the database package.
+//
+// Error Handling:
+// Database connection failures are fatal errors that prevent server startup.
+// All cleanup is handled by the caller (NewServer).
 func (s *Server) initDatabase() error {
 	log.Debug("Connecting to database at %s:%d", s.config.Database.Host, s.config.Database.Port)
 
@@ -293,7 +472,35 @@ func (s *Server) initDatabase() error {
 	return nil
 }
 
-// Start starts the SSH server
+// Start starts the SSH server and begins accepting connections.
+//
+// Execution Flow:
+//   1. Create TCP listener on configured host:port
+//   2. Log server startup information
+//   3. Spawn goroutine to accept connections (acceptConnections)
+//   4. Block waiting for context cancellation
+//   5. Graceful shutdown when context is cancelled
+//
+// Parameters:
+//   - ctx: Context for cancellation (typically from signal handler)
+//
+// Returns:
+//   - error: Listener creation failure or shutdown error
+//
+// Blocking Behavior:
+// This function blocks until the context is cancelled (typically by SIGINT/SIGTERM).
+// It does not return until the server is fully shut down.
+//
+// Graceful Shutdown:
+// When context is cancelled:
+//   1. Stop accepting new connections
+//   2. Close all active sessions
+//   3. Stop metrics server
+//   4. Stop rate limiter
+//   5. Close database connections
+//
+// Thread Safety:
+// Safe to call only once. Calling Start() multiple times will fail.
 func (s *Server) Start(ctx context.Context) error {
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 	log.Debug("Starting SSH server on %s", addr)
@@ -317,7 +524,29 @@ func (s *Server) Start(ctx context.Context) error {
 	return s.shutdown()
 }
 
-// acceptConnections handles incoming SSH connections
+// acceptConnections continuously accepts incoming SSH connections until context is cancelled.
+//
+// Execution Model:
+// Runs in a separate goroutine, spawned by Start(). Loops indefinitely accepting
+// connections and spawning a goroutine to handle each one.
+//
+// Flow:
+//   1. Check context for cancellation
+//   2. Accept next TCP connection (blocks until connection or error)
+//   3. Log connection from remote address
+//   4. Spawn goroutine to handleConnection
+//   5. Repeat
+//
+// Context Cancellation:
+// When context is cancelled, the loop exits cleanly. The listener is closed
+// by shutdown(), which causes Accept() to return an error.
+//
+// Error Handling:
+// Connection accept errors are logged as warnings but don't stop the loop.
+// This handles transient network issues without bringing down the server.
+//
+// Thread Safety:
+// Safe to call in goroutine. Each accepted connection is handled independently.
 func (s *Server) acceptConnections(ctx context.Context) {
 	log.Debug("Started accepting connections")
 	for {
@@ -338,7 +567,54 @@ func (s *Server) acceptConnections(ctx context.Context) {
 	}
 }
 
-// handleConnection handles a single SSH connection
+// handleConnection handles a single SSH connection from initial TCP handshake to cleanup.
+//
+// Connection Lifecycle:
+//   1. Track connection metrics (increment connection counter)
+//   2. Check rate limits (per-IP connection limits, bans)
+//   3. Perform SSH protocol handshake (anonymous auth)
+//   4. Track active connection metrics
+//   5. Discard out-of-band SSH requests
+//   6. Handle SSH channels (session channels only)
+//   7. Clean up on disconnection
+//
+// Rate Limiting (Security Layer 1):
+// Before SSH handshake, check:
+//   - IP not banned (auto-ban after repeated failures)
+//   - Concurrent connections per IP < limit (default: 5)
+//   - Connection rate per IP < limit (default: 20/minute)
+//
+// If rate limit exceeded, connection is rejected with error message.
+//
+// SSH Handshake (Security Layer 2):
+// Uses anonymous authentication (NoClientAuth=true), meaning:
+//   - All SSH connections are accepted at protocol level
+//   - No SSH username/password validation
+//   - No SSH public key validation at this layer
+//   - Server presents host key for client verification
+//
+// Authentication is deferred to application layer (login screen in TUI).
+//
+// Channel Handling:
+// Only "session" channels are accepted. Other channel types (port forwarding,
+// X11, etc.) are rejected for security.
+//
+// Metrics:
+//   - Connection attempts (total)
+//   - Active connections (incremented/decremented)
+//   - Failed connections (rate limited or SSH handshake failed)
+//   - Connection duration (tracked on cleanup)
+//   - Login events
+//
+// Thread Safety:
+// Each connection runs in its own goroutine. No shared state except:
+//   - Metrics (internally synchronized)
+//   - Rate limiter (internally synchronized)
+//   - Database (connection pool)
+//
+// Resource Cleanup:
+// Ensures connection and SSH channel are closed via defer, even on panic.
+// Connection duration is tracked and recorded to metrics.
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	remoteAddr := conn.RemoteAddr()
@@ -408,7 +684,41 @@ func (s *Server) handleConnection(conn net.Conn) {
 	log.Debug("SSH connection closed for %s", sshConn.User())
 }
 
-// handleSession handles a single SSH session
+// handleSession handles a single SSH session channel (pty and shell requests).
+//
+// SSH Session Protocol:
+// An SSH session consists of a series of requests from the client:
+//   1. "pty-req" - Request pseudo-terminal allocation (for TUI)
+//   2. "shell" - Request shell execution (where we launch the game)
+//   3. Other requests - Window size changes, signals, etc. (rejected)
+//
+// Flow:
+//   1. Loop reading SSH requests on channel
+//   2. Accept "pty-req" (needed for BubbleTea TUI)
+//   3. Accept "shell" and launch anonymous session (login screen)
+//   4. Return after shell session ends
+//
+// Anonymous Session:
+// Since SSH authentication is anonymous, all shells start with the login screen.
+// Players authenticate at application layer (via TUI) and then proceed to game.
+//
+// Parameters:
+//   - username: SSH username (from SSH handshake, unused in anonymous mode)
+//   - perms: SSH permissions (from auth callback, unused in anonymous mode)
+//   - channel: SSH channel for I/O (will be used by BubbleTea)
+//   - requests: Channel of SSH requests (pty-req, shell, etc.)
+//
+// Request Handling:
+//   - "pty-req": Accepted (BubbleTea needs a PTY for TUI rendering)
+//   - "shell": Accepted and starts anonymous session
+//   - All others: Rejected
+//
+// Session Lifecycle:
+// Once "shell" is accepted, control transfers to startAnonymousSession which
+// runs the BubbleTea login screen. This function returns when TUI exits.
+//
+// Thread Safety:
+// Each session runs in its own goroutine. SSH channel provides I/O synchronization.
 func (s *Server) handleSession(username string, perms *ssh.Permissions, channel ssh.Channel, requests <-chan *ssh.Request) {
 	defer channel.Close()
 
@@ -513,7 +823,35 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 	}
 }
 
-// startAnonymousSession starts an anonymous session (login screen)
+// startAnonymousSession starts an anonymous session with the login screen TUI.
+//
+// This is the entry point for all SSH connections. Since SSH authentication is
+// anonymous, every connection starts here regardless of credentials.
+//
+// Login Flow:
+//   1. Create TUI model with login screen
+//   2. Run BubbleTea program over SSH channel
+//   3. User sees login prompts (username/password)
+//   4. TUI handles authentication via PlayerRepository
+//   5. On successful auth, TUI transitions to game screen
+//   6. On failed auth, user can retry or disconnect
+//
+// TUI Integration:
+//   - Input: SSH channel (reads keypresses from client)
+//   - Output: SSH channel (sends terminal output to client)
+//   - AltScreen: Enabled (uses alternate screen buffer for clean rendering)
+//
+// The login model (NewLoginModel) is a minimal TUI that only handles authentication.
+// After successful login, it's replaced by the full game model.
+//
+// Parameters:
+//   - channel: SSH channel for I/O with the client
+//
+// Blocking Behavior:
+// This function blocks until the TUI exits (user quits or disconnects).
+//
+// Error Handling:
+// TUI errors are logged but not returned. The session simply ends.
 func (s *Server) startAnonymousSession(channel ssh.Channel) {
 	log.Debug("startAnonymousSession called")
 
@@ -557,7 +895,45 @@ func (s *Server) startRegistrationSession(username string, channel ssh.Channel) 
 	log.Info("Registration session ended for %s", username)
 }
 
-// initSSHConfig initializes SSH server configuration
+// initSSHConfig initializes SSH server configuration with anonymous authentication.
+//
+// SSH Configuration Strategy:
+// This server uses an unconventional SSH setup called "anonymous authentication":
+//   - NoClientAuth is enabled (skips SSH-level authentication)
+//   - No password callback (would validate SSH passwords)
+//   - No public key callback (would validate SSH keys)
+//   - Host key is loaded/generated for server identity
+//
+// Why Anonymous SSH?
+// Traditional SSH authentication happens at protocol level before the client
+// can interact. This doesn't work well for:
+//   - Interactive registration (need to show prompts before credentials exist)
+//   - Multiple auth methods (password OR SSH key OR registration)
+//   - Application-specific auth logic (reputation checks, bans, etc.)
+//
+// Instead, we:
+//   1. Accept all SSH connections (NoClientAuth=true)
+//   2. Present login screen via TUI
+//   3. Handle authentication at application layer
+//   4. Provide rich feedback and interactivity
+//
+// Security Implications:
+// Anonymous SSH means ANYONE can connect and reach the login screen. Security depends on:
+//   - Rate limiting (connections per IP, auth attempts)
+//   - Auto-banning after repeated failures
+//   - Strong password hashing (bcrypt)
+//   - Application-layer authentication validation
+//
+// Host Key:
+// The server's SSH host key is loaded from disk (or generated if missing).
+// This key:
+//   - Identifies the server to clients
+//   - Prevents man-in-the-middle attacks
+//   - Is persisted across restarts (same fingerprint)
+//   - Uses ED25519 algorithm (modern, secure)
+//
+// Returns:
+//   - error: Host key loading/generation error (fatal)
 func (s *Server) initSSHConfig() error {
 	s.sshConfig = &ssh.ServerConfig{}
 
@@ -762,7 +1138,34 @@ func (s *Server) handleNewUserSSHRegistration(ctx context.Context, conn ssh.Conn
 	return nil, fmt.Errorf("account not found. Contact administrator to create an account")
 }
 
-// shutdown gracefully shuts down the server
+// shutdown gracefully shuts down the server and cleans up all resources.
+//
+// Shutdown Sequence:
+//   1. Close TCP listener (stops accepting new connections)
+//   2. Close all active player sessions (disconnects clients)
+//   3. Stop metrics server (with 5 second timeout)
+//   4. Stop rate limiter (cleanup background workers)
+//   5. Close database connection pool
+//
+// Graceful vs Forced:
+// Active sessions are closed immediately (not graceful for clients).
+// For truly graceful shutdown, would need to:
+//   - Signal sessions to save and exit
+//   - Wait for sessions to close voluntarily
+//   - Force close after timeout
+//
+// Current implementation prioritizes server shutdown speed over client experience.
+//
+// Timeout Handling:
+// Metrics server shutdown has 5 second timeout. If it doesn't stop cleanly,
+// the error is logged but shutdown continues (non-fatal).
+//
+// Error Handling:
+// Errors during shutdown are logged but don't stop the shutdown process.
+// All cleanup steps are attempted regardless of individual failures.
+//
+// Returns:
+//   - error: Always returns nil (errors are logged, not returned)
 func (s *Server) shutdown() error {
 	if s.listener != nil {
 		s.listener.Close()
@@ -803,13 +1206,44 @@ func (s *Server) shutdown() error {
 	return nil
 }
 
-// PlayerSession represents an active player session
+// PlayerSession represents an active player session (currently unused).
+//
+// Design Note:
+// This struct is defined but not currently used by the server. It's reserved
+// for future functionality where we might need to track active sessions for:
+//   - Broadcasting server messages to all players
+//   - Graceful shutdown (notify players before disconnecting)
+//   - Session management (kick players, view active sessions)
+//   - Metrics (track session durations, activity)
+//
+// Current Implementation:
+// Sessions are tracked in Server.sessions map but never populated.
+// Connection handling doesn't register sessions in this map.
+//
+// Future Enhancement:
+// To use this, modify handleConnection to:
+//   1. Create PlayerSession after successful authentication
+//   2. Register in Server.sessions map (with mutex protection)
+//   3. Remove from map on disconnection
+//   4. Add methods for session management operations
 type PlayerSession struct {
-	Username string
-	Channel  ssh.Channel
+	Username string      // Player's username
+	Channel  ssh.Channel // SSH channel for communication
 }
 
-// Close closes the player session
+// Close closes the player session cleanly.
+//
+// This method closes the SSH channel which:
+//   - Sends EOF to client
+//   - Closes write side of channel
+//   - Triggers client disconnection
+//
+// The BubbleTea program running on this channel will receive an error and exit.
+//
+// Error Handling:
+// Channel close errors are logged but not returned. Common errors:
+//   - Channel already closed
+//   - Network connection lost
 func (ps *PlayerSession) Close() {
 	if ps.Channel != nil {
 		if err := ps.Channel.Close(); err != nil {

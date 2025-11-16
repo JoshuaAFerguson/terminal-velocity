@@ -1,9 +1,23 @@
 // File: internal/tui/cargo.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for cargo
-// Version: 1.0.0
+// Description: Cargo hold screen - Inventory management and jettison interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The cargo hold screen provides:
+// - Complete cargo inventory display with quantities
+// - Cargo capacity tracking (current/max tons)
+// - Jettison (drop) functionality to free up space
+// - Quantity selection for partial jettison
+// - Sorted cargo list for easy navigation
+//
+// Key Features:
+// - View all cargo items with commodities and quantities
+// - Press 'd' to enter jettison mode
+// - Adjust jettison quantity with +/- keys
+// - Confirm jettison to remove items from cargo
+// - Automatic cargo weight calculation
 
 package tui
 
@@ -17,19 +31,25 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// cargoModel contains the state for the cargo hold screen.
+// Manages inventory display, jettison operations, and error states.
 type cargoModel struct {
-	cursor       int
-	mode         string // "view", "jettison"
-	selectedItem *models.CargoItem
-	jettisonQty  int
-	error        string
+	cursor       int               // Current cursor position in cargo list
+	mode         string            // Current mode: "view" or "jettison"
+	selectedItem *models.CargoItem // Item selected for jettison
+	jettisonQty  int               // Quantity to jettison (1 to item quantity)
+	error        string            // Error or status message to display
 }
 
+// cargoJettisonedMsg is sent when cargo jettison operation completes.
+// Contains success status and any error that occurred.
 type cargoJettisonedMsg struct {
-	success bool
-	err     error
+	success bool  // True if jettison succeeded
+	err     error // Error if jettison failed
 }
 
+// newCargoModel creates and initializes a new cargo hold screen model.
+// Starts in view mode with cursor at top of list.
 func newCargoModel() cargoModel {
 	return cargoModel{
 		cursor:      0,
@@ -38,6 +58,28 @@ func newCargoModel() cargoModel {
 	}
 }
 
+// updateCargo handles input and state updates for the cargo hold screen.
+//
+// Key Bindings (View Mode):
+//   - esc/backspace: Return to main menu
+//   - up/k: Move cursor up in cargo list
+//   - down/j: Move cursor down in cargo list
+//   - d: Enter jettison mode for selected item
+//
+// Key Bindings (Jettison Mode):
+//   - esc: Cancel jettison, return to view mode
+//   - +/=: Increase jettison quantity
+//   - -/_: Decrease jettison quantity
+//   - enter/space: Confirm and execute jettison
+//
+// Jettison Flow:
+//   1. Select item with cursor, press 'd'
+//   2. Adjust quantity with +/- (1 to item.Quantity)
+//   3. Press enter to jettison
+//   4. Cargo updated in database, ship reloaded
+//
+// Message Handling:
+//   - cargoJettisonedMsg: Jettison complete, reload player/ship data
 func (m Model) updateCargo(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -48,22 +90,25 @@ func (m Model) updateCargo(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.screen = ScreenMainMenu
 				return m, nil
 			}
-			// Cancel jettison
+			// Cancel jettison and return to view mode
 			m.cargo.mode = "view"
 			m.cargo.jettisonQty = 1
 			m.cargo.error = ""
 			return m, nil
 
 		case "backspace":
+			// Quick return to main menu
 			m.screen = ScreenMainMenu
 			return m, nil
 
 		case "up", "k":
+			// Move cursor up (vi-style navigation supported with k)
 			if m.cargo.cursor > 0 {
 				m.cargo.cursor--
 			}
 
 		case "down":
+			// Move cursor down
 			if m.currentShip != nil {
 				maxCursor := len(m.currentShip.Cargo) - 1
 				if m.cargo.cursor < maxCursor {
@@ -71,7 +116,7 @@ func (m Model) updateCargo(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		case "d": // Jettison (drop)
+		case "d": // Jettison (drop) cargo
 			if m.cargo.mode == "view" && m.currentShip != nil && m.cargo.cursor < len(m.currentShip.Cargo) {
 				m.cargo.selectedItem = &m.currentShip.Cargo[m.cargo.cursor]
 				m.cargo.mode = "jettison"
@@ -117,6 +162,25 @@ func (m Model) updateCargo(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewCargo renders the cargo hold screen.
+//
+// Layout (View Mode):
+//   - Header: Player stats (name, credits, location)
+//   - Title: "=== Cargo Hold ==="
+//   - Capacity: Current/Max cargo weight
+//   - Cargo List: Items with quantities and weights
+//   - Footer: Key bindings help
+//
+// Layout (Jettison Mode):
+//   - Same as view mode
+//   - Plus: Jettison confirmation panel
+//   - Shows: Item, quantity selector, total weight to jettison
+//
+// Visual Features:
+//   - Cargo items sorted alphabetically
+//   - Selected item highlighted
+//   - Color-coded capacity (green < 75%, yellow < 95%, red >= 95%)
+//   - Empty cargo message when no items
 func (m Model) viewCargo() string {
 	// Header with player stats
 	locationName := "Space"
@@ -129,12 +193,12 @@ func (m Model) viewCargo() string {
 	// Title
 	s += subtitleStyle.Render("=== Cargo Hold ===") + "\n\n"
 
-	// Error display
+	// Error or status message
 	if m.cargo.error != "" {
 		s += helpStyle.Render(m.cargo.error) + "\n\n"
 	}
 
-	// Ship info
+	// Validate ship availability
 	if m.currentShip == nil {
 		s += errorStyle.Render("No ship available") + "\n"
 		return s

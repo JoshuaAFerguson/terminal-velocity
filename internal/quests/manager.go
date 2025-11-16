@@ -1,10 +1,49 @@
 // File: internal/quests/manager.go
 // Project: Terminal Velocity
 // Description: Quest and storyline management system
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package quests provides quest and storyline management for the game.
+//
+// This package handles:
+// - Quest template registration and storage (7 quest types)
+// - Player quest progression tracking (12 objective types)
+// - Storyline management with branching narratives
+// - Quest prerequisite validation
+// - Objective progress updates and completion
+// - Quest rewards (credits, experience, reputation, items, system unlocks)
+//
+// Quest Types:
+// - Main: Primary storyline quests with significant rewards
+// - Side: Optional quests with moderate rewards, often repeatable
+// - Faction: Faction-specific quests that affect reputation
+// - Daily: Repeatable daily quests for consistent rewards
+// - Hidden: Secret quests discovered through exploration or actions
+// - Event: Time-limited event quests
+// - Tutorial: Guided quests for new players
+//
+// Objective Types:
+// - Collect: Gather specific items or commodities
+// - Deliver: Deliver items to a specific location
+// - Kill: Defeat enemy ships or NPCs
+// - Travel: Visit specific systems or locations
+// - Scan: Scan anomalies or objects
+// - Mine: Mine resources from asteroids
+// - Investigate: Explore locations or examine objects
+// - Escort: Protect ships or convoys
+// - Trade: Complete trading objectives
+// - Craft: Craft specific items
+// - Hack: Hack terminals or systems
+// - Reputation: Achieve specific reputation levels
+//
+// Thread Safety:
+// All Manager methods are thread-safe using sync.RWMutex. Read operations
+// use RLock, write operations use Lock.
+//
+// Version: 1.1.0
+// Last Updated: 2025-11-16
 package quests
 
 import (
@@ -17,18 +56,32 @@ import (
 	"github.com/google/uuid"
 )
 
-// Manager handles quest progression and storylines
-
 var log = logger.WithComponent("Quests")
 
+// Manager handles quest progression and storylines for all players.
+// It maintains quest templates, storylines, and per-player quest state.
+// All operations are thread-safe.
 type Manager struct {
-	mu           sync.RWMutex
-	quests       map[string]*models.Quest            // questID -> Quest
-	storylines   map[string]*models.Storyline        // storylineID -> Storyline
-	playerQuests map[uuid.UUID][]*models.PlayerQuest // playerID -> PlayerQuests
+	mu           sync.RWMutex                        // Protects all fields
+	quests       map[string]*models.Quest            // All quest templates indexed by quest ID
+	storylines   map[string]*models.Storyline        // All storylines indexed by storyline ID
+	playerQuests map[uuid.UUID][]*models.PlayerQuest // Player quest instances indexed by player ID
 }
 
-// NewManager creates a new quest manager
+// NewManager creates a new quest manager with default quest content.
+//
+// The manager is initialized with:
+// - Main storyline "The Void Threat" with 3 progressive quests
+// - Side quest "Merchant's Request" (repeatable)
+// - Faction quest "Federation Patrol"
+// - Hidden quest "The Ancient Artifact"
+// - Daily quest "Resource Gathering" (repeatable)
+//
+// Returns:
+//   - Pointer to new Manager with quests and storylines loaded
+//
+// Thread Safety:
+// Safe to call concurrently, though typically called once at server startup.
 func NewManager() *Manager {
 	m := &Manager{
 		quests:       make(map[string]*models.Quest),
@@ -42,7 +95,16 @@ func NewManager() *Manager {
 	return m
 }
 
-// initializeDefaultQuests creates the default quest content
+// initializeDefaultQuests creates the default quest content.
+//
+// This method populates the manager with starter quests including:
+// - Main storyline quests (First Steps → Distress Signal → Void Anomaly)
+// - Side quests (merchant trading)
+// - Faction quests (Federation patrols)
+// - Hidden quests (ancient artifacts)
+// - Daily quests (resource gathering)
+//
+// Called automatically during NewManager initialization.
 func (m *Manager) initializeDefaultQuests() {
 	// Main Storyline: The Void Threat
 	mainStory := models.NewStoryline(
@@ -309,7 +371,13 @@ func (m *Manager) initializeDefaultQuests() {
 	m.RegisterQuest(dailyQuest)
 }
 
-// RegisterQuest adds a quest to the manager
+// RegisterQuest adds a quest template to the manager.
+//
+// Parameters:
+//   - quest: Quest template to register
+//
+// Thread Safety:
+// Thread-safe. Acquires write lock.
 func (m *Manager) RegisterQuest(quest *models.Quest) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -317,7 +385,13 @@ func (m *Manager) RegisterQuest(quest *models.Quest) {
 	m.quests[quest.ID] = quest
 }
 
-// RegisterStoryline adds a storyline to the manager
+// RegisterStoryline adds a storyline to the manager.
+//
+// Parameters:
+//   - storyline: Storyline to register
+//
+// Thread Safety:
+// Thread-safe. Acquires write lock.
 func (m *Manager) RegisterStoryline(storyline *models.Storyline) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -325,7 +399,16 @@ func (m *Manager) RegisterStoryline(storyline *models.Storyline) {
 	m.storylines[storyline.ID] = storyline
 }
 
-// GetQuest returns a quest by ID
+// GetQuest returns a quest template by ID.
+//
+// Parameters:
+//   - questID: Quest identifier
+//
+// Returns:
+//   - Quest template, or nil if not found
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock.
 func (m *Manager) GetQuest(questID string) *models.Quest {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -333,7 +416,16 @@ func (m *Manager) GetQuest(questID string) *models.Quest {
 	return m.quests[questID]
 }
 
-// GetStoryline returns a storyline by ID
+// GetStoryline returns a storyline by ID.
+//
+// Parameters:
+//   - storylineID: Storyline identifier
+//
+// Returns:
+//   - Storyline, or nil if not found
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock.
 func (m *Manager) GetStoryline(storylineID string) *models.Storyline {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -341,7 +433,13 @@ func (m *Manager) GetStoryline(storylineID string) *models.Storyline {
 	return m.storylines[storylineID]
 }
 
-// GetAllQuests returns all available quests
+// GetAllQuests returns all available quest templates.
+//
+// Returns:
+//   - Slice of all quest templates
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock. Returns a new slice.
 func (m *Manager) GetAllQuests() []*models.Quest {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -353,7 +451,16 @@ func (m *Manager) GetAllQuests() []*models.Quest {
 	return quests
 }
 
-// GetPlayerQuests returns all quests for a player
+// GetPlayerQuests returns all quest instances for a player.
+//
+// Parameters:
+//   - playerID: Player UUID
+//
+// Returns:
+//   - Slice of all player's quests (active, completed, failed, abandoned)
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock.
 func (m *Manager) GetPlayerQuests(playerID uuid.UUID) []*models.PlayerQuest {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -361,7 +468,16 @@ func (m *Manager) GetPlayerQuests(playerID uuid.UUID) []*models.PlayerQuest {
 	return m.playerQuests[playerID]
 }
 
-// GetActiveQuests returns all active quests for a player
+// GetActiveQuests returns all active quests for a player.
+//
+// Parameters:
+//   - playerID: Player UUID
+//
+// Returns:
+//   - Slice of active player quests
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock. Returns a new slice.
 func (m *Manager) GetActiveQuests(playerID uuid.UUID) []*models.PlayerQuest {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -375,7 +491,16 @@ func (m *Manager) GetActiveQuests(playerID uuid.UUID) []*models.PlayerQuest {
 	return active
 }
 
-// GetCompletedQuests returns all completed quests for a player
+// GetCompletedQuests returns all completed quests for a player.
+//
+// Parameters:
+//   - playerID: Player UUID
+//
+// Returns:
+//   - Slice of completed player quests
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock. Returns a new slice.
 func (m *Manager) GetCompletedQuests(playerID uuid.UUID) []*models.PlayerQuest {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -389,7 +514,23 @@ func (m *Manager) GetCompletedQuests(playerID uuid.UUID) []*models.PlayerQuest {
 	return completed
 }
 
-// CanStartQuest checks if a player can start a quest
+// CanStartQuest checks if a player can start a quest.
+//
+// Validates:
+// - Quest exists
+// - Not already active
+// - Not already completed (unless repeatable)
+// - All prerequisites completed
+//
+// Parameters:
+//   - playerID: Player UUID
+//   - questID: Quest identifier
+//
+// Returns:
+//   - true if player can start the quest
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock.
 func (m *Manager) CanStartQuest(playerID uuid.UUID, questID string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -428,7 +569,25 @@ func (m *Manager) CanStartQuest(playerID uuid.UUID, questID string) bool {
 	return true
 }
 
-// StartQuest starts a quest for a player
+// StartQuest starts a quest for a player.
+//
+// Creates a new PlayerQuest instance, initializes objectives,
+// sets time limits (if applicable), and adds to player's quest list.
+//
+// Parameters:
+//   - playerID: Player UUID
+//   - questID: Quest identifier to start
+//
+// Returns:
+//   - Pointer to new PlayerQuest instance
+//   - Error if quest not found or prerequisites not met
+//
+// Errors:
+//   - "quest not found": Quest ID doesn't exist
+//   - "cannot start quest": Prerequisites not met or already active
+//
+// Thread Safety:
+// Thread-safe. Acquires write lock.
 func (m *Manager) StartQuest(playerID uuid.UUID, questID string) (*models.PlayerQuest, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -463,7 +622,20 @@ func (m *Manager) StartQuest(playerID uuid.UUID, questID string) (*models.Player
 	return pq, nil
 }
 
-// canStartQuestUnsafe checks if can start quest (must be called with lock held)
+// canStartQuestUnsafe checks if can start quest (internal helper).
+//
+// This method must only be called while holding the write lock.
+// It performs the same checks as CanStartQuest but without acquiring the lock.
+//
+// Parameters:
+//   - playerID: Player UUID
+//   - questID: Quest identifier
+//
+// Returns:
+//   - true if player can start the quest
+//
+// Thread Safety:
+// NOT thread-safe. Must be called with m.mu lock held.
 func (m *Manager) canStartQuestUnsafe(playerID uuid.UUID, questID string) bool {
 	quest := m.quests[questID]
 	if quest == nil {
@@ -499,7 +671,28 @@ func (m *Manager) canStartQuestUnsafe(playerID uuid.UUID, questID string) bool {
 	return true
 }
 
-// UpdateObjective updates progress on a quest objective
+// UpdateObjective updates progress on a quest objective.
+//
+// Increments objective progress and marks objective complete if
+// required amount is reached. Automatically updates quest state.
+//
+// Parameters:
+//   - playerID: Player UUID
+//   - questID: Quest identifier
+//   - objectiveID: Objective identifier within quest
+//   - amount: Amount to add to objective progress
+//
+// Returns:
+//   - Error if quest not found, not active, or objective doesn't exist
+//
+// Errors:
+//   - "quest not found": No active quest with this ID for player
+//   - "quest is not active": Quest exists but is not in active state
+//   - "quest definition not found": Quest template missing
+//   - "objective not found": Objective ID doesn't exist in quest
+//
+// Thread Safety:
+// Thread-safe. Acquires write lock.
 func (m *Manager) UpdateObjective(playerID uuid.UUID, questID, objectiveID string, amount int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -542,7 +735,27 @@ func (m *Manager) UpdateObjective(playerID uuid.UUID, questID, objectiveID strin
 	return nil
 }
 
-// CompleteQuest completes a quest and grants rewards
+// CompleteQuest completes a quest and grants rewards.
+//
+// Validates all required objectives are complete, then marks
+// quest as completed. Caller is responsible for granting rewards
+// (credits, experience, items, etc.) from quest.Rewards.
+//
+// Parameters:
+//   - playerID: Player UUID
+//   - questID: Quest identifier
+//
+// Returns:
+//   - Error if quest not found, not active, or objectives incomplete
+//
+// Errors:
+//   - "quest not found": No active quest with this ID
+//   - "quest is not active": Quest exists but not active
+//   - "quest definition not found": Quest template missing
+//   - "quest objectives not complete": Required objectives not finished
+//
+// Thread Safety:
+// Thread-safe. Acquires write lock.
 func (m *Manager) CompleteQuest(playerID uuid.UUID, questID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -572,7 +785,24 @@ func (m *Manager) CompleteQuest(playerID uuid.UUID, questID string) error {
 	return nil
 }
 
-// AbandonQuest abandons an active quest
+// AbandonQuest abandons an active quest.
+//
+// Marks the quest as abandoned, removing it from active quest list.
+// No rewards are granted. Quest may be restarted if still available.
+//
+// Parameters:
+//   - playerID: Player UUID
+//   - questID: Quest identifier
+//
+// Returns:
+//   - Error if quest not found or not active
+//
+// Errors:
+//   - "quest not found": No active quest with this ID
+//   - "quest is not active": Quest exists but not active
+//
+// Thread Safety:
+// Thread-safe. Acquires write lock.
 func (m *Manager) AbandonQuest(playerID uuid.UUID, questID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -590,7 +820,19 @@ func (m *Manager) AbandonQuest(playerID uuid.UUID, questID string) error {
 	return nil
 }
 
-// findPlayerQuestUnsafe finds a player quest (must be called with lock held)
+// findPlayerQuestUnsafe finds an active player quest (internal helper).
+//
+// This method must only be called while holding the write lock.
+//
+// Parameters:
+//   - playerID: Player UUID
+//   - questID: Quest identifier
+//
+// Returns:
+//   - PlayerQuest if found and active, nil otherwise
+//
+// Thread Safety:
+// NOT thread-safe. Must be called with m.mu lock held.
 func (m *Manager) findPlayerQuestUnsafe(playerID uuid.UUID, questID string) *models.PlayerQuest {
 	for _, pq := range m.playerQuests[playerID] {
 		if pq.QuestID == questID && pq.Status == models.QuestStatusActive {
@@ -600,7 +842,19 @@ func (m *Manager) findPlayerQuestUnsafe(playerID uuid.UUID, questID string) *mod
 	return nil
 }
 
-// GetAvailableQuests returns quests available for a player to start
+// GetAvailableQuests returns quests available for a player to start.
+//
+// Returns quests where all prerequisites are met and quest is not
+// already active or completed (unless repeatable).
+//
+// Parameters:
+//   - playerID: Player UUID
+//
+// Returns:
+//   - Slice of available quest templates
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock. Returns a new slice.
 func (m *Manager) GetAvailableQuests(playerID uuid.UUID) []*models.Quest {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -614,7 +868,19 @@ func (m *Manager) GetAvailableQuests(playerID uuid.UUID) []*models.Quest {
 	return available
 }
 
-// GetStorylineProgress returns progress for a storyline
+// GetStorylineProgress returns completion progress for a storyline.
+//
+// Calculates percentage of storyline quests completed.
+//
+// Parameters:
+//   - playerID: Player UUID
+//   - storylineID: Storyline identifier
+//
+// Returns:
+//   - Progress as float64 (0.0 to 100.0), or 0.0 if storyline not found
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock.
 func (m *Manager) GetStorylineProgress(playerID uuid.UUID, storylineID string) float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -634,7 +900,18 @@ func (m *Manager) GetStorylineProgress(playerID uuid.UUID, storylineID string) f
 	return storyline.GetProgress(completedMap)
 }
 
-// GetStats returns quest statistics for a player
+// GetStats returns quest statistics for a player.
+//
+// Returns counts of quests by status (active, completed, failed, abandoned).
+//
+// Parameters:
+//   - playerID: Player UUID
+//
+// Returns:
+//   - Map with keys: "active", "completed", "failed", "abandoned", "total"
+//
+// Thread Safety:
+// Thread-safe. Acquires read lock.
 func (m *Manager) GetStats(playerID uuid.UUID) map[string]interface{} {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

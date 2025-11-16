@@ -1,13 +1,73 @@
 // File: internal/models/equipment.go
 // Project: Terminal Velocity
-// Description: Data models for equipment
-// Version: 1.0.0
+// Description: Ship equipment system - weapons and outfits
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// This file defines the ship equipment system including weapons and outfits.
+// Equipment allows players to customize their ships for different roles:
+// combat, trading, exploration, or balanced gameplay.
+//
+// Weapon System:
+//   - 9 weapon types across 4 categories
+//   - Categories: Laser (fast, energy-based), Missile (high damage, ammo),
+//     Plasma (balanced), Railgun (armor-piercing)
+//   - Each weapon has damage, accuracy, range, cooldown, and special properties
+//
+// Weapon Balance:
+//   - Lasers: Fast fire rate, moderate damage, no ammo, high energy cost
+//   - Missiles: High damage, slow fire rate, limited ammo, good vs shields
+//   - Plasma: Balanced damage/fire rate, moderate energy cost
+//   - Railguns: Highest damage, very slow, bypasses shields, expensive
+//
+// Outfit System:
+//   - 16 outfit types across 5 categories
+//   - Categories: Shield Boosters, Hull Reinforcement, Cargo Pods,
+//     Fuel Tanks, Engine Upgrades
+//   - Each outfit provides bonuses to ship stats
+//
+// Outfit Tiers:
+//   - Mk1: Basic upgrades (cheap, small bonuses)
+//   - Mk2: Improved upgrades (moderate cost, good bonuses)
+//   - Mk3: Advanced upgrades (expensive, large bonuses)
+//
+// Outfit Space Management:
+//   - Each ship has limited outfit space
+//   - Larger/more powerful equipment uses more space
+//   - Players must balance offense, defense, utility
+//   - Trade-offs: Cargo vs Combat, Speed vs Defense, etc.
+//
+// Equipment Strategy:
+//   - Traders: Max cargo pods, minimal weapons
+//   - Combat: Max weapons, shields, hull reinforcement
+//   - Explorers: Fuel tanks, balanced defenses
+//   - Balanced: Mix of all equipment types
+//
+// Shield Penetration:
+//   - Some weapons bypass shields and damage hull directly
+//   - 0.0 = no penetration (all damage to shields first)
+//   - 0.5 = 50% penetration (half damage goes to hull)
+//   - Higher penetration weapons counter shield-heavy ships
 
 package models
 
-// Standard weapons available in the game
+// Standard weapons available in the game.
+//
+// Weapons are the primary offensive equipment for ships. Each weapon has:
+//   - Damage: Base damage per hit
+//   - Accuracy: Hit chance (0-100)
+//   - Range: Effective firing distance
+//   - Cooldown: Time between shots (seconds)
+//   - Type: Determines behavior (laser, missile, plasma, railgun)
+//   - Energy/Ammo: Resource consumption per shot
+//   - Shield Penetration: Percentage that bypasses shields
+//
+// Weapon selection depends on combat style:
+//   - Pulse Laser: Fast firing, good for sustained DPS
+//   - Torpedo Launcher: High alpha damage, limited ammo
+//   - Railgun: Anti-capital ship, armor-piercing
+//   - Plasma Cannon: Versatile balanced option
 var StandardWeapons = []Weapon{
 	// Laser Weapons (fast firing, energy-based, no ammo)
 	{

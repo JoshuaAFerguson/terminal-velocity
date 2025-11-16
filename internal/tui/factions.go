@@ -1,7 +1,42 @@
 // File: internal/tui/factions.go
 // Project: Terminal Velocity
-// Description: Faction management UI
-// Version: 1.0.0
+// Description: Factions screen - Player faction management with creation and membership
+// Version: 1.1.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+//
+// The factions screen provides:
+// - Faction listing with member counts and levels
+// - Faction creation interface with name, tag, and alignment
+// - Current faction viewing with member list and details
+// - Faction treasury information
+// - Member role display (Leader, Officers, Members)
+// - Recruitment status indicators
+// - Faction statistics dashboard
+//
+// View Modes:
+//   - list: Browse all factions on server
+//   - my_faction: View current faction details (if member)
+//   - create: Create new faction form
+//
+// Faction Creation:
+//   - Name: 1-30 characters
+//   - Tag: 3-5 characters (auto-uppercase)
+//   - Alignment: trader, mercenary, explorer, pirate, corporate
+//
+// Faction Details:
+//   - Leader and officers display
+//   - Member count and limit
+//   - Faction level and experience
+//   - Treasury balance
+//   - Founded date
+//   - Recruitment status
+//
+// Visual Features:
+//   - [Recruiting] badge for open factions
+//   - Role indicators (⭐ for officers, 👤 for members)
+//   - Full faction name display with tag: "Name [TAG]"
+//   - Level and experience progress
 
 package tui
 
@@ -14,15 +49,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// factionsModel contains the state for the factions screen.
+// Manages faction browsing, creation, and membership viewing.
 type factionsModel struct {
-	viewMode    string // "list", "my_faction", "create"
-	cursor      int
-	createName  string
-	createTag   string
-	createAlign string
-	inputField  int // 0=name, 1=tag, 2=alignment
+	viewMode    string // Current view: "list", "my_faction", "create"
+	cursor      int    // Current cursor position in faction list
+	createName  string // Faction name input (creation mode)
+	createTag   string // Faction tag input (creation mode)
+	createAlign string // Faction alignment input (creation mode)
+	inputField  int    // Active input field in creation: 0=name, 1=tag, 2=alignment
 }
 
+// newFactionsModel creates and initializes a new factions screen model.
+// Starts in list view with trader alignment default for creation.
 func newFactionsModel() factionsModel {
 	return factionsModel{
 		viewMode:    "list",
@@ -31,6 +70,32 @@ func newFactionsModel() factionsModel {
 	}
 }
 
+// updateFactions handles input and state updates for the factions screen.
+//
+// Key Bindings (List/My Faction Mode):
+//   - esc/backspace/q: Return to main menu (or list from my_faction)
+//   - up/k: Move cursor up in faction list
+//   - down/j: Move cursor down in faction list
+//   - c: Enter faction creation mode
+//   - v: View current faction details
+//
+// Key Bindings (Create Mode):
+//   - esc: Cancel creation, return to list
+//   - tab: Cycle through input fields (name → tag → alignment)
+//   - enter: Submit faction creation (if valid)
+//   - backspace: Delete character from text fields
+//   - Any char: Add to active text field
+//
+// Faction Creation Flow:
+//   1. Press 'c' from list view
+//   2. Fill name (1-30 chars)
+//   3. Fill tag (3-5 chars, auto-uppercase)
+//   4. Select alignment (shown on field 2)
+//   5. Press Enter to create
+//
+// Validation:
+//   - Name and tag required
+//   - Alignment from predefined list
 func (m Model) updateFactions(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -41,9 +106,11 @@ func (m Model) updateFactions(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc", "backspace", "q":
 			if m.factionsModel.viewMode == "my_faction" {
+				// Return to faction list from details view
 				m.factionsModel.viewMode = "list"
 				return m, nil
 			}
+			// Return to main menu from list view
 			m.screen = ScreenMainMenu
 			return m, nil
 
@@ -74,6 +141,8 @@ func (m Model) updateFactions(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateFactionsCreate handles input in faction creation mode.
+// Manages text input for name/tag fields and faction creation submission.
 func (m Model) updateFactionsCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -117,6 +186,12 @@ func (m Model) updateFactionsCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewFactions renders the factions screen (dispatches to appropriate view).
+//
+// Layout:
+//   - Routes to viewFactionsCreate() if in create mode
+//   - Routes to viewMyFaction() if viewing own faction
+//   - Otherwise renders faction list view
 func (m Model) viewFactions() string {
 	if m.factionsModel.viewMode == "create" {
 		return m.viewFactionsCreate()
@@ -170,6 +245,20 @@ func (m Model) viewFactions() string {
 	return s
 }
 
+// viewFactionsCreate renders the faction creation form.
+//
+// Layout:
+//   - Title: "🏛️  CREATE FACTION"
+//   - Name field with cursor if active
+//   - Tag field with cursor if active
+//   - Alignment field (displays current selection)
+//   - Available alignments help text
+//   - Footer with controls
+//
+// Visual Features:
+//   - Active field highlighted
+//   - Input cursor (█) on focused field
+//   - Tag auto-uppercased
 func (m Model) viewFactionsCreate() string {
 	s := titleStyle.Render("🏛️  CREATE FACTION") + "\n\n"
 
@@ -208,6 +297,15 @@ func (m Model) viewFactionsCreate() string {
 	return s
 }
 
+// viewMyFaction renders the player's current faction details.
+//
+// Layout:
+//   - Title: Faction name with tag
+//   - Faction info: Leader, Founded, Members, Level, Treasury, Alignment
+//   - Member list: Leader, Officers (⭐), Members (👤)
+//   - Footer with controls
+//
+// Returns error message if player not in a faction.
 func (m Model) viewMyFaction() string {
 	faction, err := m.factionManager.GetPlayerFaction(m.playerID)
 	if err != nil {
@@ -241,6 +339,8 @@ func (m Model) viewMyFaction() string {
 	return s
 }
 
+// contains checks if a UUID exists in a slice.
+// Helper function for member list filtering.
 func contains(slice []uuid.UUID, item uuid.UUID) bool {
 	for _, v := range slice {
 		if v == item {

@@ -1,22 +1,53 @@
 // File: internal/missions/manager.go
 // Project: Terminal Velocity
-// Description: Mission system manager
-// Version: 1.0.0
+// Description: Mission system manager - Mission lifecycle, generation, and rewards
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
-// Package missions provides mission lifecycle management and generation.
+// Package missions provides mission lifecycle management and procedural mission generation.
 //
 // This package handles all aspects of the mission system including:
-// - Mission generation (delivery, combat, bounty, trading)
-// - Mission lifecycle (available -> active -> completed/failed)
-// - Mission requirements validation
-// - Mission progress tracking
-// - Reward application
-// - Player progression tracking (completions/failures)
+//   - Mission generation (4 types: delivery, combat, bounty, trading)
+//   - Mission lifecycle (available → active → completed/failed)
+//   - Mission requirements validation (reputation, combat rating, cargo space)
+//   - Mission progress tracking (kill counts, deliveries, trading)
+//   - Reward application (credits, reputation, progression)
+//   - Player progression tracking (missions completed/failed stats)
+//   - Bounty target registration for kill tracking
 //
-// Version: 1.2.0
-// Last Updated: 2025-01-07
+// Mission Types:
+//   - Delivery: Transport cargo from origin to destination planet
+//     * Requires cargo space, pays 100-300 credits/ton
+//     * +5-15 reputation with faction
+//     * 24-72 hour deadline
+//
+//   - Combat: Destroy specific enemy ship types
+//     * Requires minimum combat rating (5-50)
+//     * 1-5 kills required
+//     * Pays 5K-15K per kill
+//     * +10-30 reputation with faction
+//
+//   - Bounty: Hunt and eliminate named targets
+//     * Requires minimum combat rating (20-50) and reputation (25+)
+//     * Single high-value target
+//     * Pays 10K-100K credits
+//     * +20-50 reputation with faction
+//     * 72 hour deadline
+//
+//   - Trading: Purchase and deliver specific commodities for profit
+//     * 5-50 tons required
+//     * Pays 500-1500 credits/ton
+//     * +5-15 reputation with faction
+//     * 48 hour deadline
+//
+// Mission Limits:
+//   - Maximum 5 active missions per player
+//   - No limit on available missions
+//   - Completed missions retained in history
+//
+// Thread-safety: Manager is NOT thread-safe. Should be accessed only from
+// a single goroutine or protected with external synchronization.
 package missions
 
 import (
@@ -30,11 +61,27 @@ import (
 	"github.com/google/uuid"
 )
 
-// Manager handles mission lifecycle and generation.
-// It maintains separate lists for available, active, and completed missions.
-
 var log = logger.WithComponent("Missions")
 
+// Manager handles mission lifecycle, generation, and reward distribution.
+//
+// The Manager maintains three separate mission lists for different lifecycle stages
+// and tracks bounty targets for kill confirmation. It handles mission generation,
+// validation, acceptance, completion, and failure.
+//
+// Mission Lifecycle:
+//   1. Available: Generated at planets, player can view and accept
+//   2. Active: Accepted by player, progress tracked, deadline enforced
+//   3. Completed: Successfully finished, rewards applied
+//   4. Failed: Deadline expired or abandoned, penalty applied
+//
+// Fields:
+//   - availableMissions: Missions displayed at current planet/station (generated on dock)
+//   - activeMissions: Missions player has accepted (max 5, tracked globally)
+//   - completedMissions: Historical record of finished missions
+//   - bountyTargets: Maps target names to bounty mission IDs for kill tracking
+//
+// Thread-safety: NOT thread-safe - use external synchronization if needed.
 type Manager struct {
 	availableMissions []*models.Mission    // Missions available for acceptance
 	activeMissions    []*models.Mission    // Currently active missions
@@ -43,6 +90,14 @@ type Manager struct {
 }
 
 // NewManager creates a new mission manager with empty mission lists.
+//
+// Initializes all mission lists and the bounty target tracking map.
+// Call this once per player session to create a fresh mission manager.
+//
+// Returns:
+//   - *Manager: New mission manager ready for use
+//
+// Thread-safe: Creates new instance, safe to call concurrently.
 func NewManager() *Manager {
 	return &Manager{
 		availableMissions: []*models.Mission{},
@@ -53,16 +108,34 @@ func NewManager() *Manager {
 }
 
 // GenerateMissions creates random missions for a planet/station.
-// It generates 'count' number of missions and adds them to the available missions list.
+//
+// Generates a specified number of random missions and adds them to the available
+// missions list. Mission types are selected randomly with equal weighting (25% each).
+// Each mission is customized with appropriate rewards, deadlines, and requirements.
+//
+// Mission Distribution:
+//   - 25% Delivery missions
+//   - 25% Combat missions
+//   - 25% Bounty missions
+//   - 25% Trading missions
+//
+// Typical Usage:
+//   Called when player docks at a planet to populate the mission board.
+//   Common count values: 3-5 missions per planet.
 //
 // Parameters:
-//   - ctx: Context for cancellation
+//   - ctx: Context for cancellation (currently unused, for future database queries)
 //   - planetID: ID of the planet where missions are offered
 //   - factionID: ID of the faction offering the missions
 //   - count: Number of missions to generate
 //
 // Returns:
-//   - Slice of generated missions
+//   - []*models.Mission: Slice of generated missions (also added to availableMissions)
+//
+// Side Effects:
+//   - Adds generated missions to m.availableMissions
+//
+// Thread-safe: NOT thread-safe, external synchronization required.
 func (m *Manager) GenerateMissions(ctx context.Context, planetID uuid.UUID, factionID string, count int) []*models.Mission {
 	missions := []*models.Mission{}
 
@@ -111,7 +184,40 @@ func (m *Manager) generateRandomMission(planetID uuid.UUID, factionID string) *m
 	return nil
 }
 
-// AcceptMission moves a mission from available to active
+// AcceptMission moves a mission from available to active status.
+//
+// Performs comprehensive validation before accepting:
+//   1. Mission exists in available list
+//   2. Player meets requirements (reputation, combat rating)
+//   3. Player hasn't exceeded active mission limit (5 max)
+//   4. For delivery missions: sufficient cargo space
+//
+// Special Handling:
+//   - Delivery missions: Cargo loaded into ship immediately
+//   - Bounty missions: Target registered for kill tracking
+//
+// Parameters:
+//   - missionID: UUID of mission to accept
+//   - player: Player accepting the mission (for requirement checks)
+//   - playerShip: Player's ship (for cargo space and loading)
+//   - playerShipType: Ship type (for cargo capacity check)
+//
+// Returns:
+//   - error: nil on success, or:
+//     * "mission not found" if mission doesn't exist
+//     * "player does not meet mission requirements" if reputation/rating insufficient
+//     * "too many active missions (max 5)" if at capacity
+//     * "insufficient cargo space (need X tons)" for delivery missions
+//
+// Side Effects:
+//   - Removes mission from availableMissions
+//   - Adds mission to activeMissions
+//   - Sets mission status to Active
+//   - Records AcceptedAt timestamp
+//   - Loads cargo for delivery missions
+//   - Registers bounty targets
+//
+// Thread-safe: NOT thread-safe, external synchronization required.
 func (m *Manager) AcceptMission(missionID uuid.UUID, player *models.Player, playerShip *models.Ship, playerShipType *models.ShipType) error {
 	// Find mission in available list
 	missionIndex := -1

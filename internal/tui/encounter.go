@@ -1,9 +1,42 @@
 // File: internal/tui/encounter.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for encounter
-// Version: 1.0.0
+// Description: Encounter screen - Random encounter resolution interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The encounter screen handles random space encounters:
+// - Pirates: Hostile ships demanding cargo or credits
+// - Traders: Peaceful merchants offering trades
+// - Police: Law enforcement scanning for contraband
+// - Distress Calls: Ships in need of rescue
+// - Derelicts: Abandoned ships with salvage opportunities
+// - Faction Patrols: Military ships with reputation-based reactions
+//
+// Encounter Types and Options:
+// - Pirates: Engage (combat), Flee (escape chance), Bribe (if affordable)
+// - Traders: Trade (buy goods), Hail (friendly chat), Ignore
+// - Police: Cooperate (scan), Flee, Bribe (if criminal/illegal cargo)
+// - Distress: Rescue (rewards), Ignore
+// - Derelicts: Salvage (loot), Ignore
+// - Patrols: Hail (reputation check), Engage (if hostile), Flee
+//
+// Encounter Resolution:
+// - Player chooses from contextual options
+// - Outcomes based on player choices, reputation, and random chance
+// - Combat: Transitions to combat screen with generated enemy ships
+// - Trade: Exchange credits for cargo
+// - Flee: Calculated based on ship speed and enemy ships
+// - Bribe: Pay credits to avoid conflict
+// - Scan: Police check for illegal cargo and criminal status
+// - Salvage: Collect credits and cargo from derelicts
+//
+// Dynamic Outcomes:
+// - Reputation affects faction patrol reactions
+// - Criminal status triggers police hostility
+// - Failed flee attempts lead to combat
+// - Successful rescues award credits and reputation
+// - Achievement checks for certain encounter resolutions
 
 package tui
 
@@ -16,14 +49,18 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// encounterModel contains the state for the encounter screen.
+// Manages random encounter display and player choice resolution.
 type encounterModel struct {
-	encounter *models.Encounter
-	generator *encounters.Generator
-	cursor    int
-	message   string
-	resolved  bool
+	encounter *models.Encounter      // Current active encounter
+	generator *encounters.Generator  // Encounter generator for ship creation
+	cursor    int                    // Current cursor position in options list
+	message   string                 // Status or outcome message to display
+	resolved  bool                   // True if encounter has been resolved
 }
 
+// newEncounterModel creates and initializes a new encounter screen model.
+// Initializes the encounter generator for creating enemy ships.
 func newEncounterModel() encounterModel {
 	return encounterModel{
 		cursor:    0,
@@ -32,6 +69,37 @@ func newEncounterModel() encounterModel {
 	}
 }
 
+// updateEncounter handles input and state updates for the encounter screen.
+//
+// Key Bindings:
+//   - esc: Return to main menu (only after encounter resolved)
+//   - up/k: Move cursor up in options list
+//   - down/j: Move cursor down in options list
+//   - enter/space: Select and execute current option
+//
+// Encounter Workflow:
+//   1. Encounter triggers (random or scripted)
+//   2. Encounter screen displays with title, description, ships
+//   3. Player views available options based on encounter type
+//   4. Player selects option with cursor and enter
+//   5. Option validation (credits, cargo space, requirements)
+//   6. Execute option effect (combat, trade, rewards, etc.)
+//   7. Encounter marked as resolved
+//   8. Return to navigation or combat screen
+//
+// Option Effects:
+//   - engage/attack: Start combat with generated enemy ships
+//   - flee: Calculate escape chance, start combat if failed
+//   - trade: Deduct credits, add cargo, resolve encounter
+//   - rescue: Award credits and reputation, resolve encounter
+//   - cooperate: Police scan (hostility if criminal)
+//   - bribe: Pay credits to avoid conflict, resolve encounter
+//   - salvage: Collect rewards from derelict, resolve encounter
+//   - hail: Check reputation, hostile if low (<-50)
+//   - ignore: Resolve encounter without interaction
+//
+// Message Handling:
+//   - All updates happen synchronously
 func (m Model) updateEncounter(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -269,6 +337,53 @@ func (m Model) handleEncounterOption() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewEncounter renders the encounter screen.
+//
+// Layout:
+//   - Title: "=== ENCOUNTER ==="
+//   - Encounter Title: Name with [HOSTILE] tag if applicable
+//   - Description: Encounter narrative text
+//   - Ships Detected: Count and types of encountered ships
+//   - Faction Info: Faction name and reputation status (if applicable)
+//   - Separator line
+//   - Options List: Available player choices
+//   - Option Details: Description for each option
+//   - Status Message: Outcome or validation message
+//   - Footer: Key bindings help
+//
+// Encounter Title Display:
+//   - Hostile encounters: Red title with [HOSTILE] tag
+//   - Peaceful encounters: Highlighted title (yellow/blue)
+//   - Title reflects encounter type (Pirates, Traders, Police, etc.)
+//
+// Ships Display:
+//   - Ship count shown
+//   - Ship types listed (e.g., "Pirate Corvette", "Police Interceptor")
+//   - Multiple ship types displayed as list
+//
+// Faction Display (if applicable):
+//   - Faction name shown
+//   - Reputation status: Allied (green), Friendly, Neutral, Unfriendly (red), Hostile (red)
+//   - Color-coded based on reputation value:
+//     * 50+: Allied (green)
+//     * 0-49: Friendly
+//     * -1 to -49: Unfriendly (red)
+//     * -50 or lower: Hostile (red)
+//
+// Options Display:
+//   - Option label on first line (e.g., "Attack", "Flee", "Trade")
+//   - Option description indented below
+//   - Unaffordable options shown dimmed with "[Cannot afford]" tag
+//   - Hostile options (StartsConflict) shown in red
+//   - Reward options (GrantsReward) shown in green
+//   - Selected option highlighted with cursor (>)
+//
+// Visual Features:
+//   - Hostile indicators in red (error style)
+//   - Reward indicators in green (success style)
+//   - Status messages highlighted
+//   - Resolved encounters show "Press ESC to continue"
+//   - Affordability checks prevent invalid selections
 func (m Model) viewEncounter() string {
 	if m.encounterModel.encounter == nil {
 		return "No active encounter\n"

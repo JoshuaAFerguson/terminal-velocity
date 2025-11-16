@@ -1,9 +1,17 @@
 // File: internal/tui/login.go
 // Project: Terminal Velocity
-// Description: Functional login screen with authentication and ASCII logo
-// Version: 2.0.1
+// Description: Login screen - Authenticates players via username/password with ASCII branding
+// Version: 2.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
+//
+// The login screen is the entry point for returning players. It features:
+// - Large ASCII art logo for Terminal Velocity
+// - Username and password input fields with visual focus indicators
+// - Login button to authenticate
+// - Registration button to create new account
+// - Async authentication with loading state
+// - Error messages for failed login attempts
 
 package tui
 
@@ -17,7 +25,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// ASCII logo for Terminal Velocity
+// asciiLogo is the large ASCII art branding displayed at the top of the login screen.
+// Uses box-drawing characters to create the Terminal Velocity title.
 const asciiLogo = `
                         ████████╗███████╗██████╗ ███╗   ███╗
                         ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
@@ -36,33 +45,58 @@ const asciiLogo = `
                           A Multiplayer Space Trading Game
 `
 
+// loginModel contains the state for the login screen.
+// It manages field focus, input values, and authentication state.
 type loginModel struct {
-	focusedField  int // 0: username, 1: password, 2: login button, 3: register button
-	username      string
-	password      string
-	showPassword  bool
-	error         string
-	isAuthenticating bool
+	focusedField     int    // Current focused field: 0=username, 1=password, 2=login button, 3=register button
+	username         string // Username input value
+	password         string // Password input value (displayed as asterisks)
+	showPassword     bool   // Whether to show password in plaintext (currently unused)
+	error            string // Error message to display (empty if no error)
+	isAuthenticating bool   // True while authentication request is in progress
 }
 
+// newLoginModel creates and initializes a new login screen model.
+// Sets focus to the username field by default.
 func newLoginModel() loginModel {
 	return loginModel{
 		focusedField: 0,
 	}
 }
 
-// loginSuccessMsg is sent when login succeeds
+// loginSuccessMsg is a BubbleTea message sent when authentication succeeds.
+// Contains the authenticated player's ID and username.
 type loginSuccessMsg struct {
-	playerID uuid.UUID
-	username string
+	playerID uuid.UUID // Authenticated player's unique identifier
+	username string    // Authenticated player's username
 }
 
-// loginFailureMsg is sent when login fails
+// loginFailureMsg is a BubbleTea message sent when authentication fails.
+// Contains the error message to display to the user.
 type loginFailureMsg struct {
-	error string
+	error string // Human-readable error message
 }
 
+// viewLogin renders the login screen with ASCII logo and input form.
+//
+// Layout:
+//   - Top border
+//   - ASCII logo (centered)
+//   - Login panel (centered):
+//     - Username field with focus indicator
+//     - Password field (masked with asterisks)
+//     - Login button
+//     - OR separator
+//     - Register button
+//   - Error message area (if error present)
+//   - Footer with key bindings
+//
+// Visual Features:
+//   - Focused fields highlighted with special styling and cursor
+//   - Password displayed as asterisks for security
+//   - "Authenticating..." text shown during login process
 func (m Model) viewLogin() string {
+	// Set minimum width for proper layout
 	width := 80
 	if m.width > 80 {
 		width = m.width
@@ -304,8 +338,28 @@ func (m Model) viewLogin() string {
 	return sb.String()
 }
 
+// updateLogin handles input and state updates for the login screen.
+//
+// Key Bindings:
+//   - ctrl+c: Quit application
+//   - tab/down: Cycle focus to next field
+//   - up: Cycle focus to previous field
+//   - enter: Submit login or switch to registration
+//   - backspace: Delete character from current input field
+//   - Any printable character: Add to current input field
+//
+// Authentication Flow:
+//   1. User fills username and password
+//   2. User presses enter on login button
+//   3. isAuthenticating flag set, async authentication starts
+//   4. On success: loginSuccessMsg received, loads player data
+//   5. On failure: loginFailureMsg received, shows error
+//
+// State Transitions:
+//   - Login success -> Loads player -> ScreenMainMenu
+//   - Register button -> ScreenRegistration
 func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Don't process input while authenticating
+	// Don't process input while authenticating (wait for response)
 	if m.loginModel.isAuthenticating {
 		switch msg := msg.(type) {
 		case loginSuccessMsg:
@@ -413,26 +467,46 @@ func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleLogin authenticates the user
+// handleLogin validates login inputs and initiates authentication.
+// Performs client-side validation before sending credentials to database:
+//   - Ensures username is not empty
+//   - Ensures password is not empty
+//
+// Sets isAuthenticating flag and calls authenticateUser for async processing.
 func (m Model) handleLogin() (Model, tea.Cmd) {
-	// Validate input
+	// Validate username is present
 	if m.loginModel.username == "" {
 		m.loginModel.error = "Please enter your username"
 		return m, nil
 	}
+
+	// Validate password is present
 	if m.loginModel.password == "" {
 		m.loginModel.error = "Please enter your password"
 		return m, nil
 	}
 
-	// Start authentication
+	// Start authentication process
 	m.loginModel.isAuthenticating = true
 	m.loginModel.error = ""
 
 	return m, m.authenticateUser()
 }
 
-// authenticateUser performs the authentication
+// authenticateUser performs async authentication against the database.
+// Returns a tea.Cmd that executes the authentication in the background.
+//
+// Success Flow:
+//   - Returns loginSuccessMsg with player ID and username
+//   - Triggers player data loading
+//
+// Failure Flow:
+//   - Returns loginFailureMsg with error message
+//   - Error displayed on screen, password cleared
+//
+// Database Errors:
+//   - ErrInvalidCredentials: User-friendly message
+//   - Other errors: Technical error message
 func (m Model) authenticateUser() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()

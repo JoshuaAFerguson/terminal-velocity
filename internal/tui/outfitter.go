@@ -1,9 +1,30 @@
 // File: internal/tui/outfitter.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for outfitter
-// Version: 1.0.0
+// Description: Outfitter screen - Weapon and outfit installation interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The outfitter screen allows players to customize their ships:
+// - Install weapons (9 types: lasers, missiles, plasma, etc.)
+// - Install outfits (equipment that provides bonuses)
+// - Remove installed equipment with 50% refund
+// - View current ship stats with active bonuses
+// - Browse equipment by category (weapons/outfits/installed)
+// - Check slot and space constraints before installation
+//
+// Equipment System:
+// - Weapons require weapon slots (limited by ship type)
+// - All equipment consumes outfit space
+// - Outfits provide bonuses: shields, hull, cargo, fuel, speed
+// - Installation validates credits, slots, and space
+// - Removal refunds 50% of purchase price
+// - Active bonuses displayed in ship stats panel
+//
+// Tabs:
+// - Weapons: Browse and install weapons (9 standard weapons)
+// - Outfits: Browse and install outfits (16 standard outfits)
+// - Installed: View and remove currently equipped items
 
 package tui
 
@@ -17,29 +38,37 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// outfitterModel contains the state for the outfitter screen.
+// Manages equipment browsing, installation, and removal operations.
 type outfitterModel struct {
-	cursor          int
-	tab             string // "weapons", "outfits", "installed"
-	mode            string // "browse", "confirm_install", "confirm_remove"
-	selectedWeapon  *models.Weapon
-	selectedOutfit  *models.Outfit
-	selectedInstall string // ID of item to remove
-	availableItems  interface{}
-	loading         bool
-	error           string
+	cursor          int             // Current cursor position in item list
+	tab             string          // Current tab: "weapons", "outfits", "installed"
+	mode            string          // Current mode: "browse", "confirm_install", "confirm_remove"
+	selectedWeapon  *models.Weapon  // Weapon selected for installation
+	selectedOutfit  *models.Outfit  // Outfit selected for installation
+	selectedInstall string          // ID of item selected for removal
+	availableItems  interface{}     // Cached available items (not currently used)
+	loading         bool            // True while loading equipment data
+	error           string          // Error or status message to display
 }
 
+// outfitterLoadedMsg is sent when equipment data has been loaded.
+// Contains all available weapons and outfits.
 type outfitterLoadedMsg struct {
-	weapons []models.Weapon
-	outfits []models.Outfit
-	err     error
+	weapons []models.Weapon // All available weapons
+	outfits []models.Outfit // All available outfits
+	err     error           // Error if loading failed
 }
 
+// equipmentChangedMsg is sent when equipment installation/removal completes.
+// Contains success status and any error that occurred.
 type equipmentChangedMsg struct {
-	success bool
-	err     error
+	success bool  // True if operation succeeded
+	err     error // Error if operation failed
 }
 
+// newOutfitterModel creates and initializes a new outfitter screen model.
+// Starts on weapons tab with loading flag set.
 func newOutfitterModel() outfitterModel {
 	return outfitterModel{
 		cursor:  0,
@@ -49,6 +78,40 @@ func newOutfitterModel() outfitterModel {
 	}
 }
 
+// updateOutfitter handles input and state updates for the outfitter screen.
+//
+// Key Bindings (Browse Mode):
+//   - esc/backspace: Return to main menu
+//   - tab: Switch between weapons/outfits/installed tabs
+//   - up/k: Move cursor up in item list
+//   - down/j: Move cursor down in item list
+//   - enter/space: Install item (weapons/outfits) or remove item (installed)
+//
+// Key Bindings (Confirm Mode):
+//   - esc: Cancel operation and return to browse
+//   - enter/space: Confirm installation or removal
+//
+// Equipment Installation Flow:
+//   1. Browse weapons or outfits tab
+//   2. Select item with cursor, press enter
+//   3. View confirmation with price, space requirements, effects
+//   4. Confirm installation (validates credits, slots, space)
+//   5. Equipment installed, credits deducted
+//   6. Ship stats updated with bonuses
+//   7. Return to browse mode
+//
+// Equipment Removal Flow:
+//   1. Switch to installed tab
+//   2. Select installed item with cursor, press enter
+//   3. View removal confirmation with 50% refund amount
+//   4. Confirm removal
+//   5. Equipment removed, 50% credits refunded
+//   6. Ship stats updated (bonuses removed)
+//   7. Return to browse mode
+//
+// Message Handling:
+//   - outfitterLoadedMsg: Display available equipment
+//   - equipmentChangedMsg: Reload ship data, show success/error
 func (m Model) updateOutfitter(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -134,6 +197,36 @@ func (m Model) updateOutfitter(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewOutfitter renders the outfitter screen.
+//
+// Layout (All Modes):
+//   - Header: Player stats (name, credits, location)
+//   - Title: "=== Outfitter ==="
+//   - Ship Stats: Current ship with weapon/outfit slot usage and bonuses
+//   - Tab Bar: Weapons | Outfits | Installed (current tab highlighted)
+//   - Content Area: Mode-specific content (browse, confirm install/remove)
+//
+// Layout (Weapons Tab):
+//   - Table: Weapon name, type, damage, range, space, price
+//   - Affordability: Dimmed text for unaffordable/unfitting items
+//   - Footer: Navigation and action keys
+//
+// Layout (Outfits Tab):
+//   - Table: Outfit name, type, space, price, effect description
+//   - Effect String: Formatted bonus display (e.g., "+50 shields, +10 cargo")
+//   - Footer: Navigation and action keys
+//
+// Layout (Installed Tab):
+//   - Installed Weapons: List with damage and space used
+//   - Installed Outfits: List with effects and space used
+//   - Footer: Navigation and removal keys
+//
+// Visual Features:
+//   - Active bonuses displayed in ship stats panel
+//   - Selected item highlighted with cursor
+//   - Unaffordable/unfitting items shown dimmed
+//   - Confirmation panels show price, space, and effects
+//   - 50% refund clearly indicated for removals
 func (m Model) viewOutfitter() string {
 	locationName := "Space"
 	s := renderHeader(m.username, m.player.Credits, locationName)

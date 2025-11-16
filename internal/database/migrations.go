@@ -1,7 +1,7 @@
 // File: internal/database/migrations.go
 // Project: Terminal Velocity
-// Description: Database repository for migrations
-// Version: 1.1.0
+// Description: Database schema migrations and version management
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -15,8 +15,22 @@ import (
 	"path/filepath"
 )
 
-// RunMigrations executes SQL migration files
-
+// RunMigrations executes SQL migration files from the given path.
+//
+// This method loads and executes the schema.sql file to initialize
+// the database schema. For production use, consider using a proper
+// migration tool like golang-migrate or goose.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//   - migrationsPath: Directory path containing schema.sql
+//
+// Returns:
+//   - error: File read error or SQL execution error
+//
+// Thread-safety:
+//   - Safe to call, but should only be run during server initialization
+//   - Running migrations while server is active may cause issues
 func (db *DB) RunMigrations(ctx context.Context, migrationsPath string) error {
 	// Read the schema file
 	schemaFile := filepath.Join(migrationsPath, "schema.sql")
@@ -40,7 +54,20 @@ func (db *DB) LoadUniverseData(ctx context.Context, systemsJSON io.Reader) error
 	return nil
 }
 
-// ClearDatabase drops all tables (use with caution!)
+// ClearDatabase drops all tables in the database.
+//
+// WARNING: This is a destructive operation that deletes ALL data.
+// Only use for testing or complete database resets.
+//
+// Parameters:
+//   - ctx: Context for timeout and cancellation
+//
+// Returns:
+//   - error: SQL execution error
+//
+// Thread-safety:
+//   - Safe to call, but WILL destroy all data
+//   - Should never be called in production
 func (db *DB) ClearDatabase(ctx context.Context) error {
 	tables := []string{
 		"events",

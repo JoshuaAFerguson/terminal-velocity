@@ -1,10 +1,42 @@
 // File: internal/chat/commands.go
 // Project: Terminal Velocity
 // Description: Chat command parser and handlers
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
 
+// This file provides chat command parsing and execution for player convenience commands.
+//
+// Supported Commands:
+// - /whisper, /w, /msg, /tell - Send private messages
+// - /who, /online - List online players
+// - /roll, /dice - Roll dice (e.g., 1d6, 2d20+5)
+// - /me, /emote - Perform emote actions
+// - /ignore, /block - Block players
+// - /unignore, /unblock - Unblock players
+// - /help, /commands - Show help message
+//
+// Command Flow:
+// 1. ParseAndExecute checks if message starts with /
+// 2. Command and arguments extracted from message
+// 3. Appropriate handler method called
+// 4. CommandResult returned with success status and output
+//
+// Dependency Injection:
+// CommandHandler uses function injection for dependencies to avoid
+// circular imports and allow flexible testing. Callers must set:
+// - presenceGetter: Function to get online players
+// - blockChecker: Function to check if player is blocked
+// - blockAdder: Function to block a player
+// - blockRemover: Function to unblock a player
+// - playerGetter: Function to get player by username
+//
+// Thread Safety:
+// CommandHandler methods are NOT thread-safe on their own. Thread safety
+// is provided by the underlying chat Manager and injected functions.
+//
+// Version: 1.1.0
+// Last Updated: 2025-11-16
 package chat
 
 import (
@@ -19,56 +51,102 @@ import (
 	"github.com/google/uuid"
 )
 
-// CommandHandler handles chat commands and returns response messages
+// CommandHandler handles chat commands and returns response messages.
+//
+// Uses dependency injection pattern to avoid circular imports.
+// Callers must set function dependencies via SetXXX methods.
 type CommandHandler struct {
-	chatManager    *Manager
-	presenceGetter func() []models.PlayerPresence // Get online players
-	blockChecker   func(ctx context.Context, blockerID, blockedID uuid.UUID) (bool, error)
-	blockAdder     func(ctx context.Context, blockerID uuid.UUID, blockedUsername, reason string) error
-	blockRemover   func(ctx context.Context, blockerID, blockedID uuid.UUID) error
-	playerGetter   func(username string) (*models.Player, error)
+	chatManager    *Manager                                                                     // Chat manager for sending messages
+	presenceGetter func() []models.PlayerPresence                                               // Get list of online players
+	blockChecker   func(ctx context.Context, blockerID, blockedID uuid.UUID) (bool, error)     // Check if player is blocked
+	blockAdder     func(ctx context.Context, blockerID uuid.UUID, blockedUsername, reason string) error // Block a player
+	blockRemover   func(ctx context.Context, blockerID, blockedID uuid.UUID) error             // Unblock a player
+	playerGetter   func(username string) (*models.Player, error)                               // Get player by username
 }
 
-// NewCommandHandler creates a new command handler
+// NewCommandHandler creates a new command handler.
+//
+// Parameters:
+//   - chatManager: Chat manager for message routing
+//
+// Returns:
+//   - Pointer to new CommandHandler (dependencies must be set via SetXXX methods)
 func NewCommandHandler(chatManager *Manager) *CommandHandler {
 	return &CommandHandler{
 		chatManager: chatManager,
 	}
 }
 
-// SetPresenceGetter sets the function to get online players
+// SetPresenceGetter sets the function to get online players.
+//
+// Required for /who and /online commands.
+//
+// Parameters:
+//   - getter: Function returning list of online player presences
 func (h *CommandHandler) SetPresenceGetter(getter func() []models.PlayerPresence) {
 	h.presenceGetter = getter
 }
 
-// SetBlockChecker sets the function to check if a player is blocked
+// SetBlockChecker sets the function to check if a player is blocked.
+//
+// Required for /whisper command (to prevent messages to blocked players).
+//
+// Parameters:
+//   - checker: Function to check if blockerID has blocked blockedID
 func (h *CommandHandler) SetBlockChecker(checker func(ctx context.Context, blockerID, blockedID uuid.UUID) (bool, error)) {
 	h.blockChecker = checker
 }
 
-// SetBlockAdder sets the function to block a player
+// SetBlockAdder sets the function to block a player.
+//
+// Required for /ignore and /block commands.
+//
+// Parameters:
+//   - adder: Function to add a player to blocklist
 func (h *CommandHandler) SetBlockAdder(adder func(ctx context.Context, blockerID uuid.UUID, blockedUsername, reason string) error) {
 	h.blockAdder = adder
 }
 
-// SetBlockRemover sets the function to unblock a player
+// SetBlockRemover sets the function to unblock a player.
+//
+// Required for /unignore and /unblock commands.
+//
+// Parameters:
+//   - remover: Function to remove a player from blocklist
 func (h *CommandHandler) SetBlockRemover(remover func(ctx context.Context, blockerID, blockedID uuid.UUID) error) {
 	h.blockRemover = remover
 }
 
-// SetPlayerGetter sets the function to get a player by username
+// SetPlayerGetter sets the function to get a player by username.
+//
+// Required for /whisper, /ignore, and /unignore commands.
+//
+// Parameters:
+//   - getter: Function to retrieve player by username
 func (h *CommandHandler) SetPlayerGetter(getter func(username string) (*models.Player, error)) {
 	h.playerGetter = getter
 }
 
-// CommandResult represents the result of executing a command
+// CommandResult represents the result of executing a command.
 type CommandResult struct {
-	Success      bool
-	Message      string
-	SystemOutput string // Message to show to command sender only
+	Success      bool   // Whether command executed successfully
+	Message      string // Message to broadcast (if any, e.g., emotes)
+	SystemOutput string // Private message to show command sender only
 }
 
-// ParseAndExecute parses a chat message and executes any commands
+// ParseAndExecute parses a chat message and executes any commands.
+//
+// Checks if message starts with /, parses command and arguments,
+// routes to appropriate handler, and returns result.
+//
+// Parameters:
+//   - ctx: Context for command execution
+//   - playerID: Command sender's UUID
+//   - playerName: Command sender's username
+//   - message: Raw chat message
+//
+// Returns:
+//   - CommandResult with success/failure and output, or nil if not a command
 func (h *CommandHandler) ParseAndExecute(ctx context.Context, playerID uuid.UUID, playerName, message string) *CommandResult {
 	// Check if message starts with /
 	if !strings.HasPrefix(message, "/") {

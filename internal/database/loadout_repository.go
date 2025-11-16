@@ -1,7 +1,7 @@
 // File: internal/database/loadout_repository.go
 // Project: Terminal Velocity
-// Description: Database repository for shared loadouts
-// Version: 1.0.0
+// Description: Repository for shared ship loadouts (community builds)
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -17,9 +17,26 @@ import (
 	"github.com/google/uuid"
 )
 
-// LoadoutRepository handles loadout data access
+// LoadoutRepository handles all database operations for shared loadouts.
+//
+// Manages community ship builds:
+//   - Creating and publishing loadouts
+//   - Retrieving public/private loadouts
+//   - Favoriting and view tracking
+//   - Popular loadout discovery
+//   - Loadout ownership and permissions
+//
+// Features:
+//   - Weapons and outfits stored as JSONB
+//   - Public/private visibility control
+//   - View counting for analytics
+//   - Favorite system for bookmarking
+//   - Stats calculated and stored
+//
+// Thread-safety:
+//   - All methods are thread-safe
 type LoadoutRepository struct {
-	db *DB
+	db *DB // Database connection pool
 }
 
 // NewLoadoutRepository creates a new loadout repository

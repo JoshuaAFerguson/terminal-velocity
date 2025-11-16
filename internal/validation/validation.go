@@ -1,9 +1,49 @@
 // File: internal/validation/validation.go
 // Project: Terminal Velocity
 // Description: Input validation functions for usernames, passwords, and emails
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-11-14
+//
+// This package provides comprehensive input validation and sanitization to prevent
+// security vulnerabilities. It implements multiple layers of defense:
+//
+// 1. Input Validation:
+//   - Username validation (length, character set, reserved names)
+//   - Password validation (complexity, common passwords, patterns)
+//   - Email validation (format, length)
+//
+// 2. Terminal Injection Prevention:
+//   - ANSI escape code filtering (prevents terminal manipulation)
+//   - Control character stripping (prevents terminal corruption)
+//   - Safe display sanitization (removes dangerous characters)
+//
+// 3. Path Traversal Prevention:
+//   - Filename sanitization (removes path separators)
+//   - Path traversal protection (blocks ../ and similar)
+//
+// Security Principles:
+//   - Fail-secure: Invalid input is rejected, not sanitized into valid
+//   - Defense in depth: Multiple validation layers
+//   - Explicit validation: No implicit trust of any input
+//   - Comprehensive filtering: All user-controlled input must be validated
+//
+// Usage Guidelines:
+//   - Always validate input at entry points (registration, login, etc.)
+//   - Always sanitize before displaying user input (chat, usernames, etc.)
+//   - Never trust client-side validation alone
+//   - Log validation failures for security monitoring
+//
+// Terminal Security:
+//   SSH clients are powerful and can interpret control sequences. An attacker
+//   could inject ANSI escape codes to:
+//   - Manipulate other players' terminals
+//   - Hide malicious content
+//   - Cause denial of service (terminal corruption)
+//   - Bypass rate limiting (clear screen repeatedly)
+//
+//   This package prevents all such attacks by stripping control sequences
+//   and validating all input before use.
 
 package validation
 
@@ -14,26 +54,43 @@ import (
 	"unicode"
 )
 
+// ============================================================================
+// Validation Constants and Patterns
+// ============================================================================
+
 // Validation regex patterns
 var (
 	// Username: 3-20 characters, alphanumeric, underscore, hyphen
+	// - No special characters to prevent confusion/impersonation
+	// - No spaces to simplify parsing
+	// - Length limits prevent abuse
 	usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,20}$`)
 
-	// Email: standard email format
+	// Email: standard email format per RFC 5322 (simplified)
+	// - Validates basic structure: localpart@domain.tld
+	// - Prevents most malformed addresses
+	// - Does not prevent all invalid emails (RFC 5322 is complex)
 	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 )
 
 // Password complexity requirements
+//
+// These constants define minimum security requirements for passwords.
+// They balance security with usability:
+//   - MinPasswordLength: 8 chars (industry standard minimum)
+//   - Requires uppercase, lowercase, and digit (prevents simple passwords)
+//   - Special chars optional (improves usability without major security loss)
+//   - MaxPasswordLength: 128 (prevents DoS via bcrypt cost)
 const (
-	MinPasswordLength     = 8
-	MinPasswordUpper      = 1
-	MinPasswordLower      = 1
-	MinPasswordDigit      = 1
-	MinPasswordSpecial    = 0 // Optional for now
-	MaxPasswordLength     = 128
-	MinUsernameLength     = 3
-	MaxUsernameLength     = 20
-	MaxEmailLength        = 254
+	MinPasswordLength     = 8   // NIST recommends minimum 8
+	MinPasswordUpper      = 1   // At least one uppercase letter
+	MinPasswordLower      = 1   // At least one lowercase letter
+	MinPasswordDigit      = 1   // At least one number
+	MinPasswordSpecial    = 0   // Optional for now (usability)
+	MaxPasswordLength     = 128 // Prevent bcrypt DoS
+	MinUsernameLength     = 3   // Prevent single-char usernames
+	MaxUsernameLength     = 20  // Prevent abuse, ensure display
+	MaxEmailLength        = 254 // RFC 5321 maximum
 )
 
 // ValidationError represents a validation error
@@ -373,7 +430,42 @@ func GetPasswordStrength(password string) (score int, description string) {
 // ============================================================================
 
 // SanitizeForDisplay removes potentially dangerous characters from user input
-// before displaying in the terminal to prevent ANSI escape code injection
+// before displaying in the terminal to prevent ANSI escape code injection.
+//
+// This function is critical for security in SSH-based applications where
+// user input is displayed directly in terminals. Without sanitization, an
+// attacker could inject ANSI escape codes to:
+//   - Clear other users' screens
+//   - Change terminal colors/modes
+//   - Move cursor to hide malicious text
+//   - Execute terminal commands (in some terminals)
+//   - Cause denial of service
+//
+// The function removes:
+//   - ESC character (0x1B) - start of ANSI escape sequences
+//   - All control characters except \n and \t
+//   - Characters outside printable ASCII range (32-126)
+//
+// Safe characters allowed:
+//   - Printable ASCII (32-126): letters, numbers, punctuation
+//   - Newline (\n) - for multi-line text
+//   - Tab (\t) - for formatting
+//
+// Parameters:
+//   - input: User-provided string to sanitize
+//
+// Returns:
+//   - Sanitized string safe for terminal display
+//
+// Usage:
+//   // Before displaying chat message
+//   safeMessage := validation.SanitizeForDisplay(userMessage)
+//   fmt.Println(safeMessage)
+//
+// Security Note:
+//   - Always sanitize before displaying user input
+//   - Does not validate content (only removes dangerous chars)
+//   - Use with ValidateNoInjection for additional check
 func SanitizeForDisplay(input string) string {
 	if input == "" {
 		return ""

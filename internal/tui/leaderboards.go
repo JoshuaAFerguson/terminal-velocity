@@ -1,9 +1,31 @@
 // File: internal/tui/leaderboards.go
 // Project: Terminal Velocity
-// Description: Leaderboard UI displaying competitive rankings across multiple categories
-// Version: 1.0.0
+// Description: Leaderboards screen - Competitive rankings across multiple categories with player stats
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The leaderboards screen provides:
+// - 7 competitive ranking categories (Overall, Combat, Trading, Exploration, Wealth, Missions, Reputation)
+// - Global top rankings view (top 15 players)
+// - Near-player view (±7 positions around current player)
+// - Live player ranking and score display
+// - Real-time leaderboard refresh
+// - Detailed stats for each category
+// - Medal indicators for top 3 positions (🥇🥈🥉)
+//
+// Categories:
+//   - Overall: Combined performance across all areas
+//   - Combat: Combat rating, kills, rank title
+//   - Trading: Trade volume, profit, rating
+//   - Exploration: Systems visited, jumps made
+//   - Wealth: Total credits and assets
+//   - Missions: Completed and failed missions
+//   - Reputation: Total reputation across all factions
+//
+// View Modes:
+//   - Global: Shows top players across entire server
+//   - Near Player: Shows rankings around player's position
 
 package tui
 
@@ -15,13 +37,17 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// leaderboardsModel contains the state for the leaderboards screen.
+// Manages category selection, view mode, and cursor position.
 type leaderboardsModel struct {
-	cursor           int
-	selectedCategory models.LeaderboardCategory
-	viewMode         string // "global" or "near_player"
-	displayCount     int    // Number of entries to show
+	cursor           int                        // Current cursor position in leaderboard list
+	selectedCategory models.LeaderboardCategory // Currently displayed category
+	viewMode         string                     // Display mode: "global" or "near_player"
+	displayCount     int                        // Number of entries to show (default: 15)
 }
 
+// newLeaderboardsModel creates and initializes a new leaderboards screen model.
+// Starts with Overall category in global view mode.
 func newLeaderboardsModel() leaderboardsModel {
 	return leaderboardsModel{
 		cursor:           0,
@@ -31,6 +57,32 @@ func newLeaderboardsModel() leaderboardsModel {
 	}
 }
 
+// updateLeaderboards handles input and state updates for the leaderboards screen.
+//
+// Key Bindings:
+//   - esc/backspace/q: Return to main menu
+//   - up/k: Move cursor up in leaderboard list
+//   - down/j: Move cursor down in leaderboard list
+//   - v: Toggle between global and near-player view
+//   - r: Refresh leaderboards (reload from manager)
+//   - 1-7: Switch to specific category
+//     - 1: Overall rankings
+//     - 2: Combat rankings
+//     - 3: Trading rankings
+//     - 4: Exploration rankings
+//     - 5: Wealth rankings
+//     - 6: Missions rankings
+//     - 7: Reputation rankings
+//
+// View Modes:
+//   - Global: Shows top `displayCount` players (default: 15)
+//   - Near Player: Shows players within ±7 ranks of current player
+//
+// Features:
+//   - Automatic cursor clamping to available entries
+//   - Cursor reset when changing categories
+//   - Live rank and score display
+//   - Last update timestamp
 func (m Model) updateLeaderboards(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -105,6 +157,23 @@ func (m Model) updateLeaderboards(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewLeaderboards renders the leaderboards screen.
+//
+// Layout:
+//   - Title: Icon + "LEADERBOARDS - [Category Name]"
+//   - Stats Header: Total players, player's rank and score
+//   - Last Updated: Timestamp of leaderboard snapshot
+//   - Category Tabs: 7 categories with active indicator
+//   - View Mode Indicator: Global vs Near Player
+//   - Leaderboard Table: Rank, Player, Score, Details
+//   - Footer: Navigation controls
+//
+// Visual Features:
+//   - Medal emojis for top 3 (🥇🥈🥉)
+//   - Player's own entry highlighted
+//   - Category-specific details formatting
+//   - Active tab highlighted
+//   - Cursor selection indicator
 func (m Model) viewLeaderboards() string {
 	category := m.leaderboardsModel.selectedCategory
 	icon := models.GetCategoryIcon(category)
@@ -204,6 +273,9 @@ func (m Model) viewLeaderboards() string {
 	return s
 }
 
+// renderLeaderboardEntries renders the leaderboard table with player entries.
+// Formats each entry with rank, medals, player name, score, and category-specific details.
+// Highlights the current player's entry with special styling.
 func (m Model) renderLeaderboardEntries(entries []*models.LeaderboardEntry, category models.LeaderboardCategory) string {
 	var s strings.Builder
 
@@ -260,6 +332,8 @@ func (m Model) renderLeaderboardEntries(entries []*models.LeaderboardEntry, cate
 	return s.String()
 }
 
+// formatScore formats a leaderboard score based on category.
+// Adds appropriate units (CR for wealth, rep for reputation, plain numbers for others).
 func (m Model) formatScore(category models.LeaderboardCategory, score int64) string {
 	switch category {
 	case models.LeaderboardWealth:
@@ -271,6 +345,8 @@ func (m Model) formatScore(category models.LeaderboardCategory, score int64) str
 	}
 }
 
+// formatLeaderboardDetails formats category-specific details for a leaderboard entry.
+// Each category shows different relevant stats (kills for combat, trades for trading, etc.).
 func (m Model) formatLeaderboardDetails(category models.LeaderboardCategory, entry *models.LeaderboardEntry) string {
 	switch category {
 	case models.LeaderboardCombat:

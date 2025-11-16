@@ -1,9 +1,45 @@
 // File: internal/models/mission.go
 // Project: Terminal Velocity
-// Description: Data models for mission
-// Version: 1.0.0
+// Description: Mission system - procedurally generated tasks
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// Missions are procedurally generated, time-limited tasks that provide
+// income and reputation. Unlike quests (which are hand-crafted story content),
+// missions are dynamically created based on system state and player level.
+//
+// Mission Types (6):
+//   - Delivery: Transport cargo to destination planet
+//   - Combat: Eliminate hostile ships in area
+//   - Escort: Protect NPC ship during travel
+//   - Bounty: Hunt specific pirate/criminal
+//   - Exploration: Scan or visit distant systems
+//   - Trading: Deliver specific commodity quantities
+//
+// Mission Generation:
+//   - Generated at planets based on government, tech level, local conditions
+//   - Difficulty scaled to player level and combat rating
+//   - Rewards scale with distance, difficulty, and risk
+//   - Refresh periodically (new missions appear over time)
+//
+// Mission Mechanics:
+//   - Max 5 active missions per player
+//   - Time limits (typically 24-72 hours game time)
+//   - Reputation requirements (some missions need good standing)
+//   - Combat rating requirements (dangerous missions)
+//   - Failure penalties (reputation loss, no reward)
+//
+// Rewards:
+//   - Credits (primary reward, scales with difficulty)
+//   - Reputation (with mission giver's faction)
+//   - Sometimes special items or ship unlocks
+//
+// Mission Status:
+//   - Available: Can be accepted
+//   - Active: Accepted, in progress
+//   - Completed: Objectives met, return for reward
+//   - Failed: Deadline passed or failed objectives
 
 package models
 
@@ -13,9 +49,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// Mission represents a mission/quest
-
-type Mission struct {
+// Mission represents a procedurally generated task with time limit.
+//
+// Missions provide repeatable gameplay content and income. They are
+// generated dynamically based on location and player progression.
+type Mission struct{
 	ID          uuid.UUID `json:"id"`
 	Type        string    `json:"type"` // delivery, combat, escort, bounty, exploration
 	Title       string    `json:"title"`

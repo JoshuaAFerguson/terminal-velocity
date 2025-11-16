@@ -1,7 +1,7 @@
 // File: internal/models/player.go
 // Project: Terminal Velocity
-// Description: Data models for player
-// Version: 1.0.0
+// Description: Data models for player with comprehensive field documentation
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -26,99 +26,213 @@ import (
 	"github.com/google/uuid"
 )
 
-// Player represents a player character in the game
-
+// Player represents a player character in the game.
+//
+// This is the central model for all player data, tracking their progress,
+// statistics, reputation, and current state in the game world.
 type Player struct {
-	ID            uuid.UUID `json:"id"`
-	Username      string    `json:"username"`
-	Email         string    `json:"email,omitempty"`
-	EmailVerified bool      `json:"email_verified"`
-	PasswordHash  string    `json:"-"` // Never serialize password
-	CreatedAt     time.Time `json:"created_at"`
-	LastLogin     time.Time `json:"last_login"`
+	// ID is the unique identifier for this player (primary key)
+	ID uuid.UUID `json:"id"`
+
+	// Username is the player's display name (unique, 3-20 characters)
+	Username string `json:"username"`
+
+	// Email is the player's email address (unique, optional for SSH-only auth)
+	Email string `json:"email,omitempty"`
+
+	// EmailVerified indicates whether the player has verified their email address
+	EmailVerified bool `json:"email_verified"`
+
+	// PasswordHash stores the bcrypt hash of the player's password
+	// Never serialized to JSON for security
+	PasswordHash string `json:"-"`
+
+	// CreatedAt is when the player account was created
+	CreatedAt time.Time `json:"created_at"`
+
+	// LastLogin is when the player last logged in
+	LastLogin time.Time `json:"last_login"`
 
 	// Game state
-	Credits       int64      `json:"credits"`
-	CurrentSystem uuid.UUID  `json:"current_system"`
-	CurrentPlanet *uuid.UUID `json:"current_planet,omitempty"` // nil if in space
-	ShipID        uuid.UUID  `json:"ship_id"`
+
+	// Credits is the player's current credit balance
+	Credits int64 `json:"credits"`
+
+	// CurrentSystem is the star system where the player is currently located
+	CurrentSystem uuid.UUID `json:"current_system"`
+
+	// CurrentPlanet is the planet where the player is docked (nil if in space)
+	CurrentPlanet *uuid.UUID `json:"current_planet,omitempty"`
+
+	// ShipID is the UUID of the ship the player is currently piloting
+	ShipID uuid.UUID `json:"ship_id"`
 
 	// Position (coordinates within system)
-	X float64 `json:"x"` // X coordinate in current system
-	Y float64 `json:"y"` // Y coordinate in current system
+
+	// X is the X coordinate in the current system (in-system position)
+	X float64 `json:"x"`
+
+	// Y is the Y coordinate in the current system (in-system position)
+	Y float64 `json:"y"`
 
 	// Progression - Combat
-	CombatRating int   `json:"combat_rating"`
-	TotalKills   int   `json:"total_kills"`
-	PlayTime     int64 `json:"play_time"` // seconds
+
+	// CombatRating is the player's combat skill rating (0-100)
+	CombatRating int `json:"combat_rating"`
+
+	// TotalKills is the total number of enemy ships destroyed
+	TotalKills int `json:"total_kills"`
+
+	// PlayTime is the total time played in seconds
+	PlayTime int64 `json:"play_time"`
 
 	// Progression - Trading
-	TradingRating int   `json:"trading_rating"`
-	TotalTrades   int   `json:"total_trades"`
-	TradeProfit   int64 `json:"trade_profit"`   // Total profit from trading
-	HighestProfit int64 `json:"highest_profit"` // Largest single trade profit
+
+	// TradingRating is the player's trading skill rating (0-100)
+	TradingRating int `json:"trading_rating"`
+
+	// TotalTrades is the total number of commodity trades completed
+	TotalTrades int `json:"total_trades"`
+
+	// TradeProfit is the cumulative profit from all trades (can be negative)
+	TradeProfit int64 `json:"trade_profit"`
+
+	// HighestProfit is the largest single trade profit achieved
+	HighestProfit int64 `json:"highest_profit"`
 
 	// Progression - Exploration
+
+	// ExplorationRating is the player's exploration skill rating (0-100)
 	ExplorationRating int `json:"exploration_rating"`
-	SystemsVisited    int `json:"systems_visited"`
-	TotalJumps        int `json:"total_jumps"`
+
+	// SystemsVisited is the number of unique star systems visited
+	SystemsVisited int `json:"systems_visited"`
+
+	// TotalJumps is the total number of hyperspace jumps made
+	TotalJumps int `json:"total_jumps"`
 
 	// Progression - Missions
+
+	// MissionsCompleted is the number of missions successfully completed
 	MissionsCompleted int `json:"missions_completed"`
-	MissionsFailed    int `json:"missions_failed"`
+
+	// MissionsFailed is the number of missions failed or abandoned
+	MissionsFailed int `json:"missions_failed"`
 
 	// Progression - Quests
+
+	// QuestsCompleted is the number of story quests completed
 	QuestsCompleted int `json:"quests_completed"`
 
 	// Progression - Capture
+
+	// TotalCaptureAttempts is the number of ship boarding attempts made
 	TotalCaptureAttempts int `json:"total_capture_attempts"`
-	SuccessfulBoards     int `json:"successful_boards"`
-	SuccessfulCaptures   int `json:"successful_captures"`
+
+	// SuccessfulBoards is the number of successful boarding actions
+	SuccessfulBoards int `json:"successful_boards"`
+
+	// SuccessfulCaptures is the number of ships successfully captured
+	SuccessfulCaptures int `json:"successful_captures"`
 
 	// Progression - Mining
-	TotalMiningOps int              `json:"total_mining_ops"`
-	TotalYield     int64            `json:"total_yield"`       // Total resources mined
-	ResourcesMined map[string]int64 `json:"resources_mined"`   // Resources mined by type
+
+	// TotalMiningOps is the number of mining operations performed
+	TotalMiningOps int `json:"total_mining_ops"`
+
+	// TotalYield is the total quantity of resources mined (all types)
+	TotalYield int64 `json:"total_yield"`
+
+	// ResourcesMined tracks quantities mined by resource type
+	ResourcesMined map[string]int64 `json:"resources_mined"`
 
 	// Progression - Manufacturing/Crafting
-	CraftingSkill int `json:"crafting_skill"` // Crafting skill level (0-100)
-	TotalCrafts   int `json:"total_crafts"`   // Total items crafted
+
+	// CraftingSkill is the crafting skill level (0-100)
+	CraftingSkill int `json:"crafting_skill"`
+
+	// TotalCrafts is the total number of items crafted
+	TotalCrafts int `json:"total_crafts"`
 
 	// Progression - Research
-	ResearchPoints int `json:"research_points"` // Available research points for technology unlocks
+
+	// ResearchPoints are available points for unlocking technologies
+	ResearchPoints int `json:"research_points"`
 
 	// Progression - Overall
-	Level      int   `json:"level"`       // Overall player level (1-100)
-	Experience int64 `json:"experience"`  // Experience points for leveling
 
-	// Reputation with NPC factions (-100 to +100)
+	// Level is the overall player level (1-100)
+	Level int `json:"level"`
+
+	// Experience is the accumulated experience points for leveling
+	Experience int64 `json:"experience"`
+
+	// Reputation with NPC factions
+
+	// Reputation tracks standing with each NPC faction (range: -100 to +100)
+	// Map key is faction ID, value is reputation score
 	Reputation map[string]int `json:"reputation"`
 
 	// Faction membership
-	FactionID   *uuid.UUID `json:"faction_id,omitempty"`
-	FactionRank string     `json:"faction_rank,omitempty"`
+
+	// FactionID is the UUID of the player faction this player belongs to (nil if none)
+	FactionID *uuid.UUID `json:"faction_id,omitempty"`
+
+	// FactionRank is the player's rank within their faction (e.g., "Leader", "Officer", "Member")
+	FactionRank string `json:"faction_rank,omitempty"`
 
 	// Legal status
-	LegalStatus string `json:"legal_status"` // "citizen", "outlaw", "pirate", "wanted", "hostile"
-	Bounty      int64  `json:"bounty"`       // Bounty on player's head (credits)
+
+	// LegalStatus is the player's legal standing ("citizen", "outlaw", "pirate", "wanted", "hostile")
+	LegalStatus string `json:"legal_status"`
+
+	// Bounty is the credit reward for destroying/capturing this player
+	Bounty int64 `json:"bounty"`
 
 	// Status
-	IsOnline   bool      `json:"is_online"`
-	IsCriminal bool      `json:"is_criminal"` // Deprecated: use LegalStatus instead
-	UpdatedAt  time.Time `json:"updated_at"`  // Last update timestamp
+
+	// IsOnline indicates whether the player is currently connected
+	IsOnline bool `json:"is_online"`
+
+	// IsCriminal indicates whether the player has a criminal record
+	// Deprecated: use LegalStatus instead
+	IsCriminal bool `json:"is_criminal"`
+
+	// UpdatedAt is the timestamp of the last update to this player record
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// SSHKey represents an SSH public key for player authentication
+// SSHKey represents an SSH public key for player authentication.
+//
+// Players can authenticate using SSH public keys instead of passwords.
+// Each player can have multiple SSH keys associated with their account.
 type SSHKey struct {
-	ID          uuid.UUID  `json:"id"`
-	PlayerID    uuid.UUID  `json:"player_id"`
-	KeyType     string     `json:"key_type"`    // rsa, ed25519, ecdsa
-	PublicKey   string     `json:"public_key"`  // The actual public key
-	Fingerprint string     `json:"fingerprint"` // SHA256 fingerprint
-	Comment     string     `json:"comment,omitempty"`
-	AddedAt     time.Time  `json:"added_at"`
-	LastUsed    *time.Time `json:"last_used,omitempty"`
-	IsActive    bool       `json:"is_active"`
+	// ID is the unique identifier for this SSH key
+	ID uuid.UUID `json:"id"`
+
+	// PlayerID is the UUID of the player who owns this key
+	PlayerID uuid.UUID `json:"player_id"`
+
+	// KeyType is the algorithm used for the key (rsa, ed25519, ecdsa)
+	KeyType string `json:"key_type"`
+
+	// PublicKey is the actual SSH public key data
+	PublicKey string `json:"public_key"`
+
+	// Fingerprint is the SHA256 fingerprint of the public key (used for matching)
+	Fingerprint string `json:"fingerprint"`
+
+	// Comment is an optional description or identifier for the key
+	Comment string `json:"comment,omitempty"`
+
+	// AddedAt is when the key was added to the account
+	AddedAt time.Time `json:"added_at"`
+
+	// LastUsed is when the key was last used for authentication (nil if never used)
+	LastUsed *time.Time `json:"last_used,omitempty"`
+
+	// IsActive indicates whether the key is currently enabled for authentication
+	IsActive bool `json:"is_active"`
 }
 
 // NewPlayer creates a new player with default starting values.
