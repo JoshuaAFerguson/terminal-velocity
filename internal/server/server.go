@@ -15,6 +15,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/friends"
@@ -67,6 +68,10 @@ type Server struct {
 	// Previously each Model created its own news.Manager, which meant
 	// OnPlayerTrade announcements stayed stranded in the trader's session.
 	newsManager *news.Manager
+	// Server-wide chat. Same motivation as newsManager: per-session
+	// managers couldn't broadcast across SSH connections, so global
+	// chat was effectively single-player.
+	chatManager *chat.Manager
 
 	// Universe simulation. The tick service owns background work that
 	// makes the world feel alive between player actions — market stocks
@@ -303,6 +308,9 @@ func (s *Server) initDatabase() error {
 	// Seed the feed so fresh deploys don't greet the first player with
 	// an empty news screen.
 	s.newsManager.GenerateInitialNews()
+	// chatManager is server-wide. GetOrCreateHistory at login registers
+	// the player so SendGlobalMessage fans messages out to everyone.
+	s.chatManager = chat.NewManager()
 
 	// Start background workers for managers
 	s.fleetManager.Start()
@@ -613,6 +621,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		s.friendsManager,
 		s.marketplaceManager,
 		s.newsManager,
+		s.chatManager,
 	)
 
 	// Create BubbleTea program with SSH channel as input/output
@@ -644,7 +653,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 func (s *Server) startAnonymousSession(channel ssh.Channel, requests <-chan *ssh.Request, initialSize ptySize) {
 	log.Debug("startAnonymousSession called (initial size %dx%d)", initialSize.cols, initialSize.rows)
 
-	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager)
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager)
 
 	p := tea.NewProgram(
 		model,

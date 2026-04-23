@@ -174,6 +174,12 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mail.loading = true
 				return m, m.loadInbox()
 			}
+			if selected.screen == ScreenChat {
+				// Kick the poll tick so messages fanned into our history
+				// by other sessions show up without requiring the user
+				// to press a key.
+				return m, chatPollTick()
+			}
 
 			return m, nil
 		}

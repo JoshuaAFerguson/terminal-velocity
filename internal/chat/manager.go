@@ -10,9 +10,12 @@ package chat
 import (
 	"sync"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/google/uuid"
 )
+
+var log = logger.WithComponent("Chat")
 
 // Manager handles chat message routing and history for all players
 
@@ -66,6 +69,7 @@ func (m *Manager) SendGlobalMessage(senderID uuid.UUID, sender string, content s
 		history.AddMessage(msg)
 	}
 
+	log.Debug("SendGlobalMessage: fanned to %d histories", len(m.histories))
 	return msg
 }
 

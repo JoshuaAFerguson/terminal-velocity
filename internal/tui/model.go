@@ -255,11 +255,15 @@ func NewModel(
 	friendsManager *friends.Manager,
 	marketplaceManager *marketplace.Manager,
 	newsManager *news.Manager,
+	chatManager *chat.Manager,
 ) Model {
-	// newsManager is the single server-wide feed; fall back to a
-	// standalone manager so old call sites don't NPE.
+	// newsManager / chatManager are the single server-wide feeds; fall
+	// back to standalone managers so old call sites don't NPE.
 	if newsManager == nil {
 		newsManager = news.NewManager()
+	}
+	if chatManager == nil {
+		chatManager = chat.NewManager()
 	}
 	return Model{
 		screen:              ScreenMainMenu,
@@ -296,7 +300,7 @@ func NewModel(
 		playersModel:        newPlayersModel(),
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
-		chatManager:         chat.NewManager(),
+		chatManager:         chatManager,
 		fleetManager:        fleetManager,
 		mailManager:         mailManager,
 		notificationsManager: notificationsManager,
@@ -383,9 +387,13 @@ func NewLoginModel(
 	socialRepo *database.SocialRepository,
 	achievementRepo *database.AchievementRepository,
 	newsManager *news.Manager,
+	chatManager *chat.Manager,
 ) Model {
 	if newsManager == nil {
 		newsManager = news.NewManager()
+	}
+	if chatManager == nil {
+		chatManager = chat.NewManager()
 	}
 	return Model{
 		screen:              ScreenLogin,
@@ -422,7 +430,7 @@ func NewLoginModel(
 		playersModel:        newPlayersModel(),
 		presenceManager:     presence.NewManager(),
 		chatModel:           newChatModel(),
-		chatManager:         chat.NewManager(),
+		chatManager:         chatManager,
 		mailManager:         mail.NewManager(socialRepo),
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
@@ -564,6 +572,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Initialize presence when player loads.
 			if m.player != nil && m.err == nil {
 				m.InitializePresence()
+			}
+
+			// Register this session with the shared chat manager so
+			// SendGlobalMessage's fanout reaches us. Without this, we'd
+			// send messages into the void (history-wise) because the
+			// manager's iteration over m.histories would skip an
+			// unregistered player.
+			if m.player != nil && m.chatManager != nil {
+				m.chatManager.GetOrCreateHistory(m.player.ID)
 			}
 
 			// Seed the in-memory achievement manager with what's already

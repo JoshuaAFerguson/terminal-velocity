@@ -418,6 +418,22 @@ func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.InitializePresence()
 		}
 
+		// Register this session with the shared chat manager so
+		// SendGlobalMessage's fanout reaches us. The top-level
+		// playerLoadedMsg handler also does this, but logins path
+		// through THIS handler first and short-circuits before the
+		// top-level one runs — without this line, a just-logged-in
+		// session sends into a manager that doesn't know about it.
+		if m.player != nil && m.chatManager != nil {
+			m.chatManager.GetOrCreateHistory(m.player.ID)
+		}
+
+		// Seed achievement manager from persisted unlocks so reconnect
+		// doesn't re-fire notifications (mirror of the top-level path).
+		if m.achievementManager != nil && len(msg.achievements) > 0 {
+			m.achievementManager.LoadUnlocked(msg.achievements)
+		}
+
 		// Transition to main menu
 		m.screen = ScreenMainMenu
 		return m, nil

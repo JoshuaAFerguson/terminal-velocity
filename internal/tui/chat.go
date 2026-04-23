@@ -1,7 +1,7 @@
 // File: internal/tui/chat.go
 // Project: Terminal Velocity
 // Description: Chat UI for multiplayer communication across multiple channels
-// Version: 1.1.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -11,12 +11,25 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/validation"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
+
+// chatTickMsg fires periodically while the chat screen is open. It drives
+// the view re-render so messages sent by other players show up without
+// requiring the local user to press a key. Not a push subscription — we
+// poll via BubbleTea's tea.Tick scheduler at a 1-second cadence, which is
+// fast enough to feel live and slow enough to stay cheap on the local
+// renderer.
+type chatTickMsg struct{}
+
+func chatPollTick() tea.Cmd {
+	return tea.Tick(time.Second, func(time.Time) tea.Msg { return chatTickMsg{} })
+}
 
 type chatModel struct {
 	currentChannel   models.ChatChannel
@@ -42,6 +55,12 @@ func newChatModel() chatModel {
 
 func (m Model) updateChat(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case chatTickMsg:
+		// Re-arm the poller so the view keeps refreshing while the chat
+		// screen is open. We re-render whether or not there are new
+		// messages — the view function re-queries GetMessages on every
+		// pass, so a no-op tick is cheap.
+		return m, chatPollTick()
 	case tea.KeyMsg:
 		// Input mode - typing a message
 		if m.chatModel.inputMode {
