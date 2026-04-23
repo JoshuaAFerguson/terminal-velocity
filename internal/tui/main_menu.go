@@ -30,7 +30,11 @@ func newMainMenuModel() mainMenuModel {
 	return mainMenuModel{
 		cursor: 0,
 		items: []menuItem{
-			{label: "Launch", screen: ScreenGame},
+			// Launch drops the player into the 2D space view — the actual
+			// gameplay loop (radar, HUD, target cycling, land on planets).
+			// The old text-hotkey hub at ScreenGame is still reachable via
+			// the Mail / Trade Routes entries (which route back to it).
+			{label: "Launch", screen: ScreenSpaceView},
 			{label: "Navigation", screen: ScreenNavigation},
 			{label: "Trading", screen: ScreenTrading},
 			{label: "Cargo Hold", screen: ScreenCargo},
@@ -46,6 +50,9 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Chat", screen: ScreenChat},
 			{label: "Factions", screen: ScreenFactions},
 			{label: "Trade", screen: ScreenTrade},
+			{label: "Mail", screen: ScreenMail},
+			{label: "Trade Routes", screen: ScreenTradeRoutes},
+			{label: "Notifications", screen: ScreenNotifications},
 			{label: "PvP Combat", screen: ScreenPvP},
 			{label: "News", screen: ScreenNews},
 			{label: "Help", screen: ScreenHelp},
@@ -152,6 +159,19 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.questsModel.availableQuests = m.questManager.GetAvailableQuests(m.playerID)
 				m.questsModel.completedQuests = m.questManager.GetCompletedQuests(m.playerID)
 				return m, nil
+			}
+			if selected.screen == ScreenSpaceView {
+				// Fresh viewport state + kick off the async load so the
+				// player sees their real system/planets/nearby ships on
+				// the first frame instead of empty panels.
+				m.spaceView = newSpaceViewModel()
+				return m, m.loadSpaceViewDataCmd()
+			}
+			if selected.screen == ScreenMail {
+				m.mail.mode = mailModeInbox
+				m.mail.selectedIndex = 0
+				m.mail.loading = true
+				return m, m.loadInbox()
 			}
 
 			return m, nil
