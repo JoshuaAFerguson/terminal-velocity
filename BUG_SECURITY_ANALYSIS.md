@@ -1,4 +1,16 @@
 # Terminal Velocity - Bug, Security & Incomplete Code Analysis
+
+> **HISTORICAL SNAPSHOT — DO NOT USE FOR CURRENT PLANNING.**
+>
+> This document was written at Phase 8 (~37k LoC) on 2025-11-15.
+> Most medium-priority items listed here (managers not integrated,
+> marketplace/fleet/friends/notifications TUI gaps, API client panic,
+> MST algorithm, hardcoded config) have been **resolved** in the five
+> months since. The headline "~100 TODOs" claim is obsolete — the
+> current tree carries four TODO markers.
+>
+> For the current triage, see **`docs/BUG_SECURITY_TRIAGE_2026-04-23.md`**.
+
 **Date:** 2025-11-15
 **Analyst:** Claude Code
 **Codebase Version:** Phase 8 Complete (~37,000 lines of Go)
