@@ -200,6 +200,67 @@ func (r *ShipRepository) Update(ctx context.Context, ship *models.Ship) error {
 	return nil
 }
 
+// AddWeapon inserts a weapon into the ship_weapons join table at the first
+// available slot index. Idempotent per (ship_id, slot_index) via the primary
+// key — callers that want a specific slot should use the lower-level insert.
+func (r *ShipRepository) AddWeapon(ctx context.Context, shipID uuid.UUID, weaponID string, initialAmmo int) error {
+	// Pick the next available slot_index for this ship. The PK is
+	// (ship_id, slot_index), so COALESCE(MAX+1, 0) is the next slot.
+	query := `
+		INSERT INTO ship_weapons (ship_id, weapon_id, slot_index, current_ammo)
+		VALUES ($1, $2,
+		        (SELECT COALESCE(MAX(slot_index) + 1, 0) FROM ship_weapons WHERE ship_id = $1),
+		        $3)
+	`
+	if _, err := r.db.ExecContext(ctx, query, shipID, weaponID, initialAmmo); err != nil {
+		return fmt.Errorf("insert ship_weapon: %w", err)
+	}
+	return nil
+}
+
+// RemoveWeapon deletes a weapon by slot index. Returns ErrShipNotFound if the
+// row doesn't exist so callers can surface a useful error.
+func (r *ShipRepository) RemoveWeapon(ctx context.Context, shipID uuid.UUID, slotIndex int) error {
+	result, err := r.db.ExecContext(ctx,
+		`DELETE FROM ship_weapons WHERE ship_id = $1 AND slot_index = $2`,
+		shipID, slotIndex)
+	if err != nil {
+		return fmt.Errorf("delete ship_weapon: %w", err)
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return ErrShipNotFound
+	}
+	return nil
+}
+
+// AddOutfit inserts an outfit into the ship_outfits join table. Multiple
+// rows with the same outfit_id are allowed — some outfits stack.
+func (r *ShipRepository) AddOutfit(ctx context.Context, shipID uuid.UUID, outfitID string) error {
+	if _, err := r.db.ExecContext(ctx,
+		`INSERT INTO ship_outfits (ship_id, outfit_id) VALUES ($1, $2)`,
+		shipID, outfitID); err != nil {
+		return fmt.Errorf("insert ship_outfit: %w", err)
+	}
+	return nil
+}
+
+// RemoveOutfit deletes one row matching (ship_id, outfit_id). If a ship has
+// two of the same outfit, only one is removed per call.
+func (r *ShipRepository) RemoveOutfit(ctx context.Context, shipID uuid.UUID, outfitID string) error {
+	result, err := r.db.ExecContext(ctx,
+		`DELETE FROM ship_outfits WHERE ctid IN (
+			SELECT ctid FROM ship_outfits WHERE ship_id = $1 AND outfit_id = $2 LIMIT 1
+		)`,
+		shipID, outfitID)
+	if err != nil {
+		return fmt.Errorf("delete ship_outfit: %w", err)
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return ErrShipNotFound
+	}
+	return nil
+}
+
 // UpdateFuel updates a ship's fuel level
 func (r *ShipRepository) UpdateFuel(ctx context.Context, shipID uuid.UUID, fuel int) error {
 	query := `

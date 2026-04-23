@@ -93,13 +93,31 @@ func (m Model) updateOutfitter(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter", " ":
+			// Mode transitions mutate the model directly. The earlier
+			// pattern of returning a tea.Cmd that set m.outfitter.mode
+			// was a classic BubbleTea bug — mutations to a value-receiver
+			// closure don't propagate back, so the screen silently stuck
+			// on "browse" forever.
 			if m.outfitter.mode == "browse" {
 				if m.outfitter.tab == "installed" {
-					// Remove installed item
-					return m, m.confirmRemoveEquipment()
-				} else {
-					// Install new item
-					return m, m.confirmInstallEquipment()
+					m.outfitter.mode = "confirm_remove"
+					return m, nil
+				}
+				if m.outfitter.tab == "weapons" {
+					weapons := models.StandardWeapons
+					if m.outfitter.cursor < len(weapons) {
+						m.outfitter.selectedWeapon = &weapons[m.outfitter.cursor]
+						m.outfitter.mode = "confirm_install"
+					}
+					return m, nil
+				}
+				if m.outfitter.tab == "outfits" {
+					outfits := models.StandardOutfits
+					if m.outfitter.cursor < len(outfits) {
+						m.outfitter.selectedOutfit = &outfits[m.outfitter.cursor]
+						m.outfitter.mode = "confirm_install"
+					}
+					return m, nil
 				}
 			} else if m.outfitter.mode == "confirm_install" {
 				return m, m.executeInstall()
@@ -614,14 +632,18 @@ func (m Model) executeInstall() tea.Cmd {
 				return equipmentChangedMsg{success: false, err: err}
 			}
 
-			// Add weapon to ship (database operation)
-			m.currentShip.Weapons = append(m.currentShip.Weapons, weapon.ID)
-			err = m.shipRepo.Update(ctx, m.currentShip)
-			if err != nil {
-				// Rollback credits
+			// Persist to ship_weapons (join table). shipRepo.Update only
+			// touches the ships row — we need the dedicated AddWeapon
+			// so the weapon survives reconnection and shows up in
+			// combat calculations. Initial ammo = MaxAmmo from the
+			// weapon spec (0 for energy weapons).
+			if err := m.shipRepo.AddWeapon(ctx, m.currentShip.ID, weapon.ID, weapon.AmmoCapacity); err != nil {
 				_ = m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
 				return equipmentChangedMsg{success: false, err: err}
 			}
+			// Keep the local cache in sync so the Installed tab renders
+			// the change immediately without a reload round-trip.
+			m.currentShip.Weapons = append(m.currentShip.Weapons, weapon.ID)
 
 			return equipmentChangedMsg{success: true}
 		}
@@ -645,14 +667,13 @@ func (m Model) executeInstall() tea.Cmd {
 				return equipmentChangedMsg{success: false, err: err}
 			}
 
-			// Add outfit to ship
-			m.currentShip.Outfits = append(m.currentShip.Outfits, outfit.ID)
-			err = m.shipRepo.Update(ctx, m.currentShip)
-			if err != nil {
-				// Rollback credits
+			// Persist to ship_outfits (join table). Same rationale as
+			// weapons — shipRepo.Update leaves the join tables alone.
+			if err := m.shipRepo.AddOutfit(ctx, m.currentShip.ID, outfit.ID); err != nil {
 				_ = m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
 				return equipmentChangedMsg{success: false, err: err}
 			}
+			m.currentShip.Outfits = append(m.currentShip.Outfits, outfit.ID)
 
 			return equipmentChangedMsg{success: true}
 		}
@@ -681,16 +702,16 @@ func (m Model) executeRemove() tea.Cmd {
 				return equipmentChangedMsg{success: false, err: err}
 			}
 
-			// Remove from ship
-			m.currentShip.Weapons = append(m.currentShip.Weapons[:m.outfitter.cursor],
-				m.currentShip.Weapons[m.outfitter.cursor+1:]...)
-			err = m.shipRepo.Update(ctx, m.currentShip)
-			if err != nil {
-				// Rollback credits
+			// Persist to ship_weapons (DELETE). The slot index equals
+			// the cursor position within the installed list because
+			// AddWeapon's COALESCE(MAX+1, 0) pattern keeps them
+			// densely-packed so far.
+			if err := m.shipRepo.RemoveWeapon(ctx, m.currentShip.ID, m.outfitter.cursor); err != nil {
 				_ = m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
 				return equipmentChangedMsg{success: false, err: err}
 			}
-
+			m.currentShip.Weapons = append(m.currentShip.Weapons[:m.outfitter.cursor],
+				m.currentShip.Weapons[m.outfitter.cursor+1:]...)
 			return equipmentChangedMsg{success: true}
 		}
 
@@ -711,16 +732,12 @@ func (m Model) executeRemove() tea.Cmd {
 				return equipmentChangedMsg{success: false, err: err}
 			}
 
-			// Remove from ship
-			m.currentShip.Outfits = append(m.currentShip.Outfits[:outfitIdx],
-				m.currentShip.Outfits[outfitIdx+1:]...)
-			err = m.shipRepo.Update(ctx, m.currentShip)
-			if err != nil {
-				// Rollback credits
+			if err := m.shipRepo.RemoveOutfit(ctx, m.currentShip.ID, outfitID); err != nil {
 				_ = m.playerRepo.UpdateCredits(ctx, m.player.ID, m.player.Credits)
 				return equipmentChangedMsg{success: false, err: err}
 			}
-
+			m.currentShip.Outfits = append(m.currentShip.Outfits[:outfitIdx],
+				m.currentShip.Outfits[outfitIdx+1:]...)
 			return equipmentChangedMsg{success: true}
 		}
 
