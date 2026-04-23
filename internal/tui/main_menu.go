@@ -1,7 +1,7 @@
 // File: internal/tui/main_menu.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for main_menu
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -9,6 +9,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
@@ -161,42 +162,139 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewMainMenu() string {
+	// The login screen uses a full-width heavy box with centered content;
+	// keep the main menu in the same visual language so the login->menu
+	// transition doesn't feel like two different apps.
+	width := 80
+	if m.width > 80 {
+		width = m.width
+	}
+
 	// Resolve the player's current location to a readable label. The TUI
-	// caches the last-loaded system on the model, so hitting the DB on every
-	// render isn't necessary — if we don't have a cached name, we fall back
-	// to the display rules below.
+	// caches the last-loaded system on the model, so hitting the DB on
+	// every render isn't necessary.
 	systemName := "Unknown"
 	if m.player != nil {
 		if m.currentSystem != nil {
 			systemName = m.currentSystem.Name
 		} else if m.player.CurrentSystem != uuid.Nil {
-			// Player has a system assigned but the TUI hasn't loaded it yet
-			// (e.g., on the very first frame after login). Show a neutral
-			// "In transit" label rather than "Unknown".
 			systemName = "In transit"
 		}
 	}
 
-	// Render header with player stats
-	s := renderHeader(m.username, m.player.Credits, systemName)
-	s += "\n"
-
-	// Welcome message
-	welcome := fmt.Sprintf("Welcome, Commander %s!", m.username)
-	s += subtitleStyle.Render(welcome) + "\n\n"
-
-	// Main menu items
-	s += "Main Menu:\n\n"
-	for i, item := range m.mainMenu.items {
-		if i == m.mainMenu.cursor {
-			s += "> " + selectedMenuItemStyle.Render(item.label) + "\n"
-		} else {
-			s += "  " + menuItemStyle.Render(item.label) + "\n"
-		}
+	credits := int64(0)
+	if m.player != nil {
+		credits = m.player.Credits
 	}
 
-	// Help text
-	s += renderFooter("↑/↓ or j/k: Navigate  •  Enter: Select  •  q: Quit")
+	var sb strings.Builder
 
-	return s
+	// Top border
+	sb.WriteString(BoxTopLeft)
+	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+	sb.WriteString(BoxTopRight + "\n")
+
+	// Title rows
+	writeFramedLine(&sb, Center("TERMINAL VELOCITY", width-2))
+	writeFramedLine(&sb, Center("= MAIN MENU =", width-2))
+
+	// Divider under the title
+	sb.WriteString(BoxCrossLeft)
+	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+	sb.WriteString(BoxCross + "\n")
+
+	// Player stats row
+	statsLine := fmt.Sprintf(" Pilot: %s   Credits: %s cr   Location: %s",
+		m.username, formatThousands(credits), systemName)
+	writeFramedLine(&sb, PadRight(statsLine, width-2))
+
+	// Divider before the menu list
+	sb.WriteString(BoxCrossLeft)
+	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+	sb.WriteString(BoxCross + "\n")
+
+	// Menu items in two columns. Paginate rows = ceil(n/2).
+	items := m.mainMenu.items
+	rows := (len(items) + 1) / 2
+	colWidth := (width - 4) / 2 // 4 = 2 outer borders + 1 gutter char + 1 padding
+	for row := 0; row < rows; row++ {
+		leftIdx := row
+		rightIdx := row + rows
+		left := renderMenuItem(items, leftIdx, m.mainMenu.cursor, colWidth)
+		right := ""
+		if rightIdx < len(items) {
+			right = renderMenuItem(items, rightIdx, m.mainMenu.cursor, colWidth)
+		} else {
+			right = strings.Repeat(" ", colWidth)
+		}
+		writeFramedLine(&sb, " "+left+" "+right)
+	}
+
+	// Empty spacer row + footer divider
+	writeFramedLine(&sb, strings.Repeat(" ", width-2))
+	sb.WriteString(BoxCrossLeft)
+	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+	sb.WriteString(BoxCross + "\n")
+
+	// Help text
+	writeFramedLine(&sb, Center("↑/↓ or j/k: Navigate   Enter: Select   q: Quit", width-2))
+
+	// Bottom border
+	sb.WriteString(BoxBottomLeft)
+	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+	sb.WriteString(BoxBottomRight)
+
+	return sb.String()
+}
+
+// writeFramedLine writes a single content row bracketed by the outer box
+// borders. Content must already be padded to width-2 cells (cell width, not
+// byte length) — callers typically produce it via Center or PadRight from
+// ui_components.go.
+func writeFramedLine(sb *strings.Builder, content string) {
+	sb.WriteString(BoxVertical)
+	sb.WriteString(content)
+	sb.WriteString(BoxVertical + "\n")
+}
+
+// renderMenuItem renders one menu item at the given cursor position, padded
+// to columnWidth cells. The cursor row uses the same selected-item treatment
+// as other menus; non-cursor rows use a two-space left gutter.
+func renderMenuItem(items []menuItem, idx, cursor, columnWidth int) string {
+	if idx >= len(items) {
+		return strings.Repeat(" ", columnWidth)
+	}
+	label := items[idx].label
+	if idx == cursor {
+		// Selected: marker + cyan/bold label. Measure the raw label for
+		// padding since ANSI escapes don't contribute to cell width.
+		rendered := selectedMenuItemStyle.Render("> " + label)
+		padSize := columnWidth - cellWidth("> "+label)
+		if padSize < 0 {
+			padSize = 0
+		}
+		return rendered + strings.Repeat(" ", padSize)
+	}
+	return PadRight("  "+label, columnWidth)
+}
+
+// formatThousands formats an int64 with thousands separators ("12,345").
+// Inline rather than pulling in x/text to keep the menu render cheap.
+func formatThousands(n int64) string {
+	s := fmt.Sprintf("%d", n)
+	sign := ""
+	if strings.HasPrefix(s, "-") {
+		sign = "-"
+		s = s[1:]
+	}
+	if len(s) <= 3 {
+		return sign + s
+	}
+	var parts []string
+	for len(s) > 3 {
+		parts = append([]string{s[len(s)-3:]}, parts...)
+		s = s[:len(s)-3]
+	}
+	parts = append([]string{s}, parts...)
+	return sign + strings.Join(parts, ",")
 }

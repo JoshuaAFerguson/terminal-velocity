@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-04-23 - Main menu styling matches login)
+- **Main menu now uses the same heavy-border frame as the login screen.**
+  Outer box, centered title, stats bar, and footer are rendered in the
+  same visual language so the login -> menu transition feels contiguous
+  rather than dropping the user into a different app. Menu items are
+  laid out in two columns (labels paginated column-major so the cursor
+  still moves top-to-bottom), which comfortably fits all 23 entries in a
+  standard 24-row terminal.
+
 ### Changed (2026-04-23 - Navigation _Enhanced variant consolidated)
 - **Removed `navigation_enhanced.go`** (hardcoded "Alpha Centauri" / "Sol"
   sample-data stub) and folded the space-view "j" (jump) and "m" (map)
