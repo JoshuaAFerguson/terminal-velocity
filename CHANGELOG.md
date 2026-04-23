@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-04-23 - Space View stub removal)
+- **Space View now reflects real state**: system name reads from the loaded
+  `m.currentSystem` (falling back to "In transit" on first frame); the target
+  panel renders the actually-selected space object or an explicit "None"
+  instead of a fabricated "Pirate Viper"; the cargo panel reads from
+  `m.currentShip.Cargo` and resolves commodity IDs via `models.GetCommodityByID`;
+  `Speed` comes from the ship type's combat-initiative stat; the chat pane
+  shows an empty-state line until the real chat stream is wired.
+
 ### Fixed (2025-11-15 - TUI Integration & Compilation Fixes)
 - **TUI Integration Complete**:
   - Integrated Fleet screen into main TUI model with full routing

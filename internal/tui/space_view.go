@@ -1,7 +1,7 @@
 // File: internal/tui/space_view.go
 // Project: Terminal Velocity
 // Description: Main space view with 2D viewport, HUD, radar, status, and real-time interactions
-// Version: 1.1.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -344,9 +344,12 @@ func (m Model) viewSpaceView() string {
 
 	// Header
 	systemName := "Unknown System"
-	if m.player != nil {
-		// Would load system name from database
-		systemName = "Sol System"
+	if m.currentSystem != nil {
+		systemName = m.currentSystem.Name
+	} else if m.player != nil && m.player.CurrentSystem != uuid.Nil {
+		// Player has a system assigned but it hasn't finished loading onto
+		// the TUI model yet — show a neutral label rather than "Unknown".
+		systemName = "In transit"
 	}
 	credits := int64(0)
 	if m.player != nil {
@@ -498,9 +501,18 @@ func (m Model) drawRightSidebar(width, height int) string {
 	statusContent.WriteString(fmt.Sprintf("       %d%%  \n", hullPercent))
 	statusContent.WriteString(fmt.Sprintf(" Fuel: %s\n", DrawProgressBar(fuelPercent, 100, 6)))
 	statusContent.WriteString(fmt.Sprintf("       %d%%   \n", fuelPercent))
-	statusContent.WriteString(" Speed: 340  \n")
+	// Speed is the ShipType's Speed stat (combat initiative). We don't yet
+	// model in-space velocity, so this is the closest real number — it
+	// stays stable as the player moves around a system.
+	speedDisplay := "  -"
+	if m.currentShip != nil {
+		if shipType := models.GetShipTypeByID(m.currentShip.TypeID); shipType != nil {
+			speedDisplay = fmt.Sprintf("%3d", shipType.Speed)
+		}
+	}
+	statusContent.WriteString(fmt.Sprintf(" Speed: %s  \n", speedDisplay))
 
-	credits := int64(52400)
+	credits := int64(0)
 	if m.player != nil {
 		credits = m.player.Credits
 	}
@@ -516,19 +528,62 @@ func (m Model) drawRightSidebar(width, height int) string {
 func (m Model) drawBottomPanels(width, height int) string {
 	var sb strings.Builder
 
-	// Target panel (left)
+	// Target panel (left). Drive entirely off the space-view target
+	// selection; show an explicit empty state when nothing is targeted
+	// rather than fabricating a "Pirate Viper" at 2340 km.
 	targetWidth := 25
 	var targetContent strings.Builder
-	targetContent.WriteString(" TARGET: Pirate Viper    \n")
-	targetContent.WriteString(" Distance: 2,340 km      \n")
-	targetContent.WriteString(" Shields: 45%            \n")
-	targetContent.WriteString(" Attitude: Hostile       \n")
+	if m.spaceView.hasTarget && m.spaceView.targetIndex >= 0 && m.spaceView.targetIndex < len(m.spaceView.ships) {
+		target := m.spaceView.ships[m.spaceView.targetIndex]
+		attitude := "Neutral"
+		if target.hostile {
+			attitude = "Hostile"
+		}
+		targetContent.WriteString(fmt.Sprintf(" TARGET: %s\n", truncateCells(target.name, targetWidth-10)))
+		targetContent.WriteString(fmt.Sprintf(" Distance: %.0f km\n", target.distance))
+		// Shields on remote ships aren't exposed over the space-view stream
+		// yet — render a dash instead of a made-up percentage.
+		targetContent.WriteString(" Shields:  -\n")
+		targetContent.WriteString(fmt.Sprintf(" Attitude: %s\n", attitude))
+	} else {
+		targetContent.WriteString(" TARGET: None\n")
+		targetContent.WriteString(" Distance: -\n")
+		targetContent.WriteString(" Shields:  -\n")
+		targetContent.WriteString(" Attitude: -\n")
+	}
 
-	// Cargo panel (right)
+	// Cargo panel (right). Read from the player's current ship. CargoItem
+	// carries a commodity ID; resolve it via the in-memory commodity table.
 	cargoWidth := 38
 	var cargoContent strings.Builder
-	cargoContent.WriteString(" CARGO: 15/50 tons                \n")
-	cargoContent.WriteString(" " + IconBullet + " Food (10t)  " + IconBullet + " Electronics (5t) \n")
+	cargoUsed := 0
+	cargoMax := 0
+	if m.currentShip != nil {
+		for _, item := range m.currentShip.Cargo {
+			cargoUsed += item.Quantity
+		}
+		if shipType := models.GetShipTypeByID(m.currentShip.TypeID); shipType != nil {
+			cargoMax = shipType.CargoSpace
+		}
+	}
+	cargoContent.WriteString(fmt.Sprintf(" CARGO: %d/%d tons\n", cargoUsed, cargoMax))
+	cargoSummary := " (empty)"
+	if m.currentShip != nil && len(m.currentShip.Cargo) > 0 {
+		parts := make([]string, 0, 2)
+		for i, item := range m.currentShip.Cargo {
+			if i >= 2 { // keep the line short — full manifest is in the cargo screen
+				parts = append(parts, "...")
+				break
+			}
+			name := item.CommodityID
+			if c := models.GetCommodityByID(item.CommodityID); c != nil {
+				name = c.Name
+			}
+			parts = append(parts, fmt.Sprintf("%s %s (%dt)", IconBullet, name, item.Quantity))
+		}
+		cargoSummary = " " + strings.Join(parts, "  ")
+	}
+	cargoContent.WriteString(cargoSummary + "\n")
 
 	sb.WriteString(BoxVertical + "  ")
 
@@ -559,9 +614,13 @@ func (m Model) drawChatCollapsed(width int) string {
 	sb.WriteString(BoxVertical + " ")
 	sb.WriteString(BoxVertical + "\n")
 
+	// Collapsed chat ticker. Real message tailing will land when the chat
+	// stream is wired into spaceViewModel — until then we show an empty-state
+	// hint so the UI doesn't invent a message that never actually arrived.
+	tickerText := " (no recent messages — press [C] to expand)"
 	sb.WriteString(BoxVertical + " ")
 	sb.WriteString(BoxVertical)
-	sb.WriteString(" SpaceCadet: Anyone near Sol system?                                  3m ago ")
+	sb.WriteString(PadRight(tickerText, width-4))
 	sb.WriteString(BoxVertical + " ")
 	sb.WriteString(BoxVertical + "\n")
 
@@ -608,23 +667,16 @@ func (m Model) drawChatExpanded(width int) string {
 	sb.WriteString(BoxCross + " ")
 	sb.WriteString(BoxVertical + "\n")
 
-	// Chat messages
-	messages := []string{
-		" [SpaceCadet] Anyone near Sol system?                     3m ago ",
-		" [TraderJoe] Yeah I'm docked at Earth. Need anything?     2m ago ",
-		" [SpaceCadet] Looking for escort to Alpha Centauri        2m ago ",
-		" [PirateKing] I'll escort you... to your doom! Arr!       1m ago ",
-		" [TraderJoe] Ignore him. I can escort for 5k credits      1m ago ",
-		" [YOU] I'm at Earth too, what's the pirate situation?     now    ",
-	}
-
-	for _, msg := range messages {
-		sb.WriteString(BoxVertical + " ")
-		sb.WriteString(BoxVertical)
-		sb.WriteString(PadRight(msg, width-4))
-		sb.WriteString(BoxVertical + " ")
-		sb.WriteString(BoxVertical + "\n")
-	}
+	// Chat messages. The space-view chat stream hasn't been wired to the
+	// global chat system yet — render an empty-state line instead of six
+	// scripted NPCs. Once the real chat manager is available, replace this
+	// with m.spaceView.messages or a ring buffer fed by a tea.Cmd.
+	placeholder := " No messages yet in this channel. Type below to send."
+	sb.WriteString(BoxVertical + " ")
+	sb.WriteString(BoxVertical)
+	sb.WriteString(PadRight(placeholder, width-4))
+	sb.WriteString(BoxVertical + " ")
+	sb.WriteString(BoxVertical + "\n")
 
 	// Empty line
 	sb.WriteString(BoxVertical + " ")
