@@ -102,6 +102,22 @@ func (m Model) handleEncounterOption() (tea.Model, tea.Cmd) {
 				if m.playerRepo != nil {
 					_ = m.playerRepo.SetCriminal(context.Background(), m.player.ID, true)
 				}
+				// Auto-issue a bounty on the attacker. The amount scales
+				// with their combat rating so repeat offenders get more
+				// valuable — bounty hunters should find experienced
+				// criminals more rewarding to hunt. Pvp.Manager dedupes
+				// by TargetID internally; later attacks escalate the
+				// amount rather than stacking multiple bounties.
+				if m.pvpManager != nil {
+					bountyAmount := int64(5000 + m.player.CombatRating*100)
+					m.pvpManager.IssueBounty(
+						m.player.ID,
+						m.username,
+						bountyAmount,
+						fmt.Sprintf("Attack on %s patrol", enc.FactionID),
+						"System",
+					)
+				}
 			}
 		}
 

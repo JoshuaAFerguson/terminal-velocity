@@ -293,6 +293,7 @@ func (m *Manager) IssueBounty(targetID uuid.UUID, targetName string, amount int6
 		// Add to existing bounty
 		bounty.Amount += amount
 		bounty.CrimeValue += amount
+		log.Info("IssueBounty: escalated %s to %d cr (reason=%q)", targetName, bounty.Amount, reason)
 		return bounty
 	}
 
@@ -304,6 +305,7 @@ func (m *Manager) IssueBounty(targetID uuid.UUID, targetName string, amount int6
 	m.ensureStats(targetID)
 	m.stats[targetID].NotorietyLevel++
 
+	log.Info("IssueBounty: new %d cr on %s (reason=%q)", amount, targetName, reason)
 	return bounty
 }
 

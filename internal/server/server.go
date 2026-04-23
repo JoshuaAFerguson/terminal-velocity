@@ -27,6 +27,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/ratelimit"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tick"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tui"
@@ -77,6 +78,10 @@ type Server struct {
 	// from this; without a shared instance, every player sees only
 	// themselves in the viewport.
 	presenceManager *presence.Manager
+	// Server-wide PvP state — challenges, bounties, stats. Auto-issued
+	// bounties (e.g., attacking a police patrol) must land in one shared
+	// list so other players can see and claim them.
+	pvpManager *pvp.Manager
 
 	// Universe simulation. The tick service owns background work that
 	// makes the world feel alive between player actions — market stocks
@@ -317,6 +322,7 @@ func (s *Server) initDatabase() error {
 	// the player so SendGlobalMessage fans messages out to everyone.
 	s.chatManager = chat.NewManager()
 	s.presenceManager = presence.NewManager()
+	s.pvpManager = pvp.NewManager()
 
 	// Start background workers for managers
 	s.fleetManager.Start()
@@ -629,6 +635,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		s.newsManager,
 		s.chatManager,
 		s.presenceManager,
+		s.pvpManager,
 	)
 
 	// Create BubbleTea program with SSH channel as input/output
@@ -660,7 +667,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 func (s *Server) startAnonymousSession(channel ssh.Channel, requests <-chan *ssh.Request, initialSize ptySize) {
 	log.Debug("startAnonymousSession called (initial size %dx%d)", initialSize.cols, initialSize.rows)
 
-	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager, s.presenceManager)
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager, s.presenceManager, s.pvpManager)
 
 	p := tea.NewProgram(
 		model,

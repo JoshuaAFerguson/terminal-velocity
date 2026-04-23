@@ -257,11 +257,12 @@ func NewModel(
 	newsManager *news.Manager,
 	chatManager *chat.Manager,
 	presenceManager *presence.Manager,
+	pvpManager *pvp.Manager,
 ) Model {
-	// newsManager / chatManager / presenceManager are the server-wide
-	// feeds; fall back to standalone managers so old call sites don't
-	// NPE. The fallback loses cross-session semantics, but tests that
-	// inject nil still run.
+	// newsManager / chatManager / presenceManager / pvpManager are the
+	// server-wide feeds; fall back to standalone managers so old call
+	// sites don't NPE. The fallback loses cross-session semantics, but
+	// tests that inject nil still run.
 	if newsManager == nil {
 		newsManager = news.NewManager()
 	}
@@ -270,6 +271,9 @@ func NewModel(
 	}
 	if presenceManager == nil {
 		presenceManager = presence.NewManager()
+	}
+	if pvpManager == nil {
+		pvpManager = pvp.NewManager()
 	}
 	return Model{
 		screen:              ScreenMainMenu,
@@ -318,7 +322,7 @@ func NewModel(
 		tradeModel:          newTradeModel(),
 		tradeManager:        trade.NewManager(),
 		pvpModel:            newPvPModel(),
-		pvpManager:          pvp.NewManager(),
+		pvpManager:          pvpManager,
 		helpModel:           newHelpModel(),
 		encounterManager:    encounters.NewManager(),
 		outfitterEnhanced:   newOutfitterEnhancedModel(),
@@ -395,6 +399,7 @@ func NewLoginModel(
 	newsManager *news.Manager,
 	chatManager *chat.Manager,
 	presenceManager *presence.Manager,
+	pvpManager *pvp.Manager,
 ) Model {
 	if newsManager == nil {
 		newsManager = news.NewManager()
@@ -404,6 +409,9 @@ func NewLoginModel(
 	}
 	if presenceManager == nil {
 		presenceManager = presence.NewManager()
+	}
+	if pvpManager == nil {
+		pvpManager = pvp.NewManager()
 	}
 	return Model{
 		screen:              ScreenLogin,
@@ -448,7 +456,7 @@ func NewLoginModel(
 		tradeModel:          newTradeModel(),
 		tradeManager:        trade.NewManager(),
 		pvpModel:            newPvPModel(),
-		pvpManager:          pvp.NewManager(),
+		pvpManager:          pvpManager,
 		helpModel:           newHelpModel(),
 		encounterManager:    encounters.NewManager(),
 		outfitterEnhanced:   newOutfitterEnhancedModel(),
