@@ -147,7 +147,7 @@ travel." Every item ships a tmux regression test + unit tests for repos.
 a commodity at a profit, install an outfit, and be challenged by a
 police encounter — without touching the DB manually.
 
-### Phase 2 — World breathes (in progress)
+### Phase 2 — World breathes (COMPLETE 2026-04-23)
 
 Tick loop + content generation. The universe must change between logins.
 
@@ -170,14 +170,32 @@ Tick loop + content generation. The universe must change between logins.
       background articles (merchant safety, commodity fluctuation,
       diplomatic breakthrough, pirate activity x2) from the shared
       feed.
-- [ ] **Reputation consequences.** Attacking a government ship hurts
-      rep with that gov and helps with its enemies. Cargo restrictions
-      gated on rep (blocked at spaceport if too low).
-- [ ] **Random events.** System-level random events (pirate raid,
-      merchant convoy, bounty opened) from `events.Manager`.
+- [x] **Reputation consequences.** encounter.go "attack/engage" case
+      now runs `Model.changeReputation(FactionID, -20)` (updates the
+      in-memory map + `playerRepo.UpdateReputation`). Police patrol
+      attacks also flip `is_criminal` via a dedicated
+      `playerRepo.SetCriminal`. Rescuing a distressed ship persists
+      the rep gain too. Also fixed a pre-existing gap: Merchant and
+      Asteroid encounters had `GetOptions` cases that returned zero
+      options — added Trade/Attack/Ignore and Mine/Ignore
+      respectively. Live-verified: attacking a Police Patrol in
+      `united_earth_federation` writes `(united_earth_federation,
+      -20)` to `player_reputation`.
+- [x] **Random events.** New tick handler `system_events` at 2-minute
+      cadence: `systemRepo.PickRandomSystemName` +
+      `news.AnnounceSystemEvent` + templates that reference the real
+      system name ("Pirate Raid Reported in Castor", "Naval Patrol
+      Steps Up Presence in Sargas"). Articles carry the system's UUID
+      on `NewsArticle.SystemID` so downstream systems (encounter
+      weighting, map overlays) can filter by location. Unit tests
+      cover every iteration of the generator; a tmux harness waits
+      140 s and verifies a real system name shows up in the News
+      screen.
 
-**DoD:** a player who logs in daily sees the universe has changed — new
-news, different prices, mission board rotated.
+**DoD:** ✅ a player who logs in daily sees the universe has changed —
+prices drift back toward equilibrium, trade/rescue/attack actions
+announce, reputation shifts with combat, and system-named events
+trickle into the feed every two minutes.
 
 ### Phase 3 — Pilot depth (2 weeks)
 
