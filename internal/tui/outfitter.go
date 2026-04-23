@@ -292,6 +292,10 @@ func (m Model) viewWeaponsList() string {
 	for i, weapon := range weapons {
 		affordable := weapon.Price <= m.player.Credits
 		canFit := m.canFitWeapon(&weapon)
+		// Licence gate — append "[CR N]" when the player is under the
+		// required rating so the reason for the greyed-out row is
+		// obvious before they try to buy it.
+		lockedByLicence := weapon.MinCombatRating > 0 && m.player.CombatRating < weapon.MinCombatRating
 
 		line := fmt.Sprintf("%-25s %-9s %-7d %-8s %-7d %d cr",
 			weapon.Name,
@@ -301,8 +305,11 @@ func (m Model) viewWeaponsList() string {
 			weapon.OutfitSpace,
 			weapon.Price,
 		)
+		if lockedByLicence {
+			line += fmt.Sprintf("   [CR %d]", weapon.MinCombatRating)
+		}
 
-		if !affordable || !canFit {
+		if !affordable || !canFit || lockedByLicence {
 			line = helpStyle.Render(line)
 		}
 
@@ -623,6 +630,16 @@ func (m Model) executeInstall() tea.Cmd {
 			}
 			if !m.canFitWeapon(weapon) {
 				return equipmentChangedMsg{success: false, err: fmt.Errorf("no space available")}
+			}
+			// Licence gate — heavier weapons require demonstrated combat
+			// experience. Ships already have MinCombatRating enforcement
+			// in shipyard.go; this mirrors it for weapon purchases.
+			if weapon.MinCombatRating > 0 && m.player.CombatRating < weapon.MinCombatRating {
+				return equipmentChangedMsg{
+					success: false,
+					err: fmt.Errorf("requires Combat Rating %d (you have %d)",
+						weapon.MinCombatRating, m.player.CombatRating),
+				}
 			}
 
 			// Deduct credits

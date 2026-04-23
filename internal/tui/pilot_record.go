@@ -83,6 +83,38 @@ func (m Model) viewPilotRecord() string {
 	b.WriteString(fmt.Sprintf("  Exploration:  %4d\n", p.ExplorationRating))
 	b.WriteString("\n")
 
+	// Licences block — tiered combat ratings unlock progressively heavier
+	// weapon purchases at the Outfitter. Mirrors the thresholds set on
+	// StandardWeapons.MinCombatRating so what's shown here is what the
+	// catalog actually gates on.
+	b.WriteString(subtitleStyle.Render("Licences") + "\n")
+	combatTiers := []struct {
+		cr    int
+		label string
+	}{
+		{10, "Basic Combat Licence      — Beam Laser, Missile Launcher"},
+		{25, "Competent Combat Licence  — Plasma Cannon, Plasma Turret"},
+		{40, "Skilled Combat Licence    — Heavy Laser"},
+		{50, "Seasoned Combat Licence   — Torpedo Launcher"},
+		{60, "Expert Combat Licence     — Railgun"},
+		{80, "Elite Combat Licence      — Heavy Railgun"},
+	}
+	any := false
+	for _, t := range combatTiers {
+		mark := "  "
+		if p.CombatRating >= t.cr {
+			mark = successStyle.Render("✓ ")
+			any = true
+		} else {
+			mark = helpStyle.Render("  ")
+		}
+		b.WriteString(fmt.Sprintf("  %s[CR %2d]  %s\n", mark, t.cr, t.label))
+	}
+	if !any {
+		b.WriteString(helpStyle.Render("  (earn combat rating to unlock heavier weapons)") + "\n")
+	}
+	b.WriteString("\n")
+
 	// Milestones block
 	b.WriteString(subtitleStyle.Render("Milestones") + "\n")
 	b.WriteString(fmt.Sprintf("  Ships destroyed:    %d\n", p.TotalKills))

@@ -91,6 +91,11 @@ type Weapon struct {
 	AmmoConsumption   int     `json:"ammo_consumption"`   // ammo used per shot
 	ProjectileSpeed   int     `json:"projectile_speed"`   // units per second
 	ShieldPenetration float64 `json:"shield_penetration"` // 0.0-1.0, percentage that bypasses shields
+
+	// Licence gate: minimum combat rating required to purchase/install.
+	// Mirrors ShipType.MinCombatRating — zero means no gate. Outfitter
+	// enforces this in executeInstall.
+	MinCombatRating int `json:"min_combat_rating"`
 }
 
 // Outfit represents ship equipment/upgrades

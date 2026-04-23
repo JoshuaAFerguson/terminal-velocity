@@ -24,6 +24,7 @@ var StandardWeapons = []Weapon{
 		EnergyCost:        10,   // moderate energy consumption
 		ProjectileSpeed:   1000, // very fast
 		ShieldPenetration: 0.0,  // no shield penetration
+		MinCombatRating:   0,    // entry-level weapon
 	},
 	{
 		ID:                "beam_laser",
@@ -39,6 +40,7 @@ var StandardWeapons = []Weapon{
 		EnergyCost:        20,   // high energy consumption
 		ProjectileSpeed:   1200, // very fast
 		ShieldPenetration: 0.1,  // slight shield penetration
+		MinCombatRating:   10,   // requires basic combat licence
 	},
 	{
 		ID:                "heavy_laser",
@@ -54,6 +56,7 @@ var StandardWeapons = []Weapon{
 		EnergyCost:        35,  // very high energy consumption
 		ProjectileSpeed:   1000,
 		ShieldPenetration: 0.15, // modest shield penetration
+		MinCombatRating:   40,   // requires skilled combat licence
 	},
 
 	// Missile Weapons (high damage, ammo-based, slower)
@@ -72,6 +75,7 @@ var StandardWeapons = []Weapon{
 		AmmoConsumption:   1,   // 1 missile per shot
 		ProjectileSpeed:   400, // slower projectile
 		ShieldPenetration: 0.2, // good shield penetration
+		MinCombatRating:   10,  // requires basic combat licence
 	},
 	{
 		ID:                "torpedo_launcher",
@@ -88,6 +92,7 @@ var StandardWeapons = []Weapon{
 		AmmoConsumption:   1,   // 1 torpedo per shot
 		ProjectileSpeed:   300, // slow projectile
 		ShieldPenetration: 0.4, // excellent shield penetration
+		MinCombatRating:   50,  // requires seasoned combat licence
 	},
 
 	// Plasma Weapons (balanced, moderate energy use)
@@ -105,6 +110,7 @@ var StandardWeapons = []Weapon{
 		EnergyCost:        25,   // moderate energy consumption
 		ProjectileSpeed:   600,  // moderate speed
 		ShieldPenetration: 0.25, // good shield penetration
+		MinCombatRating:   25,   // requires competent combat licence
 	},
 	{
 		ID:                "plasma_turret",
@@ -120,6 +126,7 @@ var StandardWeapons = []Weapon{
 		EnergyCost:        18,  // lower energy consumption
 		ProjectileSpeed:   700,
 		ShieldPenetration: 0.2, // good shield penetration
+		MinCombatRating:   25,  // requires competent combat licence
 	},
 
 	// Railgun Weapons (very high damage, kinetic, bypasses some shields)
@@ -137,6 +144,7 @@ var StandardWeapons = []Weapon{
 		EnergyCost:        40,   // high energy consumption
 		ProjectileSpeed:   1500, // extremely fast
 		ShieldPenetration: 0.35, // excellent shield penetration
+		MinCombatRating:   60,   // requires expert combat licence
 	},
 	{
 		ID:                "heavy_railgun",
@@ -152,6 +160,7 @@ var StandardWeapons = []Weapon{
 		EnergyCost:        60,   // very high energy consumption
 		ProjectileSpeed:   1800, // extremely fast
 		ShieldPenetration: 0.5,  // massive shield penetration
+		MinCombatRating:   80,   // requires elite combat licence
 	},
 }
 
