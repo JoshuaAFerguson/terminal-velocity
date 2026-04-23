@@ -427,15 +427,34 @@ func (g *Generator) findNearestSystems(system *models.StarSystem, allSystems []m
 	return result
 }
 
-// generatePlanets creates planets for each system
+// generatePlanets creates planets for each system, guaranteeing the (system_id,
+// name) uniqueness that the database enforces via the planets_system_id_name_key
+// index. The random naming scheme can legitimately produce collisions within a
+// single system (e.g., two "Station" stations), which would otherwise abort an
+// ongoing -save run halfway through.
 func (g *Generator) generatePlanets(systems []models.StarSystem) []models.Planet {
 	planets := make([]models.Planet, 0)
 
 	for i := range systems {
 		numPlanets := 1 + g.rand.Intn(3) // 1-4 planets per system
+		used := make(map[string]struct{}, numPlanets)
 
 		for j := 0; j < numPlanets; j++ {
 			planet := g.generatePlanet(&systems[i], j)
+			// Up to 16 retries against the intra-system collision set. If we
+			// still can't find a unique name (extremely unlikely), append the
+			// index as a tiebreaker — deterministic and within the DB's 64-char
+			// column limit.
+			for attempts := 0; attempts < 16; attempts++ {
+				if _, clash := used[planet.Name]; !clash {
+					break
+				}
+				planet = g.generatePlanet(&systems[i], j)
+			}
+			if _, clash := used[planet.Name]; clash {
+				planet.Name = fmt.Sprintf("%s-%d", planet.Name, j)
+			}
+			used[planet.Name] = struct{}{}
 			planets = append(planets, planet)
 			systems[i].Planets = append(systems[i].Planets, planet)
 		}
