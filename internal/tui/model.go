@@ -250,7 +250,13 @@ func NewModel(
 	notificationsManager *notifications.Manager,
 	friendsManager *friends.Manager,
 	marketplaceManager *marketplace.Manager,
+	newsManager *news.Manager,
 ) Model {
+	// newsManager is the single server-wide feed; fall back to a
+	// standalone manager so old call sites don't NPE.
+	if newsManager == nil {
+		newsManager = news.NewManager()
+	}
 	return Model{
 		screen:              ScreenMainMenu,
 		playerID:            playerID,
@@ -278,7 +284,7 @@ func NewModel(
 		pendingAchievements: []*models.Achievement{},
 		encounterModel:      newEncounterModel(),
 		newsModel:           newNewsModel(),
-		newsManager:         news.NewManager(),
+		newsManager:         newsManager,
 		leaderboardsModel:   newLeaderboardsModel(),
 		leaderboardManager:  leaderboards.NewManager(),
 		playersModel:        newPlayersModel(),
@@ -333,12 +339,11 @@ func (m *Model) InitializeTutorials() {
 	}
 }
 
-// InitializeNews generates initial news articles
-func (m *Model) InitializeNews() {
-	if m.newsManager != nil {
-		m.newsManager.GenerateInitialNews()
-	}
-}
+// InitializeNews used to seed the session's news manager. Now that the
+// manager is server-wide and seeded once in initDatabase, this is a
+// no-op retained for callers that might still exist in tests — calling
+// GenerateInitialNews on every login would flood the shared feed.
+func (m *Model) InitializeNews() {}
 
 // InitializePresence registers the player as online
 func (m *Model) InitializePresence() {
@@ -370,7 +375,11 @@ func NewLoginModel(
 	marketRepo *database.MarketRepository,
 	mailRepo *database.MailRepository,
 	socialRepo *database.SocialRepository,
+	newsManager *news.Manager,
 ) Model {
+	if newsManager == nil {
+		newsManager = news.NewManager()
+	}
 	return Model{
 		screen:              ScreenLogin,
 		playerID:            uuid.Nil,
@@ -398,7 +407,7 @@ func NewLoginModel(
 		pendingAchievements: []*models.Achievement{},
 		encounterModel:      newEncounterModel(),
 		newsModel:           newNewsModel(),
-		newsManager:         news.NewManager(),
+		newsManager:         newsManager,
 		leaderboardsModel:   newLeaderboardsModel(),
 		leaderboardManager:  leaderboards.NewManager(),
 		playersModel:        newPlayersModel(),

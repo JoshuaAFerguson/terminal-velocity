@@ -23,6 +23,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/marketplace"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/metrics"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/ratelimit"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tick"
@@ -60,6 +61,11 @@ type Server struct {
 	notificationsManager *notifications.Manager
 	friendsManager       *friends.Manager
 	marketplaceManager   *marketplace.Manager
+	// Server-wide, thread-safe news feed. Shared across every player's
+	// TUI session so articles posted by one player are visible to all.
+	// Previously each Model created its own news.Manager, which meant
+	// OnPlayerTrade announcements stayed stranded in the trader's session.
+	newsManager *news.Manager
 
 	// Universe simulation. The tick service owns background work that
 	// makes the world feel alive between player actions — market stocks
@@ -291,6 +297,10 @@ func (s *Server) initDatabase() error {
 	s.notificationsManager = notifications.NewManager(s.socialRepo)
 	s.friendsManager = friends.NewManager(s.socialRepo)
 	s.marketplaceManager = marketplace.NewManager(s.playerRepo, s.shipRepo)
+	s.newsManager = news.NewManager()
+	// Seed the feed so fresh deploys don't greet the first player with
+	// an empty news screen.
+	s.newsManager.GenerateInitialNews()
 
 	// Start background workers for managers
 	s.fleetManager.Start()
@@ -309,6 +319,19 @@ func (s *Server) initDatabase() error {
 		}
 		if n > 0 {
 			log.Debug("market_drift: nudged %d rows", n)
+		}
+		return nil
+	})
+	// News.Update is rate-limited internally (default 30 min between
+	// random articles). We poke it every minute so the window check
+	// runs often enough to catch the 30-minute mark without waking
+	// the goroutine pointlessly.
+	s.tickService.Register("news_random", time.Minute, func(ctx context.Context) error {
+		if s.newsManager == nil {
+			return nil
+		}
+		if article := s.newsManager.Update(); article != nil {
+			log.Debug("news_random: generated %q", article.Headline)
 		}
 		return nil
 	})
@@ -561,6 +584,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		s.notificationsManager,
 		s.friendsManager,
 		s.marketplaceManager,
+		s.newsManager,
 	)
 
 	// Create BubbleTea program with SSH channel as input/output
@@ -592,7 +616,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 func (s *Server) startAnonymousSession(channel ssh.Channel, requests <-chan *ssh.Request, initialSize ptySize) {
 	log.Debug("startAnonymousSession called (initial size %dx%d)", initialSize.cols, initialSize.rows)
 
-	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo)
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.newsManager)
 
 	p := tea.NewProgram(
 		model,

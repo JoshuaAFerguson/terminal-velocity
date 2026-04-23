@@ -315,7 +315,14 @@ func GenerateFactionNews(factionName1, factionName2 string, isPositive bool) *Ne
 		}
 	}
 
-	idx := rand.Intn(len(headlines))
+	// Headline and body tables are hand-authored and may differ in length;
+	// cap the random index to the smaller of the two so a len(headlines)=3
+	// / len(bodies)=2 imbalance doesn't panic 1/3 of the time.
+	n := len(headlines)
+	if len(bodies) < n {
+		n = len(bodies)
+	}
+	idx := rand.Intn(n)
 	article := NewNewsArticle(NewsCategoryPolitical, NewsPriorityMedium, headlines[idx], bodies[idx])
 	return article
 }

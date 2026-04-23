@@ -21,6 +21,7 @@ package news
 import (
 	"math/rand"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
@@ -31,7 +32,12 @@ import (
 
 var log = logger.WithComponent("News")
 
+// Manager serializes access to the news feed. Safe for concurrent use —
+// the tick service writes random articles on its goroutine while every
+// active player's UI session reads the feed, so every method that
+// touches the articles slice takes the mutex.
 type Manager struct {
+	mu                 sync.RWMutex
 	articles           []*models.NewsArticle
 	lastRandomNewsTime time.Time
 	randomNewsInterval time.Duration
@@ -57,8 +63,10 @@ func (m *Manager) AddArticle(article *models.NewsArticle) {
 	if article == nil {
 		return
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.articles = append(m.articles, article)
-	m.pruneExpiredArticles()
+	m.pruneExpiredLocked()
 }
 
 // GetRecentArticles returns recent news articles
@@ -70,7 +78,9 @@ func (m *Manager) AddArticle(article *models.NewsArticle) {
 // Returns:
 //   - Slice of recent articles, sorted by creation time (newest first)
 func (m *Manager) GetRecentArticles(count int, category models.NewsCategory) []*models.NewsArticle {
-	m.pruneExpiredArticles()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneExpiredLocked()
 
 	// Filter by category if specified
 	filtered := []*models.NewsArticle{}
@@ -101,7 +111,9 @@ func (m *Manager) GetRecentArticles(count int, category models.NewsCategory) []*
 // Returns:
 //   - Slice of articles meeting priority threshold
 func (m *Manager) GetArticlesByPriority(minPriority models.NewsPriority) []*models.NewsArticle {
-	m.pruneExpiredArticles()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneExpiredLocked()
 
 	filtered := []*models.NewsArticle{}
 	for _, article := range m.articles {
@@ -126,12 +138,16 @@ func (m *Manager) GetArticlesByPriority(minPriority models.NewsPriority) []*mode
 // Returns:
 //   - Count of non-expired articles
 func (m *Manager) GetArticleCount() int {
-	m.pruneExpiredArticles()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneExpiredLocked()
 	return len(m.articles)
 }
 
-// pruneExpiredArticles removes expired articles from the feed
-func (m *Manager) pruneExpiredArticles() {
+// pruneExpiredLocked removes expired articles. Caller must hold m.mu.
+// Renamed (was pruneExpiredArticles) to make the locking contract explicit
+// — every call site is now inside a held lock.
+func (m *Manager) pruneExpiredLocked() {
 	active := []*models.NewsArticle{}
 	for _, article := range m.articles {
 		if !article.IsExpired() {
@@ -141,21 +157,28 @@ func (m *Manager) pruneExpiredArticles() {
 	m.articles = active
 }
 
-// Update checks if random news should be generated
+// Update checks if random news should be generated. Safe to call from the
+// tick service goroutine — serializes with reader / writer paths via m.mu.
 //
 // Returns:
 //   - New random article if generated, nil otherwise
 func (m *Manager) Update() *models.NewsArticle {
+	m.mu.Lock()
 	// Check if it's time for random news
-	if time.Since(m.lastRandomNewsTime) >= m.randomNewsInterval {
-		m.lastRandomNewsTime = time.Now()
+	if time.Since(m.lastRandomNewsTime) < m.randomNewsInterval {
+		m.mu.Unlock()
+		return nil
+	}
+	m.lastRandomNewsTime = time.Now()
+	m.mu.Unlock()
 
-		// 50% chance to generate random news
-		if rand.Float64() < 0.5 {
-			article := models.GenerateRandomNews()
-			m.AddArticle(article)
-			return article
-		}
+	// 50% chance to generate random news. Done outside the lock since
+	// GenerateRandomNews is a pure function, and AddArticle takes its
+	// own lock.
+	if rand.Float64() < 0.5 {
+		article := models.GenerateRandomNews()
+		m.AddArticle(article)
+		return article
 	}
 
 	return nil
@@ -251,7 +274,9 @@ func (m *Manager) GetBreakingNews() []*models.NewsArticle {
 // Returns:
 //   - Slice of player-generated articles
 func (m *Manager) GetPlayerNews(count int) []*models.NewsArticle {
-	m.pruneExpiredArticles()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneExpiredLocked()
 
 	playerArticles := []*models.NewsArticle{}
 	for _, article := range m.articles {
@@ -277,6 +302,8 @@ func (m *Manager) GetPlayerNews(count int) []*models.NewsArticle {
 // Parameters:
 //   - maxAge: Maximum age for articles to keep
 func (m *Manager) ClearOldNews(maxAge time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cutoffTime := time.Now().Add(-maxAge)
 	active := []*models.NewsArticle{}
 
@@ -294,7 +321,9 @@ func (m *Manager) ClearOldNews(maxAge time.Duration) {
 // Returns:
 //   - Map of category to article count
 func (m *Manager) GetCategoryCount() map[models.NewsCategory]int {
-	m.pruneExpiredArticles()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneExpiredLocked()
 
 	counts := make(map[models.NewsCategory]int)
 	for _, article := range m.articles {
