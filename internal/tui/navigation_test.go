@@ -30,10 +30,13 @@ func TestScreenTransitions(t *testing.T) {
 		{"SpaceView to NavigationJ", ScreenSpaceView, "j", ScreenNavigation},
 		{"SpaceView to MainMenu", ScreenSpaceView, "esc", ScreenMainMenu},
 
-		// Landing navigation
-		{"Landing to Trading", ScreenLanding, "c", ScreenTradingEnhanced},
+		// Landing navigation. Trading and Shipyard now route to the
+		// DB-backed screens (not the _enhanced sample-data variants)
+		// because the real ones already handle currentPlanet + market
+		// loads correctly.
+		{"Landing to Trading", ScreenLanding, "c", ScreenTrading},
 		{"Landing to Outfitter", ScreenLanding, "o", ScreenOutfitterEnhanced},
-		{"Landing to Shipyard", ScreenLanding, "s", ScreenShipyardEnhanced},
+		{"Landing to Shipyard", ScreenLanding, "s", ScreenShipyard},
 		{"Landing to Missions", ScreenLanding, "m", ScreenMissionBoardEnhanced},
 		{"Landing to Quests", ScreenLanding, "q", ScreenQuestBoardEnhanced},
 		{"Landing to News", ScreenLanding, "b", ScreenNews},

@@ -450,19 +450,32 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "c", "C":
-			// Commodity Exchange
-			m.screen = ScreenTradingEnhanced
-			return m, nil
+			// Commodity Exchange. Route to the DB-backed Trading screen
+			// (not the _enhanced sample-data variant) and kick off the
+			// market load so the table shows real prices for the planet
+			// we're docked at.
+			m.trading = newTradingModel()
+			m.previousScreen = ScreenLanding
+			m.hasPreviousScreen = true
+			m.screen = ScreenTrading
+			return m, m.loadTradingMarket()
 
 		case "o", "O":
-			// Outfitters
+			// Outfitters — the enhanced variant has loadouts and inventory
+			// wired through outfittingManager, so keep that routing.
+			m.previousScreen = ScreenLanding
+			m.hasPreviousScreen = true
 			m.screen = ScreenOutfitterEnhanced
 			return m, nil
 
 		case "s", "S":
-			// Shipyard
-			m.screen = ScreenShipyardEnhanced
-			return m, nil
+			// Shipyard — route to the DB-backed Shipyard, not the
+			// _enhanced variant.
+			m.shipyard = newShipyardModel()
+			m.previousScreen = ScreenLanding
+			m.hasPreviousScreen = true
+			m.screen = ScreenShipyard
+			return m, m.loadShipyard()
 
 		case "m", "M":
 			// Missions

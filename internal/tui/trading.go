@@ -62,8 +62,14 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			if m.trading.mode == "market" {
-				// Go back to main menu
-				m.screen = ScreenMainMenu
+				// Return to wherever we came from (Landing when docked,
+				// Main Menu otherwise).
+				if m.hasPreviousScreen {
+					m.screen = m.previousScreen
+					m.hasPreviousScreen = false
+				} else {
+					m.screen = ScreenMainMenu
+				}
 				return m, nil
 			}
 			// Cancel current operation
@@ -73,7 +79,12 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "backspace":
-			m.screen = ScreenMainMenu
+			if m.hasPreviousScreen {
+				m.screen = m.previousScreen
+				m.hasPreviousScreen = false
+			} else {
+				m.screen = ScreenMainMenu
+			}
 			return m, nil
 
 		case "up", "k":
@@ -428,11 +439,27 @@ func (m Model) loadTradingMarket() tea.Cmd {
 			}
 		}
 
-		// Load market prices for this planet
+		// Load market prices for this planet. If the planet's market
+		// table is empty, seed it with standard-commodity defaults on
+		// first access — every procedurally-generated planet otherwise
+		// greets the player with an empty grid.
 		prices, err := m.marketRepo.GetMarketPricesForPlanet(ctx, planet.ID)
 		if err != nil {
 			return marketLoadedMsg{
 				err: fmt.Errorf("failed to load market prices: %w", err),
+			}
+		}
+		if len(prices) == 0 {
+			if err := m.marketRepo.InitializePlanetMarket(ctx, planet.ID); err != nil {
+				return marketLoadedMsg{
+					err: fmt.Errorf("seed market: %w", err),
+				}
+			}
+			prices, err = m.marketRepo.GetMarketPricesForPlanet(ctx, planet.ID)
+			if err != nil {
+				return marketLoadedMsg{
+					err: fmt.Errorf("reload market after seed: %w", err),
+				}
 			}
 		}
 

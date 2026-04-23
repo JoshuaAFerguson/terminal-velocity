@@ -57,8 +57,12 @@ func (m Model) updateShipyard(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			if m.shipyard.mode == "list" {
-				// Go back to main menu
-				m.screen = ScreenMainMenu
+				if m.hasPreviousScreen {
+					m.screen = m.previousScreen
+					m.hasPreviousScreen = false
+				} else {
+					m.screen = ScreenMainMenu
+				}
 				return m, nil
 			}
 			// Cancel current operation
@@ -67,7 +71,12 @@ func (m Model) updateShipyard(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "backspace":
-			m.screen = ScreenMainMenu
+			if m.hasPreviousScreen {
+				m.screen = m.previousScreen
+				m.hasPreviousScreen = false
+			} else {
+				m.screen = ScreenMainMenu
+			}
 			return m, nil
 
 		case "up", "k":
