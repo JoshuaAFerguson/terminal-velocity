@@ -83,6 +83,7 @@ const (
 	ScreenFriends
 	ScreenMarketplace
 	ScreenNotifications
+	ScreenPilotRecord
 )
 
 // Model is the main TUI model
@@ -131,6 +132,7 @@ type Model struct {
 	shipManagement    shipManagementModel
 	combat            combatModel
 	missions          missionsModel
+	pilotRecord       pilotRecordModel
 	achievementsUI    achievementsModel
 	encounterModel    encounterModel
 	newsModel         newsModel
@@ -279,6 +281,7 @@ func NewModel(
 		shipManagement:      newShipManagementModel(),
 		combat:              newCombatModel(),
 		missions:            newMissionsModel(),
+		pilotRecord:         newPilotRecordModel(),
 		achievementsUI:      newAchievementsModel(),
 		achievementManager:  achievements.NewManager(),
 		pendingAchievements: []*models.Achievement{},
@@ -402,6 +405,7 @@ func NewLoginModel(
 		shipManagement:      newShipManagementModel(),
 		combat:              newCombatModel(),
 		missions:            newMissionsModel(),
+		pilotRecord:         newPilotRecordModel(),
 		achievementsUI:      newAchievementsModel(),
 		achievementManager:  achievements.NewManager(),
 		pendingAchievements: []*models.Achievement{},
@@ -686,6 +690,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateMarketplace(msg)
 	case ScreenNotifications:
 		return m.updateNotifications(msg)
+	case ScreenPilotRecord:
+		return m.updatePilotRecord(msg)
 	default:
 		return m, nil
 	}
@@ -785,6 +791,8 @@ func (m Model) View() string {
 		return m.viewMarketplace()
 	case ScreenNotifications:
 		return m.viewNotifications()
+	case ScreenPilotRecord:
+		return m.viewPilotRecord()
 	default:
 		return "Unknown screen"
 	}

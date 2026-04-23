@@ -352,7 +352,12 @@ func (s *Server) initDatabase() error {
 			return nil
 		}
 		article := s.newsManager.AnnounceSystemEvent(id, name)
-		log.Debug("system_events: %q (system=%s)", article.Headline, name)
+		// Info-level so the first few firings show up in a plain server
+		// log without needing -log-level debug. Package-level loggers
+		// initialize before logger.Init runs and capture a LevelInfo
+		// fallback — see the pre-existing bug documented in the
+		// triage doc. Demote to Debug once the feature is stable.
+		log.Info("system_events: %q (system=%s)", article.Headline, name)
 		return nil
 	})
 

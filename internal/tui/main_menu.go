@@ -42,6 +42,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Outfitter", screen: ScreenOutfitter},
 			{label: "Advanced Outfitting", screen: ScreenOutfitterEnhanced},
 			{label: "Ship Management", screen: ScreenShipManagement},
+			{label: "Pilot Record", screen: ScreenPilotRecord},
 			{label: "Missions", screen: ScreenMissions},
 			{label: "Quests", screen: ScreenQuests},
 			{label: "Achievements", screen: ScreenAchievements},
