@@ -9,7 +9,6 @@ package server
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 

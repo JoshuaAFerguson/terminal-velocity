@@ -699,7 +699,9 @@ func (m *Manager) generateBracket(tournament *Tournament) *TournamentBracket {
 		player2 := remainingPlayers[len(remainingPlayers)-1-i]
 
 		// Create match
-		match, err := m.createMatchInternal(tournament.MatchType, []uuid.UUID{player1, player2})
+		// Tournament matches are 1v1 duels by default — the Tournament struct
+		// only carries a bracket format, not a per-match type.
+		match, err := m.createMatchInternal(MatchTypeDuel, []uuid.UUID{player1, player2})
 		if err != nil {
 			log.Error("Failed to create tournament match: %v", err)
 			continue
@@ -1018,10 +1020,12 @@ func (m *Manager) createMatchInternal(matchType MatchType, players []uuid.UUID) 
 		StartTime: time.Now(),
 		Status:    "waiting",
 		MatchData: &MatchData{
-			Kills:   make(map[uuid.UUID]int),
-			Deaths:  make(map[uuid.UUID]int),
-			Assists: make(map[uuid.UUID]int),
-			Damage:  make(map[uuid.UUID]int),
+			Kills:       make(map[uuid.UUID]int),
+			Deaths:      make(map[uuid.UUID]int),
+			Assists:     make(map[uuid.UUID]int),
+			DamageDealt: make(map[uuid.UUID]float64),
+			DamageTaken: make(map[uuid.UUID]float64),
+			Objectives:  make(map[uuid.UUID]int),
 		},
 	}
 

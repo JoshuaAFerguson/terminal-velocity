@@ -13,7 +13,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"terminal-velocity/internal/models"
+
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 // Test helper to create a test player for item tests
@@ -297,7 +298,7 @@ func TestItemRepository_GetAvailableItems(t *testing.T) {
 				VALUES ($1, $2, $3, $4, $5, $6)
 				RETURNING id, acquired_at, created_at, updated_at
 			`
-			err := db.QueryRow(ctx, query, item.PlayerID, item.ItemType, item.EquipmentID, item.Location, item.LocationID, item.Properties).
+			err := db.QueryRowContext(ctx, query, item.PlayerID, item.ItemType, item.EquipmentID, item.Location, item.LocationID, item.Properties).
 				Scan(&item.ID, &item.AcquiredAt, &item.CreatedAt, &item.UpdatedAt)
 			if err != nil {
 				t.Fatalf("Failed to create mail item: %v", err)
