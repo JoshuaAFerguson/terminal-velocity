@@ -335,6 +335,26 @@ func (s *Server) initDatabase() error {
 		}
 		return nil
 	})
+	// system_events: every 2 minutes pick a random system and announce
+	// a pirate raid / convoy / bounty / survey event against it. This
+	// anchors background news to real systems the player can recognize,
+	// rather than the generic templates that news_random generates.
+	s.tickService.Register("system_events", 2*time.Minute, func(ctx context.Context) error {
+		if s.newsManager == nil || s.systemRepo == nil {
+			return nil
+		}
+		id, name, err := s.systemRepo.PickRandomSystemName(ctx)
+		if err != nil {
+			return fmt.Errorf("pick system for event: %w", err)
+		}
+		if name == "" {
+			// Universe not generated yet — nothing to announce.
+			return nil
+		}
+		article := s.newsManager.AnnounceSystemEvent(id, name)
+		log.Debug("system_events: %q (system=%s)", article.Headline, name)
+		return nil
+	})
 
 	log.Info("Database connected successfully")
 	return nil

@@ -391,3 +391,66 @@ func GenerateRandomNews() *NewsArticle {
 	event := events[rand.Intn(len(events))]
 	return NewNewsArticle(event.category, event.priority, event.headline, event.body)
 }
+
+// GenerateSystemEventNews produces a news article tied to a specific star
+// system by name. Unlike GenerateRandomNews, these articles reference a
+// place the player can point at on the map, so the world feels lived-in
+// rather than generic.
+//
+// Parameters:
+//   - systemID: UUID of the system the event happens in (written to
+//     NewsArticle.SystemID so downstream systems can filter).
+//   - systemName: Human-readable system name for the headline/body.
+//
+// Returns:
+//   - Populated NewsArticle, never nil.
+func GenerateSystemEventNews(systemID uuid.UUID, systemName string) *NewsArticle {
+	templates := []struct {
+		category NewsCategory
+		headline string
+		body     string
+		priority NewsPriority
+	}{
+		{
+			NewsCategoryGeneral,
+			fmt.Sprintf("Pirate Raid Reported in %s", systemName),
+			fmt.Sprintf("Independent pilots report a coordinated pirate strike in the %s system. Security forces are en route. Merchants are advised to travel in convoys and report sightings to the nearest patrol.", systemName),
+			NewsPriorityHigh,
+		},
+		{
+			NewsCategoryEconomic,
+			fmt.Sprintf("Merchant Convoy Passing Through %s", systemName),
+			fmt.Sprintf("A large merchant convoy is scheduled to transit the %s system this cycle. Traders with cargo seeking passage should hail convoy command on the standard channel.", systemName),
+			NewsPriorityLow,
+		},
+		{
+			NewsCategoryMilitary,
+			fmt.Sprintf("Naval Patrol Steps Up Presence in %s", systemName),
+			fmt.Sprintf("Fleet command has redeployed additional patrol craft to the %s system following recent incidents. Contraband carriers are strongly advised to reroute.", systemName),
+			NewsPriorityMedium,
+		},
+		{
+			NewsCategoryCriminal,
+			fmt.Sprintf("Bounty Posted on Fugitive Last Seen in %s", systemName),
+			fmt.Sprintf("A substantial bounty has been posted on a fugitive sighted fleeing through the %s system. Registered bounty hunters can claim the contract at any licensed spaceport.", systemName),
+			NewsPriorityHigh,
+		},
+		{
+			NewsCategoryExploration,
+			fmt.Sprintf("Survey Team Charts Asteroid Belt Near %s", systemName),
+			fmt.Sprintf("A prospecting team has completed a preliminary mineral survey of the asteroid belts around %s. Early estimates suggest rich ore deposits attracting independent miners.", systemName),
+			NewsPriorityMedium,
+		},
+		{
+			NewsCategoryEconomic,
+			fmt.Sprintf("Trade Routes Disrupted Near %s", systemName),
+			fmt.Sprintf("Commodity prices in %s and its neighbors are expected to spike after a major freighter lost its cargo to raiders. Traders moving staples should brace for short-term volatility.", systemName),
+			NewsPriorityMedium,
+		},
+	}
+
+	t := templates[rand.Intn(len(templates))]
+	article := NewNewsArticle(t.category, t.priority, t.headline, t.body)
+	article.SystemID = &systemID
+	return article
+}

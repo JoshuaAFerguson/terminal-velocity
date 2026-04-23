@@ -91,6 +91,26 @@ func (r *SystemRepository) GetSystemByID(ctx context.Context, id uuid.UUID) (*mo
 	return &system, nil
 }
 
+// PickRandomSystemName returns the id + name of a uniformly random star
+// system. Used by the tick service's system-event handler to anchor news
+// articles to a system the player might recognize. Returns ("", uuid.Nil,
+// nil) when no systems exist — callers should treat that as "skip this
+// tick" rather than an error.
+func (r *SystemRepository) PickRandomSystemName(ctx context.Context) (uuid.UUID, string, error) {
+	var id uuid.UUID
+	var name string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, name FROM star_systems ORDER BY random() LIMIT 1`,
+	).Scan(&id, &name)
+	if err == sql.ErrNoRows {
+		return uuid.Nil, "", nil
+	}
+	if err != nil {
+		return uuid.Nil, "", fmt.Errorf("pick random system: %w", err)
+	}
+	return id, name, nil
+}
+
 // GetSystemByName retrieves a system by name
 func (r *SystemRepository) GetSystemByName(ctx context.Context, name string) (*models.StarSystem, error) {
 	query := `

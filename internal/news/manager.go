@@ -26,6 +26,7 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/google/uuid"
 )
 
 // Manager handles the news feed
@@ -182,6 +183,24 @@ func (m *Manager) Update() *models.NewsArticle {
 	}
 
 	return nil
+}
+
+// AnnounceSystemEvent writes a system-tagged news article (pirate raid,
+// convoy transit, bounty posted, ...) for the given system. Used by the
+// tick service's background events handler to anchor world-level news to
+// a place the player can recognize. Thread-safe (AddArticle takes the
+// lock).
+//
+// Parameters:
+//   - systemID: UUID of the affected system; stored on NewsArticle.SystemID.
+//   - systemName: Display name used in the headline and body.
+//
+// Returns:
+//   - The generated article so callers can log/reference it.
+func (m *Manager) AnnounceSystemEvent(systemID uuid.UUID, systemName string) *models.NewsArticle {
+	article := models.GenerateSystemEventNews(systemID, systemName)
+	m.AddArticle(article)
+	return article
 }
 
 // OnPlayerCombat handles combat-related news generation
