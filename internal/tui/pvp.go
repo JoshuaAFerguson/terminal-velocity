@@ -1,18 +1,29 @@
 // File: internal/tui/pvp.go
 // Project: Terminal Velocity
-// Version: 1.1.0
+// Version: 1.2.0
 
 package tui
 
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 )
+
+// pvpPollMsg re-renders the PvP screen on a 2s cadence so the challenger
+// sees their challenge accepted/declined without needing to press a key,
+// and targets notice new incoming challenges between keystrokes. Same
+// shape as chatPollTick — pure polling, no subscription.
+type pvpPollMsg struct{}
+
+func pvpPollTick() tea.Cmd {
+	return tea.Tick(2*time.Second, func(time.Time) tea.Msg { return pvpPollMsg{} })
+}
 
 // PvP view modes
 
@@ -53,6 +64,12 @@ func newPvPModel() pvpModel {
 
 func (m Model) updatePvP(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case pvpPollMsg:
+		// Re-arm so the list keeps updating while the PvP screen is
+		// open. The view re-queries GetPendingChallenges /
+		// GetAllActiveBounties on every render, so we don't need to
+		// pre-fetch here — just bump the render clock.
+		return m, pvpPollTick()
 	case tea.KeyMsg:
 		switch m.pvpModel.viewMode {
 		case pvpViewCreate:

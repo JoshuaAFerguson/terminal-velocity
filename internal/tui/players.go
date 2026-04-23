@@ -55,6 +55,36 @@ func (m Model) updatePlayers(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh player list
 			return m, nil
 
+		case "c":
+			// Challenge the cursor'd player to a duel. Skips self (you
+			// can't challenge yourself) and no-ops when no players are
+			// available. Transition to PvP screen so the challenger
+			// sees their outgoing challenge land in the list and
+			// watches for the target's accept/decline.
+			players := m.getFilteredPlayers()
+			if m.pvpManager == nil || m.player == nil ||
+				m.playersModel.cursor >= len(players) {
+				return m, nil
+			}
+			target := players[m.playersModel.cursor]
+			if target.PlayerID == m.playerID {
+				return m, nil
+			}
+			_, _ = m.pvpManager.CreateChallenge(
+				m.playerID,
+				m.username,
+				target.PlayerID,
+				target.Username,
+				models.ChallengeDuel,
+				m.player.CurrentSystem,
+				0, // no wager for a stock challenge
+				fmt.Sprintf("%s challenges %s to a duel", m.username, target.Username),
+			)
+			m.pvpModel.viewMode = pvpViewChallenges
+			m.pvpModel.cursor = 0
+			m.screen = ScreenPvP
+			return m, pvpPollTick()
+
 		// Filter mode shortcuts
 		case "1":
 			m.playersModel.filterMode = "all"
@@ -173,7 +203,7 @@ func (m Model) viewPlayers() string {
 	s += m.renderPlayerList(players)
 
 	// Footer
-	s += "\n" + renderFooter("↑/↓: Navigate | 1-4: Filter | S: Sort | R: Refresh | ESC: Back")
+	s += "\n" + renderFooter("↑/↓: Nav | C: Challenge | 1-4: Filter | S: Sort | R: Refresh | ESC: Back")
 
 	return s
 }

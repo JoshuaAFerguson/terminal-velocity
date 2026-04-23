@@ -182,6 +182,12 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// to press a key.
 				return m, chatPollTick()
 			}
+			if selected.screen == ScreenPvP {
+				// Poll so incoming challenges + accept/decline state
+				// updates surface without keystrokes. Same pattern as
+				// chat and space view.
+				return m, pvpPollTick()
+			}
 
 			return m, nil
 		}
