@@ -9,6 +9,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -370,8 +371,16 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 	defer func() {
+		// When the client disconnects first, the underlying TCP socket is
+		// already gone by the time we get here — close() returns "use of
+		// closed network connection", which isn't actionable. Log at debug
+		// to avoid noise; surface real close errors at warn.
 		if err := sshConn.Close(); err != nil {
-			log.Warn("Failed to close SSH connection from %s: %v", remoteAddr, err)
+			if errors.Is(err, net.ErrClosed) {
+				log.Debug("SSH connection from %s already closed", remoteAddr)
+			} else {
+				log.Warn("Failed to close SSH connection from %s: %v", remoteAddr, err)
+			}
 		}
 		// Track connection duration
 		metrics.Global().RecordConnectionDuration(time.Since(connStart))
@@ -408,22 +417,53 @@ func (s *Server) handleConnection(conn net.Conn) {
 	log.Debug("SSH connection closed for %s", sshConn.User())
 }
 
-// handleSession handles a single SSH session
+// handleSession handles a single SSH session.
+//
+// The pre-shell phase of this function parses the pty-req payload so we know
+// the client's terminal size. Post-shell, any remaining requests (notably
+// window-change) are forwarded into the BubbleTea program inside
+// startAnonymousSession so the TUI re-renders on resize.
 func (s *Server) handleSession(username string, perms *ssh.Permissions, channel ssh.Channel, requests <-chan *ssh.Request) {
 	defer channel.Close()
 
-	// Handle session requests (pty-req, shell, etc.)
+	initialSize := fallbackPTYSize
+
 	for req := range requests {
 		switch req.Type {
 		case "pty-req":
-			req.Reply(true, nil)
+			size, term, err := parsePTYReq(req.Payload)
+			if err != nil {
+				log.Warn("Malformed pty-req from %s: %v (using %dx%d fallback)", username, err, initialSize.cols, initialSize.rows)
+			} else if size.valid() {
+				initialSize = size
+				log.Debug("pty-req from %s: term=%q %dx%d", username, term, size.cols, size.rows)
+			}
+			if err := req.Reply(true, nil); err != nil {
+				log.Debug("pty-req reply failed: %v", err)
+			}
 		case "shell":
-			req.Reply(true, nil)
-			// Start anonymous session (login screen)
-			s.startAnonymousSession(channel)
+			if err := req.Reply(true, nil); err != nil {
+				log.Debug("shell reply failed: %v", err)
+			}
+			// Remaining requests on this channel (window-change, etc.) are
+			// handed to startAnonymousSession so the running BubbleTea program
+			// can be notified of resizes.
+			s.startAnonymousSession(channel, requests, initialSize)
 			return
+		case "window-change":
+			// A resize arriving before shell is unusual but possible; capture
+			// it as the next known-good size so the session starts at the
+			// correct dimensions.
+			if size, err := parseWindowChange(req.Payload); err == nil && size.valid() {
+				initialSize = size
+			}
+			// window-change requests never want a reply.
 		default:
-			req.Reply(false, nil)
+			if req.WantReply {
+				if err := req.Reply(false, nil); err != nil {
+					log.Debug("reject of %s failed: %v", req.Type, err)
+				}
+			}
 		}
 	}
 }
@@ -513,27 +553,80 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 	}
 }
 
-// startAnonymousSession starts an anonymous session (login screen)
-func (s *Server) startAnonymousSession(channel ssh.Channel) {
-	log.Debug("startAnonymousSession called")
+// startAnonymousSession starts an anonymous session (login screen).
+//
+// initialSize is the PTY size captured from the pre-shell pty-req. requests
+// is the channel's remaining request stream so we can forward window-change
+// events to the running BubbleTea program.
+func (s *Server) startAnonymousSession(channel ssh.Channel, requests <-chan *ssh.Request, initialSize ptySize) {
+	log.Debug("startAnonymousSession called (initial size %dx%d)", initialSize.cols, initialSize.rows)
 
-	// Initialize TUI model with login screen
 	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo)
 
-	// Create BubbleTea program with SSH channel as input/output
 	p := tea.NewProgram(
 		model,
 		tea.WithInput(channel),
 		tea.WithOutput(channel),
-		tea.WithAltScreen(), // Use alternate screen buffer to prevent artifacts
+		tea.WithAltScreen(),
 	)
 
-	// Run the program
+	stopForwarder := forwardWindowSize(p, requests, initialSize)
+	defer stopForwarder()
+
 	if _, err := p.Run(); err != nil {
 		log.Info("Error running login TUI: %v", err)
 	}
 
 	log.Info("Anonymous session ended")
+}
+
+// forwardWindowSize sends the initial ptySize to the BubbleTea program as a
+// tea.WindowSizeMsg and keeps forwarding any subsequent window-change requests
+// from the SSH channel. The returned stop function blocks until the goroutine
+// has drained and must be called when the program has exited.
+//
+// Runs in its own goroutine so p.Run() can start first — p.Send blocks until
+// the program's message loop is running, and we don't want to hold up handleSession.
+func forwardWindowSize(p *tea.Program, requests <-chan *ssh.Request, initial ptySize) func() {
+	done := make(chan struct{})
+	finished := make(chan struct{})
+
+	go func() {
+		defer close(finished)
+
+		if initial.valid() {
+			p.Send(tea.WindowSizeMsg{Width: int(initial.cols), Height: int(initial.rows)})
+		}
+
+		for {
+			select {
+			case <-done:
+				return
+			case req, ok := <-requests:
+				if !ok {
+					return
+				}
+				switch req.Type {
+				case "window-change":
+					if size, err := parseWindowChange(req.Payload); err == nil && size.valid() {
+						p.Send(tea.WindowSizeMsg{Width: int(size.cols), Height: int(size.rows)})
+					}
+					// no reply for window-change
+				default:
+					if req.WantReply {
+						if err := req.Reply(false, nil); err != nil {
+							log.Debug("reject of %s failed: %v", req.Type, err)
+						}
+					}
+				}
+			}
+		}
+	}()
+
+	return func() {
+		close(done)
+		<-finished
+	}
 }
 
 // startRegistrationSession starts a registration session for a new player
