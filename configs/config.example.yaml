@@ -7,10 +7,24 @@ server:
   tick_rate: 10  # Game loop updates per second
 
 database:
-  # PostgreSQL connection string
-  url: "postgres://terminal_velocity:password@localhost:5432/terminal_velocity?sslmode=disable"
-  max_connections: 20
-  min_connections: 5
+  # PostgreSQL connection parameters.
+  #
+  # Resolution order at startup (highest precedence first):
+  #   1. Fields set in this YAML (if non-empty/non-zero)
+  #   2. DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME / DB_SSLMODE env vars
+  #   3. Hard-coded defaults (localhost, 5432, terminal_velocity, empty password)
+  #
+  # Leaving `password` unset here and supplying it via DB_PASSWORD is the
+  # recommended deployment posture so secrets don't live in the config file.
+  host: "localhost"
+  port: 5432
+  user: "terminal_velocity"
+  password: "changeme"
+  database: "terminal_velocity"
+  sslmode: "disable"
+  # Pool sizing maps to Config.MaxOpenConns / MaxIdleConns on the Go side.
+  max_open_conns: 25
+  max_idle_conns: 5
 
 security:
   # SSH host key path (will be generated if not exists)

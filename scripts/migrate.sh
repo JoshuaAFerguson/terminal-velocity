@@ -22,7 +22,11 @@ DB_USER=${DB_USER:-terminal_velocity}
 DB_PASSWORD=${DB_PASSWORD:-changeme_in_production}
 DB_NAME=${DB_NAME:-terminal_velocity}
 
-MIGRATIONS_DIR="scripts/migrations"
+# The authoritative `scripts/schema.sql` represents the post-migration state
+# for a fresh install. The numbered migration files live under
+# `scripts/migrations-archive/` for historical reference and for bringing an
+# older DB up to current state. Override via env if they're moved.
+MIGRATIONS_DIR="${MIGRATIONS_DIR:-scripts/migrations-archive}"
 
 # Usage information
 usage() {

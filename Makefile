@@ -34,8 +34,10 @@ install-proto-tools: ## Install protobuf tools
 proto: ## Generate Go code from protobuf schemas
 	@echo "Generating protobuf code..."
 	@mkdir -p $(PROTO_OUT_DIR)
+	# --proto_path=. lets imports like `import "api/proto/common.proto"`
+	# (used by the .proto files) resolve against the repo root.
 	protoc \
-		--proto_path=$(PROTO_DIR) \
+		--proto_path=. \
 		--go_out=$(PROTO_OUT_DIR) \
 		--go_opt=paths=source_relative \
 		--go-grpc_out=$(PROTO_OUT_DIR) \
@@ -46,7 +48,10 @@ proto: ## Generate Go code from protobuf schemas
 proto-clean: ## Remove generated protobuf code
 	rm -rf $(PROTO_OUT_DIR)
 
-build: proto ## Build the server binary
+build: ## Build the server binary
+	# Note: we no longer depend on `proto` — the generated gRPC code under
+	# api/gen/ isn't imported by any package yet. Run `make proto` manually
+	# when the client/server refactor wires it in.
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_NAME) cmd/server/main.go
 
 build-tools: ## Build utility tools

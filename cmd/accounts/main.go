@@ -34,10 +34,18 @@ func main() {
 	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
 	listVerbose := listCmd.Bool("v", false, "Verbose output")
 
-	// Check for subcommand
+	// Handle subcommand / help flags BEFORE opening a DB connection, so that
+	// `./accounts`, `./accounts --help`, `./accounts -h` and `./accounts help`
+	// all work even when DB env vars aren't set (previously every invocation
+	// errored out on a connection attempt before printing usage).
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
+	}
+	switch os.Args[1] {
+	case "-h", "--help", "help":
+		printUsage()
+		os.Exit(0)
 	}
 
 	// Database configuration
