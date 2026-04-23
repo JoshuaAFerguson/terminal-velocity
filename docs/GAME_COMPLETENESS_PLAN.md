@@ -201,8 +201,14 @@ trickle into the feed every two minutes.
 
 Make progression feel real.
 
-- [ ] **Licences.** Pilot must earn licences (combat, trade, exploration)
-      via achievements. Certain ships/outfits gated behind licences.
+- [x] **Licences.** Weapon struct gains `MinCombatRating`; catalog
+      populated with progressive tiers (CR 0/10/25/40/50/60/80).
+      Outfitter `executeInstall` rejects under-rated buys with a clear
+      "requires Combat Rating N (you have X)" error, and the browse
+      view appends `[CR N]` + greys the row when the gate isn't met —
+      mirrors the existing `ShipType.MinCombatRating` enforcement in
+      Shipyard. Pilot Record's new "Licences" block shows the six
+      combat tiers with ✓ marks for earned ones.
 - [x] **Pilot log.** New `ScreenPilotRecord` / `pilot_record.go`
       screen surfaces Combat / Trading / Exploration ratings with the
       existing rank titles, milestone counts, enlistment tenure,
@@ -229,7 +235,7 @@ Make progression feel real.
 content. Three of five items done; Licences and Storyline Hooks still
 pending.
 
-### Phase 4 — Multiplayer wiring (2 weeks)
+### Phase 4 — Multiplayer wiring (in progress)
 
 Everything between players. Requires Phase 1.
 
@@ -237,9 +243,16 @@ Everything between players. Requires Phase 1.
       as ships in the 2D viewport with their real ship model and name.
       Targeting another player shows their real hull/shields over the
       wire.
-- [ ] **Chat broadcast.** Chat messages go through a message bus
-      (initially the DB via LISTEN/NOTIFY; eventually a dedicated
-      broker). Multi-session tmux test: two players exchange messages.
+- [x] **Chat broadcast.** `chat.Manager` is now server-owned and shared
+      across every SSH session. Login registers the player with the
+      manager via `GetOrCreateHistory`; `SendGlobalMessage` fans
+      messages into every registered history. A 1s `chatPollTick` in
+      the Chat screen drives auto-refresh so messages from other
+      sessions surface without user input. Initial implementation is
+      in-memory only — a Phase 4.5 follow-up should put this on DB
+      LISTEN/NOTIFY so messages survive process restarts. Tmux
+      harness: `scripts/tmux_chat_broadcast_test.sh` (two tester
+      sessions, Session A sends, Session B sees).
 - [ ] **PvP duel flow.** Player A hails player B → duel offer → accept →
       arena instance → loser pays ante, winner earns reward.
 - [ ] **Bounties.** A criminal-rated player gets a bounty; any player
