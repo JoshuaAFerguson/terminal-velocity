@@ -91,7 +91,9 @@ cap "settle_5s"
 
 # A successful login should have left us on the main menu.
 final="$OUTDIR/tmux_${TAG}_$(printf '%02d' "$((step - 1))")_settle_5s.txt"
-if grep -q "Main Menu" "$final"; then
+# Match either the old plain-text layout or the new boxed one (which uses
+# "= MAIN MENU =" as the header marker).
+if grep -qE "Main Menu|MAIN MENU" "$final"; then
   echo ""
   echo "PASS — reached main menu"
   exit 0

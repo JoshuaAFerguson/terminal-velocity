@@ -185,7 +185,7 @@ func (m Model) updateShipManagement(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewShipManagement() string {
 	// Header with player stats
-	s := renderHeader(m.username, m.player.Credits, "Ship Management")
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	// Title

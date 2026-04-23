@@ -462,6 +462,26 @@ func NewRegistrationModel(
 	}
 }
 
+// currentLocationLabel returns the most specific place the player is in right
+// now: cached star system name when we have it, "In transit" when the player
+// has a system assigned but it hasn't loaded yet, and "Unknown" otherwise.
+// Screens that render the shared header should route through this instead of
+// inventing their own "Space" / screen-name fallback, otherwise the location
+// field ends up lying to the user ("Location: Settings", "Location: Ship
+// Management").
+//
+// Screens that track a docked planet (trading, shipyard) should prefer that
+// planet's name when set and fall through to this helper when not docked.
+func (m Model) currentLocationLabel() string {
+	if m.currentSystem != nil && m.currentSystem.Name != "" {
+		return m.currentSystem.Name
+	}
+	if m.player != nil && m.player.CurrentSystem != uuid.Nil {
+		return "In transit"
+	}
+	return "Unknown"
+}
+
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
 	// Clear screen on initialization to prevent artifacts

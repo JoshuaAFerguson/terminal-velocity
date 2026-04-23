@@ -166,7 +166,8 @@ func (m Model) updateShipyard(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewShipyard() string {
 	// Header with player stats
-	locationName := "Space"
+	// Show the docked planet when we have one, otherwise the current system.
+	locationName := m.currentLocationLabel()
 	if m.shipyard.currentPlanet != nil {
 		locationName = m.shipyard.currentPlanet.Name
 	}

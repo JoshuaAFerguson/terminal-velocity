@@ -133,7 +133,7 @@ func (m Model) viewAdmin() string {
 		return errorView("Access Denied - Admin privileges required")
 	}
 
-	s := renderHeader(m.username, m.player.Credits, "Admin Panel")
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	s += subtitleStyle.Render("=== Server Administration ===") + "\n"

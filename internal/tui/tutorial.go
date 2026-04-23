@@ -129,7 +129,7 @@ func (m Model) viewTutorial() string {
 		return errorView("Tutorial system not initialized")
 	}
 
-	s := renderHeader(m.username, m.player.Credits, "Tutorials")
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	switch m.tutorialModel.viewMode {

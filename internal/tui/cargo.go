@@ -119,11 +119,7 @@ func (m Model) updateCargo(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewCargo() string {
 	// Header with player stats
-	locationName := "Space"
-	if m.player != nil && m.player.CurrentSystem.String() != "00000000-0000-0000-0000-000000000000" {
-		locationName = "Space"
-	}
-	s := renderHeader(m.username, m.player.Credits, locationName)
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	// Title

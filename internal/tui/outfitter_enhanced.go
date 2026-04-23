@@ -517,8 +517,7 @@ func (m Model) updateOutfitterInventory(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewOutfitterEnhanced() string {
-	locationName := "Space Station"
-	s := renderHeader(m.username, m.player.Credits, locationName)
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	s += subtitleStyle.Render("=== Advanced Outfitter ===") + "\n\n"

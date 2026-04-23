@@ -163,7 +163,7 @@ func (m Model) viewQuests() string {
 		return errorView("Quest system not initialized")
 	}
 
-	s := renderHeader(m.username, m.player.Credits, "Quests")
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	s += subtitleStyle.Render("=== Quest Journal ===") + "\n"

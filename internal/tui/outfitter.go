@@ -135,8 +135,7 @@ func (m Model) updateOutfitter(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewOutfitter() string {
-	locationName := "Space"
-	s := renderHeader(m.username, m.player.Credits, locationName)
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	s += subtitleStyle.Render("=== Outfitter ===") + "\n\n"

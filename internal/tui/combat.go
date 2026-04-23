@@ -459,7 +459,7 @@ func (m *Model) addCombatLog(message string) {
 }
 
 func (m Model) viewCombat() string {
-	s := renderHeader(m.username, m.player.Credits, "Combat")
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	// Title

@@ -194,7 +194,8 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewTrading() string {
 	// Header with player stats
-	locationName := "Space"
+	// Show the docked planet when we have one, otherwise the current system.
+	locationName := m.currentLocationLabel()
 	if m.trading.currentPlanet != nil {
 		locationName = m.trading.currentPlanet.Name
 	}

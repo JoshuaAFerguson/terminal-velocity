@@ -274,7 +274,7 @@ func (m Model) getSettingsMaxCursor() int {
 }
 
 func (m Model) viewSettings() string {
-	s := renderHeader(m.username, m.player.Credits, "Settings")
+	s := renderHeader(m.username, m.player.Credits, m.currentLocationLabel())
 	s += "\n"
 
 	s += subtitleStyle.Render("=== Settings ===") + "\n\n"
