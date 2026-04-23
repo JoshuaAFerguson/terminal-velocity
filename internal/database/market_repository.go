@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/errors"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
@@ -205,10 +206,29 @@ func (r *MarketRepository) DeleteMarketPrice(ctx context.Context, planetID uuid.
 	return nil
 }
 
-// InitializePlanetMarket initializes market prices for all commodities at a planet
+// InitializePlanetMarket seeds market_prices for every commodity in the
+// standard catalog for a given planet. Idempotent via UpsertMarketPrice —
+// safe to call repeatedly. Pricing is deliberately naive for the initial
+// seeding: BuyPrice = BasePrice, SellPrice = BasePrice * 1.15 (a 15 %
+// planetary margin), Stock = 100, Demand = 50. A real pricing engine can
+// overwrite these later; this exists so landing -> trade never greets the
+// player with an empty market.
 func (r *MarketRepository) InitializePlanetMarket(ctx context.Context, planetID uuid.UUID) error {
-	// This would typically be called by the pricing engine
-	// For now, just a placeholder
+	now := time.Now().Unix()
+	for _, commodity := range models.StandardCommodities {
+		price := &models.MarketPrice{
+			PlanetID:    planetID,
+			CommodityID: commodity.ID,
+			BuyPrice:    commodity.BasePrice,
+			SellPrice:   commodity.BasePrice * 115 / 100,
+			Stock:       100,
+			Demand:      50,
+			LastUpdate:  now,
+		}
+		if err := r.UpsertMarketPrice(ctx, price); err != nil {
+			return fmt.Errorf("seed %s at %s: %w", commodity.ID, planetID, err)
+		}
+	}
 	return nil
 }
 
