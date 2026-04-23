@@ -114,7 +114,8 @@ type Model struct {
 	marketRepo *database.MarketRepository
 	mailRepo   *database.MailRepository
 	socialRepo *database.SocialRepository
-	itemRepo   *database.ItemRepository
+	itemRepo        *database.ItemRepository
+	achievementRepo *database.AchievementRepository
 
 	// Screen dimensions
 	width  int
@@ -247,6 +248,7 @@ func NewModel(
 	mailRepo *database.MailRepository,
 	socialRepo *database.SocialRepository,
 	itemRepo *database.ItemRepository,
+	achievementRepo *database.AchievementRepository,
 	fleetManager *fleet.Manager,
 	mailManager *mail.Manager,
 	notificationsManager *notifications.Manager,
@@ -271,6 +273,7 @@ func NewModel(
 		mailRepo:            mailRepo,
 		socialRepo:          socialRepo,
 		itemRepo:            itemRepo,
+		achievementRepo:     achievementRepo,
 		width:               80,
 		height:              24,
 		mainMenu:            newMainMenuModel(),
@@ -378,6 +381,7 @@ func NewLoginModel(
 	marketRepo *database.MarketRepository,
 	mailRepo *database.MailRepository,
 	socialRepo *database.SocialRepository,
+	achievementRepo *database.AchievementRepository,
 	newsManager *news.Manager,
 ) Model {
 	if newsManager == nil {
@@ -394,6 +398,7 @@ func NewLoginModel(
 		marketRepo:          marketRepo,
 		mailRepo:            mailRepo,
 		socialRepo:          socialRepo,
+		achievementRepo:     achievementRepo,
 		width:               80,
 		height:              24,
 		loginModel:          newLoginModel(),
@@ -559,6 +564,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Initialize presence when player loads.
 			if m.player != nil && m.err == nil {
 				m.InitializePresence()
+			}
+
+			// Seed the in-memory achievement manager with what's already
+			// persisted so checkAchievements doesn't re-fire unlock
+			// notifications for anything the player has done before.
+			if m.achievementManager != nil && len(msg.achievements) > 0 {
+				m.achievementManager.LoadUnlocked(msg.achievements)
 			}
 
 			return m, nil
@@ -805,10 +817,11 @@ func (m Model) ViewWithTutorial(content string) string {
 
 // playerLoadedMsg is sent when player data is loaded
 type playerLoadedMsg struct {
-	player *models.Player
-	ship   *models.Ship
-	system *models.StarSystem
-	err    error
+	player       *models.Player
+	ship         *models.Ship
+	system       *models.StarSystem
+	achievements []*models.PlayerAchievement
+	err          error
 }
 
 // loadPlayer loads player data from the database along with the player's
@@ -833,7 +846,17 @@ func (m Model) loadPlayer() tea.Cmd {
 			system, _ = m.systemRepo.GetSystemByID(ctx, player.CurrentSystem)
 		}
 
-		return playerLoadedMsg{player: player, ship: ship, system: system, err: nil}
+		// Pre-load the player's achievement unlocks so checkAchievements
+		// doesn't re-fire OnPlayerAchievement news articles for every
+		// kill/trade/jump after reconnect. Best-effort: a failure here
+		// just means the news feed sees duplicate unlocks for this
+		// session, not a crash.
+		var achievements []*models.PlayerAchievement
+		if player != nil && m.achievementRepo != nil {
+			achievements, _ = m.achievementRepo.LoadForPlayer(ctx, player.ID)
+		}
+
+		return playerLoadedMsg{player: player, ship: ship, system: system, achievements: achievements, err: nil}
 	}
 }
 
@@ -857,10 +880,18 @@ func (m *Model) checkAchievements() {
 	if len(newUnlocks) > 0 {
 		m.pendingAchievements = append(m.pendingAchievements, newUnlocks...)
 
-		// Generate news for notable achievements
-		if m.newsManager != nil {
-			for _, achievement := range newUnlocks {
+		// Generate news for notable achievements + persist the unlock
+		// so it survives reconnect. Both calls are best-effort — the
+		// in-memory manager has already flagged the unlock as consumed,
+		// so a DB failure at worst loses the persistence for this
+		// unlock until the next occurrence.
+		ctx := context.Background()
+		for _, achievement := range newUnlocks {
+			if m.newsManager != nil {
 				m.newsManager.OnPlayerAchievement(m.username, achievement)
+			}
+			if m.achievementRepo != nil {
+				_ = m.achievementRepo.Unlock(ctx, m.player.ID, achievement.ID)
 			}
 		}
 	}

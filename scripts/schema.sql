@@ -129,6 +129,19 @@ CREATE TABLE IF NOT EXISTS player_reputation (
     CONSTRAINT reputation_range CHECK (reputation BETWEEN -100 AND 100)
 );
 
+-- Player achievements unlocked
+-- achievement_id references the static catalog in internal/models/achievements.go,
+-- not a DB row — string keys keep migrations simple and let the catalog evolve
+-- in code without schema churn.
+CREATE TABLE IF NOT EXISTS player_achievements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    achievement_id VARCHAR(80) NOT NULL,
+    unlocked_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE (player_id, achievement_id)
+);
+CREATE INDEX IF NOT EXISTS idx_player_achievements_player ON player_achievements(player_id);
+
 -- Star systems
 CREATE TABLE IF NOT EXISTS star_systems (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

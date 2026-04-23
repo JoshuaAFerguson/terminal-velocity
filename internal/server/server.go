@@ -51,7 +51,8 @@ type Server struct {
 	marketRepo    *database.MarketRepository
 	mailRepo      *database.MailRepository
 	socialRepo    *database.SocialRepository
-	itemRepo      *database.ItemRepository
+	itemRepo        *database.ItemRepository
+	achievementRepo *database.AchievementRepository
 	metricsServer *metrics.Server
 	rateLimiter   *ratelimit.Limiter
 
@@ -289,6 +290,7 @@ func (s *Server) initDatabase() error {
 	s.mailRepo = database.NewMailRepository(s.db)
 	s.socialRepo = database.NewSocialRepository(s.db)
 	s.itemRepo = database.NewItemRepository(s.db)
+	s.achievementRepo = database.NewAchievementRepository(s.db)
 
 	// Initialize managers
 	log.Debug("Initializing game managers")
@@ -604,6 +606,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		s.mailRepo,
 		s.socialRepo,
 		s.itemRepo,
+		s.achievementRepo,
 		s.fleetManager,
 		s.mailManager,
 		s.notificationsManager,
@@ -641,7 +644,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 func (s *Server) startAnonymousSession(channel ssh.Channel, requests <-chan *ssh.Request, initialSize ptySize) {
 	log.Debug("startAnonymousSession called (initial size %dx%d)", initialSize.cols, initialSize.rows)
 
-	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.newsManager)
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager)
 
 	p := tea.NewProgram(
 		model,
