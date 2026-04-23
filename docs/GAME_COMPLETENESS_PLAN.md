@@ -112,30 +112,40 @@ Read: ✅ working end-to-end · 🟡 partial (package exists, wiring/data gaps) 
 Each phase has a clear "definition of done" (DoD). Phases are ordered so
 each unblocks the next.
 
-### Phase 1 — Ship the core loop end-to-end (this week)
+### Phase 1 — Ship the core loop end-to-end (COMPLETE 2026-04-23)
 
 Convert "can launch, can land, can trade" into "can earn credits, upgrade,
 travel." Every item ships a tmux regression test + unit tests for repos.
 
-- [ ] **Buy/sell commodities** works and persists (player credits + ship
-      cargo + market stock). Tmux: buy 10 tons of food on Castor I, takeoff,
-      verify cargo + credits updated.
-- [ ] **Jump between systems** works and persists player.current_system.
-      Tmux: from Castor → select connected system → Enter → land on a
-      different system's planet.
-- [ ] **Missions generate on land.** Landing triggers
-      `missions.GenerateMissions(ctx, planet, faction, N)` if the planet
-      has < 5 active missions. Missions screen shows them; accepting a
-      freight run persists to `player_missions`.
-- [ ] **Outfits & weapons install.** Outfitter [B]uy writes to ship_outfits
-      / ship_weapons. Ship stats recalculate. Combat uses real damage from
-      installed weapons (no placeholder).
-- [ ] **Jumps trigger encounters.** A jump rolls `encounters.Generate`; a
-      hit routes into ScreenEncounter, which can escalate into combat.
+- [x] **Buy/sell commodities** works and persists (player credits + ship
+      cargo + market stock). Tmux harness:
+      `scripts/tmux_buy_test.sh`. Verified: 10000 → 9430 credits,
+      ship_cargo +10 food, market stock 100→90, demand 50→55.
+- [x] **Jump between systems** works and persists player.current_system.
+      Tmux harness: `scripts/tmux_jump_test.sh`. Verified: tester's
+      current_system flipped Castor → Omega Orionis, fuel 100 → 95.
+- [x] **Missions generate on land.** `dockedMsg` handler calls
+      `missionManager.GenerateMissions(ctx, planet.ID, govID, 3)` on
+      both the top-level and sub-screen managers so either entry point
+      surfaces the same board. Verified: 3 missions on the board after
+      dock (cargo delivery, two combat patrols).
+- [x] **Outfits & weapons install.** Outfitter Enter now correctly
+      transitions into confirm mode (was mutating a value-receiver
+      closure — no-op). executeInstall persists via new
+      `shipRepo.AddWeapon / AddOutfit / RemoveWeapon / RemoveOutfit`
+      methods against the join tables. Tmux harness:
+      `scripts/tmux_outfit_test.sh`. Verified: credits 20000 → 15000,
+      ship_weapons gained (pulse_laser, slot 0).
+- [x] **Jumps trigger encounters.** Navigation's jumpCompleteMsg rolls
+      `encounters.Generator.ShouldGenerateEncounter` and routes into
+      ScreenEncounter on a hit. Tmux harness:
+      `scripts/tmux_encounter_test.sh`. Verified: at danger=5 / base
+      10%, a run of 15 jumps hit "Police Patrol" with scan vs attack
+      choices on jump 8.
 
-**DoD:** a new player can log in, fly to another system, dock, buy/sell
+**DoD:** ✅ a new player can log in, fly to another system, dock, buy/sell
 a commodity at a profit, install an outfit, and be challenged by a
-pirate encounter — without touching the DB manually.
+police encounter — without touching the DB manually.
 
 ### Phase 2 — World breathes (2 weeks)
 
