@@ -307,9 +307,10 @@ func (p *ItemPickerModel) handleSearchInput(msg tea.KeyMsg) tea.Cmd {
 		p.searchQuery = ""
 
 	default:
-		// Add character to search query
-		if len(msg.String()) == 1 {
-			p.searchQuery += msg.String()
+		// Add printable runes to the search query; rejects named keys like
+		// "up"/"f1" and strips embedded control bytes from paste buffers.
+		if s, ok := printableRuneString(msg); ok {
+			p.searchQuery += s
 		}
 	}
 

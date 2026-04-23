@@ -399,9 +399,14 @@ func (m *Model) updateFleetHireEscort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.fleet.nameInput = m.fleet.nameInput[:len(m.fleet.nameInput)-1]
 			}
 		default:
-			// Add character to name (limit to 20 chars)
-			if len(msg.String()) == 1 && len(m.fleet.nameInput) < 20 {
-				m.fleet.nameInput += msg.String()
+			if s, ok := printableRuneString(msg); ok {
+				room := 20 - len([]rune(m.fleet.nameInput))
+				if room > 0 {
+					if len([]rune(s)) > room {
+						s = string([]rune(s)[:room])
+					}
+					m.fleet.nameInput += s
+				}
 			}
 		}
 

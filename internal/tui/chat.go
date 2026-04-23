@@ -67,15 +67,17 @@ func (m Model) updateChat(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 			default:
-				// Add character to buffer with sanitization
-				if len(msg.String()) == 1 && len(m.chatModel.inputBuffer) < 200 {
-					// Filter out control characters (except escape for ANSI sequences)
-					char := msg.String()[0]
-					if (char >= 32 && char != 127) || char == 27 {
-						m.chatModel.inputBuffer += msg.String()
-						// Strip ANSI escape codes to prevent injection attacks
-						m.chatModel.inputBuffer = validation.StripANSI(m.chatModel.inputBuffer)
+				// Printable text (typing or paste). printableRuneString rejects
+				// named keys and embedded control bytes, so we only need a
+				// length-clamp plus ANSI-stripping for injection safety.
+				if s, ok := printableRuneString(msg); ok && len([]rune(m.chatModel.inputBuffer)) < 200 {
+					room := 200 - len([]rune(m.chatModel.inputBuffer))
+					if len([]rune(s)) > room {
+						s = string([]rune(s)[:room])
 					}
+					m.chatModel.inputBuffer += s
+					// Strip ANSI escape codes to prevent injection attacks.
+					m.chatModel.inputBuffer = validation.StripANSI(m.chatModel.inputBuffer)
 				}
 			}
 

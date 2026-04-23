@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 // Box-drawing characters for borders
@@ -271,41 +272,105 @@ func formatNumber(n int64) string {
 	return string(result)
 }
 
-// PadRight pads a string to the right
+// Pad/truncate helpers work in terminal cells, not bytes.
+//
+// All TUI layout uses multi-byte Unicode (box-drawing chars are 3 bytes / 1 cell)
+// and some styled content contains ANSI escape sequences (invisible, 0 cells).
+// Measuring with Go's len() or slicing with s[:n] is a bug trap: it counts
+// bytes, so pads are too short and truncations land in the middle of a
+// codepoint — which is why renders showed replacement chars and broken borders.
+//
+// cellWidth returns the on-screen width of s in terminal cells, stripping ANSI
+// escapes (via lipgloss.Width). truncateCells returns the longest prefix of s
+// that fits within maxCells, never splitting a rune.
+
+// cellWidth reports the visible cell width of s. ANSI escape sequences count
+// as zero cells; East Asian wide runes count as two.
+func cellWidth(s string) int {
+	return lipgloss.Width(s)
+}
+
+// truncateCells returns the longest prefix of s whose cell width is <= maxCells,
+// preserving rune boundaries. ANSI escape sequences encountered in the prefix
+// pass through unchanged. If s has no ANSI and fits entirely, s is returned
+// without copying.
+func truncateCells(s string, maxCells int) string {
+	if maxCells <= 0 {
+		return ""
+	}
+	if cellWidth(s) <= maxCells {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	used := 0
+	inEscape := false
+	for _, r := range s {
+		if inEscape {
+			b.WriteRune(r)
+			// terminator of CSI/SGR: any letter @A-Za-z
+			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || r == '~' {
+				inEscape = false
+			}
+			continue
+		}
+		if r == 0x1b {
+			inEscape = true
+			b.WriteRune(r)
+			continue
+		}
+		w := runewidth.RuneWidth(r)
+		if used+w > maxCells {
+			break
+		}
+		b.WriteRune(r)
+		used += w
+	}
+	return b.String()
+}
+
+// PadRight right-pads s with spaces to occupy exactly width terminal cells.
+// If s is wider than width, it is truncated on rune boundaries.
 func PadRight(s string, width int) string {
-	if len(s) >= width {
-		return s[:width]
+	w := cellWidth(s)
+	if w >= width {
+		return truncateCells(s, width)
 	}
-	return s + strings.Repeat(" ", width-len(s))
+	return s + strings.Repeat(" ", width-w)
 }
 
-// PadLeft pads a string to the left
+// PadLeft left-pads s with spaces to occupy exactly width terminal cells.
+// If s is wider than width, it is truncated on rune boundaries.
 func PadLeft(s string, width int) string {
-	if len(s) >= width {
-		return s[:width]
+	w := cellWidth(s)
+	if w >= width {
+		return truncateCells(s, width)
 	}
-	return strings.Repeat(" ", width-len(s)) + s
+	return strings.Repeat(" ", width-w) + s
 }
 
-// Center centers a string within a given width
+// Center centers s within width terminal cells, padding with spaces on both
+// sides. If s is wider than width, it is truncated on rune boundaries.
 func Center(s string, width int) string {
-	if len(s) >= width {
-		return s[:width]
+	w := cellWidth(s)
+	if w >= width {
+		return truncateCells(s, width)
 	}
-	leftPad := (width - len(s)) / 2
-	rightPad := width - len(s) - leftPad
+	leftPad := (width - w) / 2
+	rightPad := width - w - leftPad
 	return strings.Repeat(" ", leftPad) + s + strings.Repeat(" ", rightPad)
 }
 
-// TruncateString truncates a string to a maximum length with ellipsis
+// TruncateString shortens s to at most maxLen terminal cells, appending "..."
+// when truncation occurred. Operates on runes, never splitting a codepoint.
 func TruncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	if cellWidth(s) <= maxLen {
 		return s
 	}
 	if maxLen < 4 {
-		return s[:maxLen]
+		return truncateCells(s, maxLen)
 	}
-	return s[:maxLen-3] + "..."
+	return truncateCells(s, maxLen-3) + "..."
 }
 
 // Color styles using lipgloss

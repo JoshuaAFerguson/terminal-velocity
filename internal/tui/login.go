@@ -136,7 +136,10 @@ func (m Model) viewLogin() string {
 	sb.WriteString(strings.Repeat(" ", width-panelLeft-panelWidth-1))
 	sb.WriteString(BoxVertical + "\n")
 
-	// Username field
+	// Username field. The content inside the inner panel must span exactly
+	// panelWidth-2 cells, otherwise the inner right border lands off-column and
+	// BubbleTea wraps the remainder onto the next row (visible as a ghost
+	// duplicate of the row below).
 	usernameLabel := "Username: "
 	usernameFocused := m.loginModel.focusedField == 0
 	usernameField := m.loginModel.username
@@ -145,11 +148,12 @@ func (m Model) viewLogin() string {
 	} else {
 		usernameField = "[" + PadRight(usernameField, 27) + "]"
 	}
+	usernameRow := PadRight("  "+usernameLabel+usernameField, panelWidth-2)
 
 	sb.WriteString(BoxVertical)
 	sb.WriteString(strings.Repeat(" ", panelLeft-1))
 	sb.WriteString(BoxVertical)
-	sb.WriteString("  " + usernameLabel + usernameField + "  ")
+	sb.WriteString(usernameRow)
 	sb.WriteString(BoxVertical)
 	sb.WriteString(strings.Repeat(" ", width-panelLeft-panelWidth-1))
 	sb.WriteString(BoxVertical + "\n")
@@ -163,20 +167,21 @@ func (m Model) viewLogin() string {
 	sb.WriteString(strings.Repeat(" ", width-panelLeft-panelWidth-1))
 	sb.WriteString(BoxVertical + "\n")
 
-	// Password field
+	// Password field. Same padding rule as Username.
 	passwordLabel := "Password: "
 	passwordFocused := m.loginModel.focusedField == 1
-	passwordField := strings.Repeat("*", len(m.loginModel.password))
+	passwordField := strings.Repeat("*", len([]rune(m.loginModel.password)))
 	if passwordFocused {
 		passwordField = HighlightStyle.Render("[" + PadRight(passwordField+"_", 27) + "]")
 	} else {
 		passwordField = "[" + PadRight(passwordField, 27) + "]"
 	}
+	passwordRow := PadRight("  "+passwordLabel+passwordField, panelWidth-2)
 
 	sb.WriteString(BoxVertical)
 	sb.WriteString(strings.Repeat(" ", panelLeft-1))
 	sb.WriteString(BoxVertical)
-	sb.WriteString("  " + passwordLabel + passwordField + "  ")
+	sb.WriteString(passwordRow)
 	sb.WriteString(BoxVertical)
 	sb.WriteString(strings.Repeat(" ", width-panelLeft-panelWidth-1))
 	sb.WriteString(BoxVertical + "\n")
@@ -291,9 +296,9 @@ func (m Model) viewLogin() string {
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxCross + "\n")
 
+	footerText := " [Tab/↑/↓] Navigate  [Enter] Select  [Ctrl+C] Quit"
 	sb.WriteString(BoxVertical)
-	sb.WriteString(" [Tab/↑/↓] Navigate  [Enter] Select  [Ctrl+C] Quit")
-	sb.WriteString(strings.Repeat(" ", width-len(" [Tab/↑/↓] Navigate  [Enter] Select  [Ctrl+C] Quit")-3))
+	sb.WriteString(PadRight(footerText, width-2))
 	sb.WriteString(BoxVertical + "\n")
 
 	// Bottom border
@@ -371,15 +376,22 @@ func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		default:
-			// Handle text input for username/password fields
-			if len(msg.String()) == 1 {
-				if m.loginModel.focusedField == 0 {
-					// Username field
-					m.loginModel.username += msg.String()
+			// Append printable text into the focused field.
+			//
+			// We used to only accept msg.String() of length 1, which silently
+			// dropped pastes (BubbleTea delivers paste events as multi-rune
+			// KeyMsg strings) and composed characters. Now we accept any msg
+			// whose Runes slice is non-empty and contains only printable
+			// runes — keeps us robust to pastes while still rejecting named
+			// control keys like "esc", "ctrl+x", "f1", etc. which have
+			// multi-character String() but empty/absent Runes.
+			if s, ok := printableRuneString(msg); ok {
+				switch m.loginModel.focusedField {
+				case 0:
+					m.loginModel.username += s
 					m.loginModel.error = ""
-				} else if m.loginModel.focusedField == 1 {
-					// Password field
-					m.loginModel.password += msg.String()
+				case 1:
+					m.loginModel.password += s
 					m.loginModel.error = ""
 				}
 			}
@@ -390,6 +402,7 @@ func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Player data loaded after successful login
 		m.player = msg.player
 		m.currentShip = msg.ship
+		m.currentSystem = msg.system
 		m.err = msg.err
 
 		if m.err != nil {

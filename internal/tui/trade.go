@@ -226,14 +226,13 @@ func (m Model) updateTradeCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	default:
-		// Handle text input
-		if len(msg.String()) == 1 {
+		if s, ok := printableRuneString(msg); ok {
 			switch m.tradeModel.createInputField {
 			case 0: // Recipient
-				m.tradeModel.createRecipient += msg.String()
+				m.tradeModel.createRecipient += s
 			case 3: // Message
-				if len(m.tradeModel.createMessage) < 200 {
-					m.tradeModel.createMessage += msg.String()
+				if len([]rune(m.tradeModel.createMessage))+len([]rune(s)) <= 200 {
+					m.tradeModel.createMessage += s
 				}
 			}
 		}

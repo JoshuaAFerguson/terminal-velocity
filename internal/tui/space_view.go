@@ -801,9 +801,8 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.spaceView.chatInput = m.spaceView.chatInput[:len(m.spaceView.chatInput)-1]
 					}
 					return m, nil
-				} else if len(msg.String()) == 1 {
-					// Add character to chat input
-					m.spaceView.chatInput += msg.String()
+				} else if s, ok := printableRuneString(msg); ok {
+					m.spaceView.chatInput += s
 					return m, nil
 				}
 			}

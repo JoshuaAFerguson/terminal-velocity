@@ -232,10 +232,9 @@ func (m *Model) updateFriendsAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	default:
-		// Add character to input
-		if len(msg.String()) == 1 {
-			if len(m.friends.usernameInput) < 32 {
-				m.friends.usernameInput += msg.String()
+		if s, ok := printableRuneString(msg); ok {
+			if len([]rune(m.friends.usernameInput))+len([]rune(s)) <= 32 {
+				m.friends.usernameInput += s
 			}
 		}
 	}

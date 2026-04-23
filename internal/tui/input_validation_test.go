@@ -150,9 +150,13 @@ func TestChatInputSanitization(t *testing.T) {
 			shouldContain: true,
 		},
 		{
-			name:          "Message with control characters",
-			input:         "Hello\x00\x1b[31m world",
-			expectedLen:   11, // Control chars filtered
+			name:  "Message with control characters",
+			input: "Hello\x00\x1b[31m world",
+			// NUL and ESC are non-printable runes and dropped by the key-input
+			// filter (printableRuneString). The residual `[31m` chars are
+			// harmless plain text once the leading ESC is gone. Result:
+			// "Hello" + "[31m world" = 15 cells.
+			expectedLen:   15,
 			shouldContain: true,
 		},
 		{

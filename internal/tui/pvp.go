@@ -247,14 +247,13 @@ func (m Model) updatePvPCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	default:
-		// Handle text input
-		if len(msg.String()) == 1 {
+		if s, ok := printableRuneString(msg); ok {
 			switch m.pvpModel.createInputField {
 			case 0: // Target
-				m.pvpModel.createTarget += msg.String()
+				m.pvpModel.createTarget += s
 			case 3: // Message
-				if len(m.pvpModel.createMessage) < 200 {
-					m.pvpModel.createMessage += msg.String()
+				if len([]rune(m.pvpModel.createMessage))+len([]rune(s)) <= 200 {
+					m.pvpModel.createMessage += s
 				}
 			}
 		}

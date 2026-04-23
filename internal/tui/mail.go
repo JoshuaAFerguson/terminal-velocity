@@ -291,20 +291,19 @@ func (m *Model) updateMailCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	default:
-		// Add character to current field
-		if len(msg.String()) == 1 {
+		if s, ok := printableRuneString(msg); ok {
 			switch m.mail.composeField {
 			case 0: // recipient
-				if len(m.mail.recipientInput) < 32 {
-					m.mail.recipientInput += msg.String()
+				if len([]rune(m.mail.recipientInput))+len([]rune(s)) <= 32 {
+					m.mail.recipientInput += s
 				}
 			case 1: // subject
-				if len(m.mail.subjectInput) < 200 {
-					m.mail.subjectInput += msg.String()
+				if len([]rune(m.mail.subjectInput))+len([]rune(s)) <= 200 {
+					m.mail.subjectInput += s
 				}
 			case 2: // body
-				if len(m.mail.bodyInput) < 5000 {
-					m.mail.bodyInput += msg.String()
+				if len([]rune(m.mail.bodyInput))+len([]rune(s)) <= 5000 {
+					m.mail.bodyInput += s
 				}
 			// case 3: attachments field - only 'a' key opens picker
 			}

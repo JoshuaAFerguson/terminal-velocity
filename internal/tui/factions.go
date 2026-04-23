@@ -105,11 +105,11 @@ func (m Model) updateFactionsCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	default:
-		if len(msg.String()) == 1 {
-			if m.factionsModel.inputField == 0 && len(m.factionsModel.createName) < 30 {
-				m.factionsModel.createName += msg.String()
-			} else if m.factionsModel.inputField == 1 && len(m.factionsModel.createTag) < 5 {
-				m.factionsModel.createTag += strings.ToUpper(msg.String())
+		if s, ok := printableRuneString(msg); ok {
+			if m.factionsModel.inputField == 0 && len([]rune(m.factionsModel.createName))+len([]rune(s)) <= 30 {
+				m.factionsModel.createName += s
+			} else if m.factionsModel.inputField == 1 && len([]rune(m.factionsModel.createTag))+len([]rune(s)) <= 5 {
+				m.factionsModel.createTag += strings.ToUpper(s)
 			}
 		}
 	}

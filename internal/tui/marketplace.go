@@ -527,24 +527,19 @@ func (m *Model) updateMarketplaceCreateAuction(msg tea.KeyMsg) (tea.Model, tea.C
 		}
 
 	default:
-		// Add character to current field
-		if len(msg.String()) == 1 {
+		if s, ok := printableRuneString(msg); ok {
 			switch m.marketplace.formField {
-			case 0: // starting_bid (numbers only)
-				if msg.String() >= "0" && msg.String() <= "9" {
-					m.marketplace.createForm["starting_bid"] += msg.String()
-				}
-			case 1: // buyout_price (numbers only)
-				if msg.String() >= "0" && msg.String() <= "9" {
-					m.marketplace.createForm["buyout_price"] += msg.String()
-				}
-			case 2: // duration (numbers only)
-				if msg.String() >= "0" && msg.String() <= "9" {
-					m.marketplace.createForm["duration"] += msg.String()
-				}
+			case 0, 1, 2:
+				// Numeric fields: accept only digits from the paste/keypress.
+				key := []string{"starting_bid", "buyout_price", "duration"}[m.marketplace.formField]
+				m.marketplace.createForm[key] += keepDigits(s)
 			case 3: // description
-				if len(m.marketplace.createForm["description"]) < 500 {
-					m.marketplace.createForm["description"] += msg.String()
+				room := 500 - len([]rune(m.marketplace.createForm["description"]))
+				if room > 0 {
+					if len([]rune(s)) > room {
+						s = string([]rune(s)[:room])
+					}
+					m.marketplace.createForm["description"] += s
 				}
 			}
 		}
@@ -632,30 +627,28 @@ func (m *Model) updateMarketplaceCreateContract(msg tea.KeyMsg) (tea.Model, tea.
 		}
 
 	default:
-		// Add character to current field (skip type field which uses arrows)
-		if len(msg.String()) == 1 && m.marketplace.formField != 0 {
-			char := msg.String()[0]
+		// Text for everything except field 0 (type field, arrow-driven).
+		if s, ok := printableRuneString(msg); ok && m.marketplace.formField != 0 {
 			switch m.marketplace.formField {
 			case 1: // title
-				if len(m.marketplace.createForm["title"]) < 50 {
-					m.marketplace.createForm["title"] += string(char)
+				room := 50 - len([]rune(m.marketplace.createForm["title"]))
+				if room > 0 {
+					m.marketplace.createForm["title"] += clampRunes(s, room)
 				}
 			case 2: // description
-				if len(m.marketplace.createForm["description"]) < 200 {
-					m.marketplace.createForm["description"] += string(char)
+				room := 200 - len([]rune(m.marketplace.createForm["description"]))
+				if room > 0 {
+					m.marketplace.createForm["description"] += clampRunes(s, room)
 				}
 			case 3: // reward (numeric only)
-				if char >= '0' && char <= '9' {
-					m.marketplace.createForm["reward"] += string(char)
-				}
+				m.marketplace.createForm["reward"] += keepDigits(s)
 			case 4: // target_name
-				if len(m.marketplace.createForm["target_name"]) < 50 {
-					m.marketplace.createForm["target_name"] += string(char)
+				room := 50 - len([]rune(m.marketplace.createForm["target_name"]))
+				if room > 0 {
+					m.marketplace.createForm["target_name"] += clampRunes(s, room)
 				}
 			case 5: // duration (numeric only)
-				if char >= '0' && char <= '9' {
-					m.marketplace.createForm["duration"] += string(char)
-				}
+				m.marketplace.createForm["duration"] += keepDigits(s)
 			}
 		}
 	}
@@ -707,21 +700,19 @@ func (m *Model) updateMarketplacePostBounty(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		}
 
 	default:
-		// Add character to current field
-		if len(msg.String()) == 1 {
-			char := msg.String()[0]
+		if s, ok := printableRuneString(msg); ok {
 			switch m.marketplace.formField {
 			case 0: // target_name
-				if len(m.marketplace.createForm["target_name"]) < 50 {
-					m.marketplace.createForm["target_name"] += string(char)
+				room := 50 - len([]rune(m.marketplace.createForm["target_name"]))
+				if room > 0 {
+					m.marketplace.createForm["target_name"] += clampRunes(s, room)
 				}
 			case 1: // amount (numeric only)
-				if char >= '0' && char <= '9' {
-					m.marketplace.createForm["amount"] += string(char)
-				}
+				m.marketplace.createForm["amount"] += keepDigits(s)
 			case 2: // reason
-				if len(m.marketplace.createForm["reason"]) < 200 {
-					m.marketplace.createForm["reason"] += string(char)
+				room := 200 - len([]rune(m.marketplace.createForm["reason"]))
+				if room > 0 {
+					m.marketplace.createForm["reason"] += clampRunes(s, room)
 				}
 			}
 		}
