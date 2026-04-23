@@ -147,23 +147,32 @@ travel." Every item ships a tmux regression test + unit tests for repos.
 a commodity at a profit, install an outfit, and be challenged by a
 police encounter — without touching the DB manually.
 
-### Phase 2 — World breathes (2 weeks)
+### Phase 2 — World breathes (in progress)
 
 Tick loop + content generation. The universe must change between logins.
 
-- [ ] **Game tick loop.** A goroutine per-system runs at `tick_rate`,
-      updating market stocks (slow drift back to equilibrium), news
-      articles on significant trades, mission expirations, encounter
-      spawns.
-- [ ] **Dynamic pricing.** Market price shifts when players buy/sell:
-      stock decreases on buy, increases on sell; price uses
-      `base * (1 + demand_factor - stock_factor)`. Bounded.
-- [ ] **News system.** On player kill / big trade / faction event,
-      `news.Manager.AnnounceXxx` writes to news table. Main-menu News
-      shows the last 20.
-- [ ] **Reputation consequences.** Attacking a government ship hurts rep
-      with that gov and helps with its enemies. Cargo restrictions gated
-      on rep (blocked at spaceport if too low).
+- [x] **Game tick loop.** New `internal/tick` package with a Service
+      that registers handlers at arbitrary cadences, runs each on its
+      own goroutine, and cancels cleanly via context. Server owns the
+      instance and calls Start/Stop during lifecycle. Unit tests
+      cover cadence, error resilience, cancellation, clamping,
+      double-start. Live-verified by watching
+      `market_prices.stock` drift 50→54→56→58→60 in 80 s.
+- [x] **Dynamic pricing.** Already present in the trading package and
+      verified by the P1.1 harness: stock 100→90 and demand 50→55
+      after a 10-unit buy; tick's market-drift handler pulls both
+      sides back toward (100, 50) at +2 stock / -1 demand per 30 s.
+- [x] **News system.** Server-wide `news.Manager` with mutex, seeded
+      at startup with `GenerateInitialNews`. Trading hooks call
+      `OnPlayerTrade` on profit/cost thresholds. Tick `news_random`
+      polls the manager's 30-minute random-article mechanism every
+      minute. Verified: the News screen after login shows five
+      background articles (merchant safety, commodity fluctuation,
+      diplomatic breakthrough, pirate activity x2) from the shared
+      feed.
+- [ ] **Reputation consequences.** Attacking a government ship hurts
+      rep with that gov and helps with its enemies. Cargo restrictions
+      gated on rep (blocked at spaceport if too low).
 - [ ] **Random events.** System-level random events (pirate raid,
       merchant convoy, bounty opened) from `events.Manager`.
 
