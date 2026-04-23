@@ -1,7 +1,7 @@
 // File: internal/tui/navigation_test.go
 // Project: Terminal Velocity
 // Description: Tests for screen navigation and transitions
-// Version: 1.0.0
+// Version: 1.0.1
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -24,8 +24,8 @@ func TestScreenTransitions(t *testing.T) {
 		// Space View navigation
 		{"SpaceView to Landing", ScreenSpaceView, "l", ScreenLanding},
 		{"SpaceView to Combat", ScreenSpaceView, "f", ScreenCombatEnhanced},
-		{"SpaceView to Navigation", ScreenSpaceView, "m", ScreenNavigationEnhanced},
-		{"SpaceView to NavigationJ", ScreenSpaceView, "j", ScreenNavigationEnhanced},
+		{"SpaceView to Navigation", ScreenSpaceView, "m", ScreenNavigation},
+		{"SpaceView to NavigationJ", ScreenSpaceView, "j", ScreenNavigation},
 		{"SpaceView to MainMenu", ScreenSpaceView, "esc", ScreenMainMenu},
 
 		// Landing navigation
@@ -43,7 +43,7 @@ func TestScreenTransitions(t *testing.T) {
 		{"Shipyard to Landing", ScreenShipyardEnhanced, "esc", ScreenLanding},
 		{"Missions to Landing", ScreenMissionBoardEnhanced, "esc", ScreenLanding},
 		{"Quests to Landing", ScreenQuestBoardEnhanced, "esc", ScreenLanding},
-		{"Navigation to SpaceView", ScreenNavigationEnhanced, "esc", ScreenSpaceView},
+		{"Navigation to SpaceView", ScreenNavigation, "esc", ScreenSpaceView},
 		{"Combat to MainMenu", ScreenCombatEnhanced, "esc", ScreenMainMenu},
 		{"Combat Retreat", ScreenCombatEnhanced, "r", ScreenSpaceView},
 
@@ -68,7 +68,6 @@ func TestScreenTransitions(t *testing.T) {
 			m.tradingEnhanced = newTradingEnhancedModel()
 			m.shipyardEnhanced = newShipyardEnhancedModel()
 			m.missionBoardEnhanced = newMissionBoardEnhancedModel()
-			m.navigationEnhanced = newNavigationEnhancedModel()
 			m.combatEnhanced = newCombatEnhancedModel()
 			m.questBoardEnhanced = newQuestBoardEnhancedModel()
 			m.loginModel = newLoginModel()
@@ -77,6 +76,13 @@ func TestScreenTransitions(t *testing.T) {
 			if tt.initialScreen == ScreenSpaceView && tt.keyPress == "f" {
 				m.spaceView.hasTarget = true
 				m.spaceView.targetIndex = 0
+			}
+
+			// Screens that honor previousScreen on Esc need it wired for
+			// the test to exercise the SpaceView-return path.
+			if tt.initialScreen == ScreenNavigation && tt.expectedScreen == ScreenSpaceView {
+				m.previousScreen = ScreenSpaceView
+				m.hasPreviousScreen = true
 			}
 
 			// Simulate key press
@@ -125,9 +131,10 @@ func TestListNavigation(t *testing.T) {
 		{"Quests down", ScreenQuestBoardEnhanced, 0, "down", 1},
 		{"Quests up", ScreenQuestBoardEnhanced, 1, "up", 0},
 
-		// Navigation systems
-		{"Navigation down", ScreenNavigationEnhanced, 0, "down", 1},
-		{"Navigation up", ScreenNavigationEnhanced, 1, "up", 0},
+		// NOTE: Navigation (ScreenNavigation) list nav is covered by
+		// TestNavigationModel in the real screen's test scope — this
+		// screen loads systems from the DB rather than from a static
+		// slice, so it's not exercisable by this table-driven test.
 	}
 
 	for _, tt := range tests {
@@ -142,7 +149,6 @@ func TestListNavigation(t *testing.T) {
 			m.tradingEnhanced = newTradingEnhancedModel()
 			m.missionBoardEnhanced = newMissionBoardEnhancedModel()
 			m.questBoardEnhanced = newQuestBoardEnhancedModel()
-			m.navigationEnhanced = newNavigationEnhancedModel()
 
 			// Set initial index
 			switch tt.screen {
@@ -152,8 +158,6 @@ func TestListNavigation(t *testing.T) {
 				m.missionBoardEnhanced.selectedMission = tt.initialIndex
 			case ScreenQuestBoardEnhanced:
 				m.questBoardEnhanced.selectedQuest = tt.initialIndex
-			case ScreenNavigationEnhanced:
-				m.navigationEnhanced.selectedSystem = tt.initialIndex
 			}
 
 			// Simulate key press
@@ -177,8 +181,6 @@ func TestListNavigation(t *testing.T) {
 				actualIndex = updatedModel.missionBoardEnhanced.selectedMission
 			case ScreenQuestBoardEnhanced:
 				actualIndex = updatedModel.questBoardEnhanced.selectedQuest
-			case ScreenNavigationEnhanced:
-				actualIndex = updatedModel.navigationEnhanced.selectedSystem
 			}
 
 			if actualIndex != tt.expectedIndex {
@@ -287,13 +289,9 @@ func TestDataInitialization(t *testing.T) {
 			},
 			"Quest board should initialize with quests",
 		},
-		{
-			"Navigation has systems",
-			func(m Model) bool {
-				return len(m.navigationEnhanced.systems) > 0
-			},
-			"Navigation should initialize with systems",
-		},
+		// Navigation (ScreenNavigation) loads its systems asynchronously
+		// from the DB, so there is no static fixture to assert on at
+		// construction time — the async path is covered elsewhere.
 		{
 			"Combat has ships",
 			func(m Model) bool {
@@ -316,7 +314,6 @@ func TestDataInitialization(t *testing.T) {
 			m.shipyardEnhanced = newShipyardEnhancedModel()
 			m.missionBoardEnhanced = newMissionBoardEnhancedModel()
 			m.questBoardEnhanced = newQuestBoardEnhancedModel()
-			m.navigationEnhanced = newNavigationEnhancedModel()
 			m.combatEnhanced = newCombatEnhancedModel()
 
 			if !tt.checkFunc(m) {

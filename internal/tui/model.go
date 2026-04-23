@@ -1,7 +1,7 @@
 // File: internal/tui/model.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for model with login screen and unauthenticated state support
-// Version: 1.2.2
+// Version: 1.3.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -75,7 +75,6 @@ const (
 	ScreenTradingEnhanced
 	ScreenShipyardEnhanced
 	ScreenMissionBoardEnhanced
-	ScreenNavigationEnhanced
 	ScreenCombatEnhanced
 	ScreenQuestBoardEnhanced
 	ScreenTradeRoutes
@@ -152,7 +151,6 @@ type Model struct {
 	tradingEnhanced       tradingEnhancedModel
 	shipyardEnhanced      shipyardEnhancedModel
 	missionBoardEnhanced  missionBoardEnhancedModel
-	navigationEnhanced    navigationEnhancedModel
 	combatEnhanced        combatEnhancedModel
 	questBoardEnhanced    questBoardEnhancedModel
 	tradeRoutes           tradeRoutesState
@@ -317,7 +315,6 @@ func NewModel(
 		tradingEnhanced:      newTradingEnhancedModel(),
 		shipyardEnhanced:     newShipyardEnhancedModel(),
 		missionBoardEnhanced: newMissionBoardEnhancedModel(),
-		navigationEnhanced:   newNavigationEnhancedModel(),
 		combatEnhanced:       newCombatEnhancedModel(),
 		questBoardEnhanced:   newQuestBoardEnhancedModel(),
 		fleet:                newFleetState(),
@@ -434,7 +431,6 @@ func NewLoginModel(
 		tradingEnhanced:     newTradingEnhancedModel(),
 		shipyardEnhanced:    newShipyardEnhancedModel(),
 		missionBoardEnhanced: newMissionBoardEnhancedModel(),
-		navigationEnhanced:  newNavigationEnhancedModel(),
 		combatEnhanced:      newCombatEnhancedModel(),
 		questBoardEnhanced:  newQuestBoardEnhancedModel(),
 	}
@@ -577,8 +573,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateShipyardEnhanced(msg)
 	case ScreenMissionBoardEnhanced:
 		return m.updateMissionBoardEnhanced(msg)
-	case ScreenNavigationEnhanced:
-		return m.updateNavigationEnhanced(msg)
 	case ScreenCombatEnhanced:
 		return m.updateCombatEnhanced(msg)
 	case ScreenQuestBoardEnhanced:
@@ -678,8 +672,6 @@ func (m Model) View() string {
 		return m.viewShipyardEnhanced()
 	case ScreenMissionBoardEnhanced:
 		return m.viewMissionBoardEnhanced()
-	case ScreenNavigationEnhanced:
-		return m.viewNavigationEnhanced()
 	case ScreenCombatEnhanced:
 		return m.viewCombatEnhanced()
 	case ScreenQuestBoardEnhanced:

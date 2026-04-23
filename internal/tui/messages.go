@@ -1,7 +1,7 @@
 // File: internal/tui/messages.go
 // Project: Terminal Velocity
 // Description: Message type definitions for async BubbleTea operations
-// Version: 1.0.0
+// Version: 1.0.1
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -76,14 +76,8 @@ type questProgressMsg struct {
 	err          error
 }
 
-// Navigation/System messages
-// Note: systemsLoadedMsg/jumpCompleteMsg already defined in navigation.go (old screen)
-// Use navigationEnhancedDataMsg for enhanced screens
-type navigationEnhancedDataMsg struct {
-	current  *models.StarSystem
-	nearby   []*models.StarSystem
-	err      error
-}
+// Navigation/System messages.
+// systemsLoadedMsg and jumpCompleteMsg are defined in navigation.go.
 
 type jumpExecutedMsg struct {
 	destination *models.StarSystem

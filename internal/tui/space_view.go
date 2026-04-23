@@ -1,7 +1,7 @@
 // File: internal/tui/space_view.go
 // Project: Terminal Velocity
 // Description: Main space view with 2D viewport, HUD, radar, status, and real-time interactions
-// Version: 1.2.0
+// Version: 1.2.1
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -717,8 +717,12 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "j", "J":
-			// Jump (navigation)
-			m.screen = ScreenNavigationEnhanced
+			// Jump (navigation). Remember where we came from so Esc in
+			// the navigation screen returns to the space view instead
+			// of the main menu.
+			m.previousScreen = ScreenSpaceView
+			m.hasPreviousScreen = true
+			m.screen = ScreenNavigation
 			return m, nil
 
 		case "t", "T":
@@ -744,8 +748,13 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "m", "M":
-			// System map
-			m.screen = ScreenNavigationEnhanced
+			// System map. The dedicated map screen was a hardcoded
+			// sample-data stub; until a real map exists, route the key
+			// to the navigation/jump screen so the user sees the
+			// actually-connected systems.
+			m.previousScreen = ScreenSpaceView
+			m.hasPreviousScreen = true
+			m.screen = ScreenNavigation
 			return m, nil
 
 		case "i", "I":

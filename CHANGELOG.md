@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-04-23 - Navigation _Enhanced variant consolidated)
+- **Removed `navigation_enhanced.go`** (hardcoded "Alpha Centauri" / "Sol"
+  sample-data stub) and folded the space-view "j" (jump) and "m" (map)
+  keys into the real DB-backed `ScreenNavigation`. Esc now honors the
+  previous-screen stack so returning from Space View -> Navigation lands
+  back in Space View instead of the main menu. Tests in
+  `navigation_test.go` updated; `ScreenNavigationEnhanced` removed from
+  the `Screen` enum. See `docs/ENHANCED_VARIANT_CONSOLIDATION.md` for
+  the tracker covering the remaining four variant pairs.
+
 ### Changed (2026-04-23 - Space View stub removal)
 - **Space View now reflects real state**: system name reads from the loaded
   `m.currentSystem` (falling back to "In transit" on first frame); the target

@@ -1,7 +1,7 @@
 // File: internal/tui/navigation.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for navigation
-// Version: 1.0.1
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -64,7 +64,15 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc", "backspace":
-			m.screen = ScreenMainMenu
+			// Honor wherever the user came from (main menu vs space
+			// view). Fall back to the main menu when no previous
+			// screen is recorded.
+			if m.hasPreviousScreen {
+				m.screen = m.previousScreen
+				m.hasPreviousScreen = false
+			} else {
+				m.screen = ScreenMainMenu
+			}
 			return m, nil
 
 		case "up", "k":
