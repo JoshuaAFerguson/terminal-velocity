@@ -197,23 +197,37 @@ prices drift back toward equilibrium, trade/rescue/attack actions
 announce, reputation shifts with combat, and system-named events
 trickle into the feed every two minutes.
 
-### Phase 3 — Pilot depth (2 weeks)
+### Phase 3 — Pilot depth (in progress)
 
 Make progression feel real.
 
 - [ ] **Licences.** Pilot must earn licences (combat, trade, exploration)
       via achievements. Certain ships/outfits gated behind licences.
-- [ ] **Pilot log.** History of jumps, kills, trades — visible in a
-      "Pilot Record" screen. Persisted.
-- [ ] **Ship customisation.** Rename ships; rename ports in your fleet;
-      choose a transponder code.
+- [x] **Pilot log.** New `ScreenPilotRecord` / `pilot_record.go`
+      screen surfaces Combat / Trading / Exploration ratings with the
+      existing rank titles, milestone counts, enlistment tenure,
+      criminal status, and faction standings with an Allied/Friendly/
+      Neutral/Unfriendly/Hostile ladder. All fields read from
+      already-populated `models.Player` state; no schema changes. New
+      main-menu entry between Ship Management and Missions.
+- [x] **Ship customisation.** Ship Management's "r" key already
+      persisted a rename via `shipRepo.Update`. Added
+      `scripts/tmux_ship_rename_test.sh` regression harness: login →
+      Ship Management → details → r → type → Enter. Live-verified the
+      DB update (Starter Shuttle → Stardrift-Alpha).
 - [ ] **Storyline hooks.** Faction questlines (multi-step missions with
       branching). Leverages the existing `factioncontent` package.
-- [ ] **Achievements surface.** Achievement unlocks notify the player
-      in-screen and persist to DB.
+- [x] **Achievements surface.** New `player_achievements` table +
+      `AchievementRepository` (LoadForPlayer, Unlock). `loadPlayer`
+      preloads unlocks so reconnecting players don't see
+      notifications fire again. `checkAchievements` persists each new
+      unlock alongside the existing news + pending-notification
+      queue. Verified: DB row `(first_jump, <now>)` appears after
+      one jump on a cleared account.
 
 **DoD:** a player has a pilot record that grows with play and unlocks
-content.
+content. Three of five items done; Licences and Storyline Hooks still
+pending.
 
 ### Phase 4 — Multiplayer wiring (2 weeks)
 
