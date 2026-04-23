@@ -8,6 +8,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -86,6 +87,24 @@ func (m Model) handleEncounterOption() (tea.Model, tea.Cmd) {
 	// Handle option effects
 	switch selectedOption.ID {
 	case "engage", "attack":
+		// Attacking an unprovoked faction is a rep event. Police patrols,
+		// traders, and merchant convoys all carry a FactionID; attacking
+		// them costs 20 rep with that government and flags the player
+		// criminal (for police patrols specifically, which the encounter
+		// option already warns about). Pirate/hostile encounters have no
+		// "legitimate" faction — no rep penalty for shooting back.
+		if enc := m.encounterModel.encounter; enc != nil && enc.FactionID != "" && !enc.Hostile {
+			m.changeReputation(enc.FactionID, -20)
+			if enc.Type == models.EncounterTypePolice && m.player != nil {
+				m.player.IsCriminal = true
+				// Persist so reconnecting users don't drop the flag.
+				// Best-effort: rep hit is the load-bearing signal.
+				if m.playerRepo != nil {
+					_ = m.playerRepo.SetCriminal(context.Background(), m.player.ID, true)
+				}
+			}
+		}
+
 		// Start combat
 		m.encounterModel.encounter.Resolve()
 		m.encounterModel.resolved = true
@@ -159,10 +178,15 @@ func (m Model) handleEncounterOption() (tea.Model, tea.Cmd) {
 		}
 
 	case "rescue":
-		// Help distressed ship
+		// Help distressed ship. Persist the rep gain so it survives the
+		// session — ModifyReputation alone only mutates the in-memory
+		// player map that dies on disconnect.
 		m.player.AddCredits(m.encounterModel.encounter.CreditReward)
-		if m.encounterModel.encounter.FactionID != "" {
-			m.player.ModifyReputation(m.encounterModel.encounter.FactionID, m.encounterModel.encounter.ReputationGain)
+		if m.encounterModel.encounter.FactionID != "" && m.encounterModel.encounter.ReputationGain != 0 {
+			// Undo the in-memory bump we'd do twice; changeReputation
+			// handles both cache + DB.
+			m.player.ModifyReputation(m.encounterModel.encounter.FactionID, -m.encounterModel.encounter.ReputationGain)
+			m.changeReputation(m.encounterModel.encounter.FactionID, m.encounterModel.encounter.ReputationGain)
 		}
 
 		m.encounterModel.message = fmt.Sprintf("Rescue complete! Earned %d credits and +%d reputation",

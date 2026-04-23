@@ -472,6 +472,30 @@ func NewRegistrationModel(
 	}
 }
 
+// changeReputation adjusts the player's reputation with a faction by `delta`
+// and persists the new value to the DB. Updates the in-memory player map
+// first so subsequent render passes see the change without a round-trip.
+// Silently skips when player or repo isn't ready (login/bootstrap paths).
+//
+// Used by the encounter system when the player attacks a patrol or rescues
+// a distressed ship; returns no error because reputation drift isn't a
+// critical-path failure — the hit is visible on the next Reputation read.
+func (m *Model) changeReputation(factionID string, delta int) {
+	if m.player == nil || factionID == "" || delta == 0 {
+		return
+	}
+	m.player.ModifyReputation(factionID, delta)
+	if m.playerRepo == nil {
+		return
+	}
+	ctx := context.Background()
+	if err := m.playerRepo.UpdateReputation(ctx, m.player.ID, factionID, delta); err != nil {
+		// Swallow — the in-memory change survives the session and the
+		// DB will converge on the next successful write.
+		_ = err
+	}
+}
+
 // currentLocationLabel returns the most specific place the player is in right
 // now: cached star system name when we have it, "In transit" when the player
 // has a system assigned but it hasn't loaded yet, and "Unknown" otherwise.

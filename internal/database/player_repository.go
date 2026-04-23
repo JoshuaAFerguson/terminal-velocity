@@ -374,6 +374,20 @@ func (r *PlayerRepository) GetByUsername(ctx context.Context, username string) (
 	return &player, nil
 }
 
+// SetCriminal updates only the is_criminal column. Used by encounter
+// resolution paths that don't otherwise need a full Player write — e.g.
+// "Attack Patrol" flips the flag mid-encounter while the rest of the
+// player state comes from the combat manager.
+func (r *PlayerRepository) SetCriminal(ctx context.Context, playerID uuid.UUID, criminal bool) error {
+	if _, err := r.db.ExecContext(ctx,
+		`UPDATE players SET is_criminal = $1 WHERE id = $2`,
+		criminal, playerID,
+	); err != nil {
+		return fmt.Errorf("set is_criminal: %w", err)
+	}
+	return nil
+}
+
 // Update updates a player's data
 func (r *PlayerRepository) Update(ctx context.Context, player *models.Player) error {
 	query := `

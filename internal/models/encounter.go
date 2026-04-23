@@ -377,6 +377,50 @@ func (e *Encounter) GetOptions(player *Player) []*EncounterOption {
 			Description:   "Don't interact with them",
 			EndsEncounter: true,
 		})
+
+	case EncounterTypeMerchant:
+		// Merchants travel in a protected convoy. Players can trade (if
+		// cargo reward is set), hail for pleasantries, attack for loot
+		// at a heavy reputation cost, or leave them alone.
+		if e.CargoQuantity > 0 && e.CreditReward < 0 {
+			options = append(options, &EncounterOption{
+				ID:            "trade",
+				Label:         "Trade with Convoy",
+				Description:   fmt.Sprintf("Buy %d tons of %s for %d cr", e.CargoQuantity, e.CargoReward, -e.CreditReward),
+				CostCredits:   -e.CreditReward,
+				GrantsReward:  true,
+				EndsEncounter: true,
+			})
+		}
+		options = append(options, &EncounterOption{
+			ID:             "attack",
+			Label:          "Attack Convoy",
+			Description:    "Raid the convoy for cargo (major rep loss)",
+			StartsConflict: true,
+		})
+		options = append(options, &EncounterOption{
+			ID:            "ignore",
+			Label:         "Leave Them Be",
+			Description:   "Continue on your way",
+			EndsEncounter: true,
+		})
+
+	case EncounterTypeAsteroid:
+		// Asteroid fields give the player a chance to scoop minerals at
+		// the cost of some fuel.
+		options = append(options, &EncounterOption{
+			ID:            "salvage",
+			Label:         "Mine the Field",
+			Description:   fmt.Sprintf("Extract up to %d tons of ore", e.CargoQuantity),
+			GrantsReward:  true,
+			EndsEncounter: true,
+		})
+		options = append(options, &EncounterOption{
+			ID:            "ignore",
+			Label:         "Steer Clear",
+			Description:   "The rocks aren't worth the fuel",
+			EndsEncounter: true,
+		})
 	}
 
 	return options
