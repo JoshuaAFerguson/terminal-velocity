@@ -148,9 +148,19 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.navigation.jumpTotal = 0
 
 		if msg.success {
-			// Update local state
+			// Update local state. m.currentSystem is the model-wide cache
+			// used by every screen's header — without refreshing it here
+			// the main menu continues to show the old system after a
+			// successful jump.
 			m.player.CurrentSystem = msg.system.ID
 			m.navigation.currentSystem = msg.system
+			m.currentSystem = msg.system
+			// Jumping leaves the current-planet cache stale; the player
+			// is no longer docked anywhere in the new system.
+			m.currentPlanet = nil
+			if m.player != nil {
+				m.player.CurrentPlanet = nil
+			}
 
 			// Update ship fuel in local model
 			if m.currentShip != nil {

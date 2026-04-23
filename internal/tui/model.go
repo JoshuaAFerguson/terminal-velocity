@@ -546,6 +546,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.player.CurrentPlanet = nil
 			}
 		}
+		// Generate a small mission board on dock so the Missions screen
+		// has content when the player visits. Populate both the top-level
+		// missionManager (used by ScreenMissionBoardEnhanced) and
+		// m.missions.manager (used by the main-menu Missions screen) so
+		// either entry point sees the same board. In-memory for now;
+		// Phase 2 of GAME_COMPLETENESS_PLAN persists + expires them.
+		if msg.planet != nil {
+			govID := ""
+			if m.currentSystem != nil {
+				govID = m.currentSystem.GovernmentID
+			}
+			// Populate both mission managers — the main-menu Missions
+			// screen reads m.missions.manager while the landing-board
+			// enhanced variant reads m.missionManager. Keeping them in
+			// sync lets either entry point surface the same fresh board.
+			if m.missionManager != nil {
+				m.missionManager.GenerateMissions(context.Background(), msg.planet.ID, govID, 3)
+			}
+			if m.missions.manager != nil {
+				m.missions.manager.GenerateMissions(context.Background(), msg.planet.ID, govID, 3)
+			}
+		}
 		return m, nil
 	}
 
