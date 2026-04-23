@@ -1,7 +1,7 @@
 // File: internal/tui/space_view.go
 // Project: Terminal Velocity
 // Description: Main space view with 2D viewport, HUD, radar, status, and real-time interactions
-// Version: 1.2.1
+// Version: 1.3.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -397,58 +397,155 @@ func (m Model) viewSpaceView() string {
 	return sb.String()
 }
 
+// drawSpaceViewport renders the 2D viewport — player centered, everything
+// loaded via spaceViewLoadedMsg plotted by its world-space (x, y) and scaled
+// to the viewport rectangle. Previously this function painted a hardcoded
+// "Earth"/"Mars"/"Pirate" tableau regardless of what was actually loaded;
+// that was the main symptom users saw as "the game is a mockup."
 func (m Model) drawSpaceViewport(width, height int) string {
-	var sb strings.Builder
-
-	// Top border
-	sb.WriteString(BoxVertical + "    ")
-	sb.WriteString(BoxTopLeftDouble)
-	sb.WriteString(strings.Repeat(BoxHorizontalDouble, width-8))
-	sb.WriteString(BoxTopRightDouble + "\n")
-
-	// Space content
-	for i := 0; i < height; i++ {
-		sb.WriteString(BoxVertical + "    ")
-		sb.WriteString(BoxVerticalDouble)
-
-		// Draw space objects based on y position
-		line := ""
-		switch i {
-		case 2:
-			// Stars scattered
-			line = "                          " + IconStar + "                                    "
-		case 4:
-			// Planet (Earth)
-			line = "             " + IconStar + "                    " + IconPlanet + " Earth                      "
-		case height / 2:
-			// Player ship in center
-			line = Center(IconShip, width-8)
-			line += "\n" + BoxVertical + "    " + BoxVerticalDouble
-			line += Center("You", width-8)
-		case height/2 + 3:
-			// Enemy ship
-			line = "                                             " + IconEnemy + " Pirate          "
-		case height - 3:
-			// Another planet (Mars)
-			line = "           " + IconPlanet + " Mars                                              "
-		case 1, 6, height - 2:
-			// Stars
-			line = "        " + IconStar + "                                                      " + IconStar + "       "
-		default:
-			line = strings.Repeat(" ", width-8)
+	// Interior dimensions (inside the double-border inset we draw below).
+	// We inset 8 columns on the sides and 2 rows for the top+bottom border
+	// to match the surrounding chrome the caller expects.
+	inner := width - 8
+	if inner < 10 {
+		inner = 10
+	}
+	// Build a mutable grid of runes-as-strings so wide glyphs don't corrupt
+	// ANSI alignment. Default to space; stars scattered in drawStars below
+	// are overwritten by any real object at the same cell.
+	grid := make([][]string, height)
+	for r := range grid {
+		grid[r] = make([]string, inner)
+		for c := range grid[r] {
+			grid[r][c] = " "
 		}
+	}
+	// Labels attached to the object at (row, col). We render the label to
+	// the right of the icon when there's horizontal room; these are tracked
+	// separately so they overlay the grid without breaking the width math.
+	type label struct {
+		row, col int
+		text     string
+	}
+	var labels []label
 
-		if len(line) < width-8 {
-			line = PadRight(line, width-8)
+	// Decorative starfield: fixed positions so the scene doesn't shimmer.
+	// Kept out of the data path so they never hide real objects.
+	starPositions := [][2]int{
+		{1, 12}, {1, inner - 8}, {3, 22}, {5, inner - 14},
+		{height - 3, 6}, {height - 2, inner - 20}, {height / 3, inner / 2},
+	}
+	for _, p := range starPositions {
+		if p[0] >= 0 && p[0] < height && p[1] >= 0 && p[1] < inner {
+			grid[p[0]][p[1]] = IconStar
 		}
-		sb.WriteString(line[:width-8])
-		sb.WriteString(BoxVerticalDouble + "\n")
 	}
 
-	// Bottom border
+	// Scale world coords into the viewport. convertPlanetsToSpaceObjects
+	// places planets on a circle at radius ~150-250; convertShips ~50-150.
+	// Compute the actual max so we always fit, regardless of how many
+	// objects we got.
+	maxRadius := 100.0
+	for _, obj := range m.spaceView.ships {
+		if d := math.Hypot(obj.x-m.spaceView.player.x, obj.y-m.spaceView.player.y); d > maxRadius {
+			maxRadius = d
+		}
+	}
+	// Leave a 2-cell margin on each edge so icons + short labels stay inside
+	// the border.
+	radiusX := float64(inner/2 - 4)
+	radiusY := float64(height/2 - 2)
+	if radiusX < 2 {
+		radiusX = 2
+	}
+	if radiusY < 2 {
+		radiusY = 2
+	}
+
+	// Player always dead-center. Mark with the ship icon + "You" label.
+	playerRow := height / 2
+	playerCol := inner / 2
+	grid[playerRow][playerCol] = IconShip
+	if playerCol+2 < inner {
+		labels = append(labels, label{row: playerRow, col: playerCol + 2, text: "You"})
+	}
+
+	// Plot every loaded object.
+	for i, obj := range m.spaceView.ships {
+		// Skip the placeholder we just drew for the player (shouldn't
+		// appear in m.spaceView.ships, but guard defensively).
+		if obj.name == "You" {
+			continue
+		}
+		col := playerCol + int((obj.x-m.spaceView.player.x)*radiusX/maxRadius)
+		row := playerRow + int((obj.y-m.spaceView.player.y)*radiusY/maxRadius)
+		if row < 0 || row >= height || col < 0 || col >= inner {
+			continue
+		}
+		icon := obj.icon
+		if obj.hostile {
+			icon = IconEnemy
+		} else if obj.objType == "player" {
+			icon = IconShip
+		} else if obj.objType == "planet" && icon == "" {
+			icon = IconPlanet
+		}
+		grid[row][col] = icon
+		if obj.name != "" {
+			// Prefer labels to the right of the icon. Fall back to the
+			// left when the object is close to the right edge so single-
+			// planet systems (common in the starter region) still show
+			// the planet name instead of a bare glyph.
+			nw := cellWidth(obj.name)
+			switch {
+			case col+2+nw <= inner:
+				labels = append(labels, label{row: row, col: col + 2, text: obj.name})
+			case col-2-nw >= 0:
+				labels = append(labels, label{row: row, col: col - 1 - nw, text: obj.name})
+			}
+		}
+		// Mark the selected target with brackets around the icon so it
+		// stands out during target-cycling.
+		if m.spaceView.hasTarget && i == m.spaceView.targetIndex {
+			if col > 0 {
+				grid[row][col-1] = "["
+			}
+			if col+1 < inner {
+				grid[row][col+1] = "]"
+			}
+		}
+	}
+
+	// Compose the final viewport. Apply labels last so they paint over the
+	// grid cells they occupy (they're short strings that extend to the right
+	// of an icon).
+	for _, l := range labels {
+		for i, r := range []rune(l.text) {
+			c := l.col + i
+			if c >= inner {
+				break
+			}
+			grid[l.row][c] = string(r)
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(BoxVertical + "    ")
+	sb.WriteString(BoxTopLeftDouble)
+	sb.WriteString(strings.Repeat(BoxHorizontalDouble, inner))
+	sb.WriteString(BoxTopRightDouble + "\n")
+	for r := 0; r < height; r++ {
+		sb.WriteString(BoxVertical + "    ")
+		sb.WriteString(BoxVerticalDouble)
+		row := strings.Join(grid[r], "")
+		// cellWidth-aware pad so label overruns don't push the right
+		// border off-column.
+		sb.WriteString(PadRight(row, inner))
+		sb.WriteString(BoxVerticalDouble + "\n")
+	}
 	sb.WriteString(BoxVertical + "    ")
 	sb.WriteString(BoxBottomLeftDouble)
-	sb.WriteString(strings.Repeat(BoxHorizontalDouble, width-8))
+	sb.WriteString(strings.Repeat(BoxHorizontalDouble, inner))
 	sb.WriteString(BoxBottomRightDouble)
 
 	return sb.String()
