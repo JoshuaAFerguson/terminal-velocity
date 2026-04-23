@@ -164,9 +164,11 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if selected.screen == ScreenSpaceView {
 				// Fresh viewport state + kick off the async load so the
 				// player sees their real system/planets/nearby ships on
-				// the first frame instead of empty panels.
+				// the first frame instead of empty panels. Also arm the
+				// 2-second poll so other players jumping in/out of the
+				// system become visible without user input.
 				m.spaceView = newSpaceViewModel()
-				return m, m.loadSpaceViewDataCmd()
+				return m, tea.Batch(m.loadSpaceViewDataCmd(), spaceViewPollTick())
 			}
 			if selected.screen == ScreenMail {
 				m.mail.mode = mailModeInbox

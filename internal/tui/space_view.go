@@ -1,7 +1,7 @@
 // File: internal/tui/space_view.go
 // Project: Terminal Velocity
 // Description: Main space view with 2D viewport, HUD, radar, status, and real-time interactions
-// Version: 1.3.0
+// Version: 1.4.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -12,11 +12,24 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 )
+
+// spaceViewPollMsg fires every 2s while the space view is open to pull
+// updated presence data so players who jump in/out of the system appear
+// or disappear without requiring the viewer to press a key. The cadence
+// is slower than chat's (1s) because a full loadSpaceViewDataCmd hits
+// the DB and the presence manager, which is heavier than chat's
+// in-memory fetch.
+type spaceViewPollMsg struct{}
+
+func spaceViewPollTick() tea.Cmd {
+	return tea.Tick(2*time.Second, func(time.Time) tea.Msg { return spaceViewPollMsg{} })
+}
 
 type spaceViewModel struct {
 	// Space objects visible in current system
@@ -988,6 +1001,12 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+
+	case spaceViewPollMsg:
+		// Re-arm the poller and kick off a fresh data load. The heavy
+		// lifting (DB fetch + presence query) happens on a goroutine
+		// via loadSpaceViewDataCmd; the tick arm is cheap.
+		return m, tea.Batch(m.loadSpaceViewDataCmd(), spaceViewPollTick())
 
 	case spaceViewLoadedMsg:
 		// Handle space view data loaded

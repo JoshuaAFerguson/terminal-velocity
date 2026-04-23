@@ -256,14 +256,20 @@ func NewModel(
 	marketplaceManager *marketplace.Manager,
 	newsManager *news.Manager,
 	chatManager *chat.Manager,
+	presenceManager *presence.Manager,
 ) Model {
-	// newsManager / chatManager are the single server-wide feeds; fall
-	// back to standalone managers so old call sites don't NPE.
+	// newsManager / chatManager / presenceManager are the server-wide
+	// feeds; fall back to standalone managers so old call sites don't
+	// NPE. The fallback loses cross-session semantics, but tests that
+	// inject nil still run.
 	if newsManager == nil {
 		newsManager = news.NewManager()
 	}
 	if chatManager == nil {
 		chatManager = chat.NewManager()
+	}
+	if presenceManager == nil {
+		presenceManager = presence.NewManager()
 	}
 	return Model{
 		screen:              ScreenMainMenu,
@@ -298,7 +304,7 @@ func NewModel(
 		leaderboardsModel:   newLeaderboardsModel(),
 		leaderboardManager:  leaderboards.NewManager(),
 		playersModel:        newPlayersModel(),
-		presenceManager:     presence.NewManager(),
+		presenceManager:     presenceManager,
 		chatModel:           newChatModel(),
 		chatManager:         chatManager,
 		fleetManager:        fleetManager,
@@ -388,12 +394,16 @@ func NewLoginModel(
 	achievementRepo *database.AchievementRepository,
 	newsManager *news.Manager,
 	chatManager *chat.Manager,
+	presenceManager *presence.Manager,
 ) Model {
 	if newsManager == nil {
 		newsManager = news.NewManager()
 	}
 	if chatManager == nil {
 		chatManager = chat.NewManager()
+	}
+	if presenceManager == nil {
+		presenceManager = presence.NewManager()
 	}
 	return Model{
 		screen:              ScreenLogin,
@@ -428,7 +438,7 @@ func NewLoginModel(
 		leaderboardsModel:   newLeaderboardsModel(),
 		leaderboardManager:  leaderboards.NewManager(),
 		playersModel:        newPlayersModel(),
-		presenceManager:     presence.NewManager(),
+		presenceManager:     presenceManager,
 		chatModel:           newChatModel(),
 		chatManager:         chatManager,
 		mailManager:         mail.NewManager(socialRepo),
@@ -608,8 +618,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.planet != nil {
 				planetID := msg.planet.ID
 				m.player.CurrentPlanet = &planetID
+				// Let the shared presence manager know we're planetside
+				// so other players' space viewports stop rendering us as
+				// a free-flying ship in the system.
+				m.UpdatePresenceLocation(m.player.CurrentSystem, &planetID)
 			} else {
 				m.player.CurrentPlanet = nil
+				m.UpdatePresenceLocation(m.player.CurrentSystem, nil)
 			}
 		}
 		// Generate a small mission board on dock so the Missions screen

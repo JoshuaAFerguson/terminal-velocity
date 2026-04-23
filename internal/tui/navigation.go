@@ -161,6 +161,11 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.player != nil {
 				m.player.CurrentPlanet = nil
 			}
+			// Tell the shared presence manager where we are now — without
+			// this, GetPlayersInSystem still thinks we're in the origin
+			// system and other players' space viewports won't see us
+			// arrive.
+			m.UpdatePresenceLocation(msg.system.ID, nil)
 
 			// Update ship fuel in local model
 			if m.currentShip != nil {
