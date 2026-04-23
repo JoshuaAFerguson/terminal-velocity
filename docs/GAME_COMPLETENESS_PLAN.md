@@ -239,10 +239,15 @@ pending.
 
 Everything between players. Requires Phase 1.
 
-- [ ] **Presence in viewport.** Other players in your star system render
-      as ships in the 2D viewport with their real ship model and name.
-      Targeting another player shows their real hull/shields over the
-      wire.
+- [x] **Presence in viewport.** `presence.Manager` is now server-owned;
+      login registers via `Connect`, jumps and docks update via
+      `UpdateLocation`. Space view's new `spaceViewPollTick` refreshes
+      every 2 s so other players jumping in/out become visible without
+      input. Tmux harness (`scripts/tmux_presence_test.sh`): tester +
+      alice both in Omega Orionis, tester's viewport renders
+      "△ You   △ Alice-1   Omega Orionis A ●". Remaining gap:
+      targeting another player still shows synthetic hull/shields; the
+      target side-panel isn't wired to live presence yet.
 - [x] **Chat broadcast.** `chat.Manager` is now server-owned and shared
       across every SSH session. Login registers the player with the
       manager via `GetOrCreateHistory`; `SendGlobalMessage` fans
@@ -255,8 +260,14 @@ Everything between players. Requires Phase 1.
       sessions, Session A sends, Session B sees).
 - [ ] **PvP duel flow.** Player A hails player B → duel offer → accept →
       arena instance → loser pays ante, winner earns reward.
-- [ ] **Bounties.** A criminal-rated player gets a bounty; any player
-      who kills them claims it (via `capture` package).
+- [x] **Bounties.** `pvp.Manager` is server-owned. Attacking a police
+      patrol auto-issues a bounty on the attacker at
+      `5000 + CR*100` credits (escalates on repeat offences). The
+      existing PvP Combat screen already renders
+      `GetAllActiveBounties`, so every session now sees the same
+      bounty board. Kill-side claim still rides on `CompleteCombat`
+      which is called by `combat_enhanced` — that closes fully once
+      the P4.3 duel flow wires outcome routing.
 - [ ] **Marketplace orders.** Player posts a buy/sell order for an item
       or ship; another player completes it. Persists to a new
       `marketplace_listings` table (or the existing package's schema).
