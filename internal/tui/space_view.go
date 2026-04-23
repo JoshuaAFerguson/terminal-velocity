@@ -809,9 +809,32 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "l", "L":
-			// Land on planet (if near one)
+			// Dock with a planet. Prefer the currently-selected target when
+			// it's a planet; otherwise fall back to the nearest planet in
+			// the system. The actual DB update + planet load happens in
+			// dockCmd so the main thread stays responsive.
+			planet := m.nearestPlanet()
+			if m.spaceView.hasTarget &&
+				m.spaceView.targetIndex >= 0 &&
+				m.spaceView.targetIndex < len(m.spaceView.ships) {
+				tgt := m.spaceView.ships[m.spaceView.targetIndex]
+				if tgt.objType == "planet" {
+					// Look up by name since spaceObject doesn't carry the UUID.
+					for _, p := range m.spaceView.planets {
+						if p.Name == tgt.name {
+							planet = p
+							break
+						}
+					}
+				}
+			}
+			if planet == nil {
+				// No planets known in this system — silently ignore the
+				// keypress rather than routing to a broken landing screen.
+				return m, nil
+			}
 			m.screen = ScreenLanding
-			return m, nil
+			return m, m.dockCmd(planet)
 
 		case "j", "J":
 			// Jump (navigation). Remember where we came from so Esc in
@@ -1027,6 +1050,40 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// dockedMsg is the completion event for dockCmd — carries the loaded planet
+// so the Landing screen can render it, and any error so the caller can
+// surface a dialog.
+type dockedMsg struct {
+	planet *models.Planet
+	err    error
+}
+
+// nearestPlanet returns the closest planet currently known in the space view,
+// or nil when the system has none loaded.
+func (m Model) nearestPlanet() *models.Planet {
+	if len(m.spaceView.planets) == 0 {
+		return nil
+	}
+	return m.spaceView.planets[0]
+}
+
+// dockCmd persists the player's docking (players.current_planet = planet.id)
+// and returns a dockedMsg with the fully-loaded planet. Runs as a tea.Cmd so
+// the main thread stays responsive during the DB round-trip.
+func (m Model) dockCmd(planet *models.Planet) tea.Cmd {
+	return func() tea.Msg {
+		if planet == nil || m.player == nil || m.playerRepo == nil {
+			return dockedMsg{err: fmt.Errorf("nothing to dock with")}
+		}
+		ctx := context.Background()
+		planetID := planet.ID
+		if err := m.playerRepo.UpdateLocation(ctx, m.player.ID, m.player.CurrentSystem, &planetID); err != nil {
+			return dockedMsg{err: fmt.Errorf("persist dock: %w", err)}
+		}
+		return dockedMsg{planet: planet}
+	}
 }
 
 // Add ScreenSpaceView and ScreenLanding constants to Screen enum when integrating

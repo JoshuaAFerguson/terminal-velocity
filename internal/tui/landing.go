@@ -1,7 +1,7 @@
 // File: internal/tui/landing.go
 // Project: Terminal Velocity
 // Description: Planetary landing screen with services menu
-// Version: 1.0.1
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -15,6 +15,32 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// pct computes a 0-100 integer percentage with a zero-max guard. Used by the
+// Ship Status panel so we never flash "NaN%" / "+Inf%" for a fresh ship whose
+// type's max hasn't loaded yet.
+func pct(cur, max int) int {
+	if max <= 0 {
+		return 0
+	}
+	return (cur * 100) / max
+}
+
+// takeoffCmd clears the player's docked-planet state both locally and in the
+// DB. Returns a dockedMsg with planet=nil so the top-level handler wipes the
+// cache consistently with how it cached on dock.
+func (m Model) takeoffCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.player == nil || m.playerRepo == nil {
+			return dockedMsg{planet: nil}
+		}
+		ctx := context.Background()
+		if err := m.playerRepo.UpdateLocation(ctx, m.player.ID, m.player.CurrentSystem, nil); err != nil {
+			return dockedMsg{err: fmt.Errorf("persist takeoff: %w", err)}
+		}
+		return dockedMsg{planet: nil}
+	}
+}
 
 type landingModel struct {
 	selectedService int
@@ -42,16 +68,30 @@ func (m Model) viewLanding() string {
 
 	var sb strings.Builder
 
-	// Get planet info
-	planetName := "Earth Station"
-	government := "United Earth"
-	credits := int64(52400)
+	// Resolve the docked planet. dockCmd caches m.currentPlanet when the
+	// space view's "L" key transitions here; the player may also have
+	// landed from a cold start with m.player.CurrentPlanet set but the
+	// cache still empty — treat a missing cache as "awaiting data" instead
+	// of lying about the location.
+	planetName := "Awaiting orbital clearance"
+	government := ""
+	if m.currentPlanet != nil {
+		planetName = m.currentPlanet.Name
+	}
+	systemName := m.currentLocationLabel()
+	credits := int64(0)
 	if m.player != nil {
 		credits = m.player.Credits
 	}
 
-	// Header
-	header := DrawHeader(planetName, government, credits, -1, width)
+	// Header. DrawHeader's second slot was being used for government; keep
+	// that but route through the real system name when the government is
+	// empty so the top bar is never blank.
+	headerRight := government
+	if headerRight == "" {
+		headerRight = systemName
+	}
+	header := DrawHeader(planetName, headerRight, credits, -1, width)
 	sb.WriteString(header + "\n")
 
 	sb.WriteString(BoxVertical)
@@ -62,17 +102,21 @@ func (m Model) viewLanding() string {
 	planetArtWidth := 65
 	planetArtLeft := (width - planetArtWidth) / 2
 
-	// Planet art box
+	// Planet card — the frame is static decoration, but the three data
+	// rows (name, system, population-placeholder) read from real state.
+	popLine := ""
+	if m.currentPlanet != nil && m.currentPlanet.Population > 0 {
+		popLine = fmt.Sprintf("Pop: %s", formatThousands(int64(m.currentPlanet.Population)))
+	}
 	var planetArt strings.Builder
 	planetArt.WriteString("                                                               \n")
-	planetArt.WriteString("            Welcome to Earth Station, Commander.               \n")
+	planetArt.WriteString(Center(fmt.Sprintf("Welcome to %s, Commander.", planetName), 63) + "\n")
 	planetArt.WriteString("                                                               \n")
-	planetArt.WriteString("         [ASCII art of planet/station could go here]           \n")
 	planetArt.WriteString("                       _______________                         \n")
 	planetArt.WriteString("                      /               \\                        \n")
-	planetArt.WriteString("                     /    " + IconPlanet + "  EARTH     \\                       \n")
-	planetArt.WriteString("                    |  (Terran Alliance)|                      \n")
-	planetArt.WriteString("                     \\     Pop: 8.2B    /                      \n")
+	planetArt.WriteString("                     /    " + IconPlanet + "  " + PadRight(truncateCells(strings.ToUpper(planetName), 10), 10) + "\\                       \n")
+	planetArt.WriteString("                    |  " + PadRight(truncateCells(systemName+" system", 17), 17) + "|                      \n")
+	planetArt.WriteString("                     \\    " + PadRight(popLine, 15) + "/                      \n")
 	planetArt.WriteString("                      \\_____    _______/                       \n")
 	planetArt.WriteString("                        /   \\__/   \\                           \n")
 	planetArt.WriteString("                       /  Station   \\                          \n")
@@ -130,17 +174,52 @@ func (m Model) viewLanding() string {
 	}
 	servicesContent.WriteString("                            \n")
 
-	// Ship status panel content
+	// Ship status panel content — drive from m.currentShip + m.currentSystem
+	// instead of the old "Corvette Starhawk / Hull 100% / Sol" demo line.
 	var statusContent strings.Builder
 	statusContent.WriteString("  SHIP STATUS:                   \n")
 	statusContent.WriteString("                                 \n")
-	statusContent.WriteString("  Ship: Corvette \"Starhawk\"      \n")
-	statusContent.WriteString("  Hull: 100%  Shields: 80%       \n")
-	statusContent.WriteString("  Fuel: 67%   Cargo: 15/50t      \n")
+	shipLine := "  Ship: (no ship)"
+	hullShieldsLine := "  Hull: -   Shields: -"
+	fuelCargoLine := "  Fuel: -   Cargo: -"
+	if m.currentShip != nil {
+		name := m.currentShip.Name
+		if name == "" {
+			name = "Unnamed"
+		}
+		shipLine = fmt.Sprintf("  Ship: %s", truncateCells(name, 26))
+
+		maxHull, maxShields, maxFuel, cargoSpace := 100, 100, 100, 0
+		if st := models.GetShipTypeByID(m.currentShip.TypeID); st != nil {
+			maxHull = st.MaxHull
+			maxShields = st.MaxShields
+			maxFuel = st.MaxFuel
+			cargoSpace = st.CargoSpace
+		}
+		hullShieldsLine = fmt.Sprintf("  Hull: %d%%  Shields: %d%%",
+			pct(m.currentShip.Hull, maxHull), pct(m.currentShip.Shields, maxShields))
+		cargoUsed := 0
+		for _, item := range m.currentShip.Cargo {
+			cargoUsed += item.Quantity
+		}
+		fuelCargoLine = fmt.Sprintf("  Fuel: %d%%   Cargo: %d/%dt",
+			pct(m.currentShip.Fuel, maxFuel), cargoUsed, cargoSpace)
+	}
+	statusContent.WriteString(PadRight(shipLine, 33) + "\n")
+	statusContent.WriteString(PadRight(hullShieldsLine, 33) + "\n")
+	statusContent.WriteString(PadRight(fuelCargoLine, 33) + "\n")
 	statusContent.WriteString("                                 \n")
-	statusContent.WriteString("  Current System: Sol            \n")
-	statusContent.WriteString("  Government: United Earth       \n")
-	statusContent.WriteString("  Tech Level: 9                  \n")
+	statusContent.WriteString(PadRight(fmt.Sprintf("  Current System: %s", systemName), 33) + "\n")
+	if m.currentSystem != nil && m.currentSystem.GovernmentID != "" {
+		statusContent.WriteString(PadRight(fmt.Sprintf("  Government: %s", m.currentSystem.GovernmentID), 33) + "\n")
+	} else {
+		statusContent.WriteString("  Government: -                  \n")
+	}
+	if m.currentSystem != nil {
+		statusContent.WriteString(PadRight(fmt.Sprintf("  Tech Level: %d", m.currentSystem.TechLevel), 33) + "\n")
+	} else {
+		statusContent.WriteString("  Tech Level: -                  \n")
+	}
 	statusContent.WriteString("                                 \n")
 
 	// Draw panels (simplified - actual implementation would render side-by-side)
@@ -164,9 +243,10 @@ func (m Model) viewLanding() string {
 	sb.WriteString(strings.Repeat(" ", width-2))
 	sb.WriteString(BoxVertical + "\n")
 
-	// News ticker
+	// News ticker — empty-state until the news stream is wired to the
+	// landing screen. Honest "(quiet)" beats a fake pirate-activity alert.
 	newsWidth := width - 8
-	newsPanel := DrawPanel("", " NEWS: Pirate activity reported in nearby systems...             ", newsWidth, 3, false)
+	newsPanel := DrawPanel("", " NEWS: (no recent dispatches)", newsWidth, 3, false)
 	newsLines := strings.Split(newsPanel, "\n")
 	for _, line := range newsLines {
 		sb.WriteString(BoxVertical + "    ")
@@ -408,14 +488,17 @@ func (m Model) updateLanding(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.repairShipCmd()
 
 		case "t", "T":
-			// Takeoff
+			// Takeoff — leave the planet. Clear the local cache and
+			// persist current_planet=NULL so reconnecting users don't see
+			// the old landing screen.
 			m.screen = ScreenSpaceView
-			return m, nil
+			return m, m.takeoffCmd()
 
 		case "esc":
-			// Exit (takeoff)
+			// Esc and Takeoff do the same thing — we're no longer on the
+			// planet, so unset it in the DB too.
 			m.screen = ScreenSpaceView
-			return m, nil
+			return m, m.takeoffCmd()
 
 		case "enter":
 			// Select current service

@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
 // TestScreenTransitions verifies basic screen navigation paths
@@ -83,6 +85,14 @@ func TestScreenTransitions(t *testing.T) {
 			if tt.initialScreen == ScreenNavigation && tt.expectedScreen == ScreenSpaceView {
 				m.previousScreen = ScreenSpaceView
 				m.hasPreviousScreen = true
+			}
+
+			// SpaceView's "l" (land) only transitions when a planet is
+			// reachable — the handler intentionally ignores keypresses
+			// in empty systems. Seed the viewport with one planet so the
+			// transition fires.
+			if tt.initialScreen == ScreenSpaceView && tt.keyPress == "l" {
+				m.spaceView.planets = []*models.Planet{{Name: "Testworld"}}
 			}
 
 			// Simulate key press

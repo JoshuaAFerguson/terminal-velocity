@@ -103,6 +103,7 @@ type Model struct {
 	username      string
 	currentShip   *models.Ship
 	currentSystem *models.StarSystem // cached lookup of player.CurrentSystem
+	currentPlanet *models.Planet     // cached when docked; nil when in space
 
 	// Database repositories
 	playerRepo *database.PlayerRepository
@@ -525,6 +526,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, nil
 		}
+
+	case dockedMsg:
+		// dockCmd / takeoffCmd result. A non-nil planet means the player
+		// just docked; nil means they took off. Either way the DB is
+		// already updated — this branch just keeps the local cache in
+		// sync so Landing, Trading, and Shipyard render correctly.
+		if msg.err != nil {
+			m.errorMessage = msg.err.Error()
+			m.showErrorDialog = true
+			return m, nil
+		}
+		m.currentPlanet = msg.planet
+		if m.player != nil {
+			if msg.planet != nil {
+				planetID := msg.planet.ID
+				m.player.CurrentPlanet = &planetID
+			} else {
+				m.player.CurrentPlanet = nil
+			}
+		}
+		return m, nil
 	}
 
 	// Delegate to screen-specific update
