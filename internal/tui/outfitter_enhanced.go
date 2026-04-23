@@ -301,7 +301,17 @@ func (m Model) updateOutfitterEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateOutfitterBrowser(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "backspace":
-		m.screen = ScreenSpaceView
+		// Outfitter can be reached from two places: the main menu (current
+		// build) and the space-view "dock at station" flow. If we recorded
+		// a previous screen (main menu records itself on navigation), honor
+		// it; otherwise fall back to space view to preserve the original
+		// behavior tests rely on.
+		if m.hasPreviousScreen {
+			m.screen = m.previousScreen
+			m.hasPreviousScreen = false
+		} else {
+			m.screen = ScreenSpaceView
+		}
 		return m, nil
 
 	case "1":

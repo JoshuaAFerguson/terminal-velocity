@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 )
 
 type mainMenuModel struct {
@@ -75,6 +76,11 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if selected.action != nil {
 				return m, selected.action(&m)
 			}
+			// Record that we came from the main menu so screens reachable
+			// from multiple entry points (outfitter_enhanced, etc.) can
+			// return here on Esc instead of defaulting to space view.
+			m.previousScreen = ScreenMainMenu
+			m.hasPreviousScreen = true
 			m.screen = selected.screen
 
 			// Initialize screen-specific data
@@ -155,12 +161,20 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewMainMenu() string {
-	// Get current system name
+	// Resolve the player's current location to a readable label. The TUI
+	// caches the last-loaded system on the model, so hitting the DB on every
+	// render isn't necessary — if we don't have a cached name, we fall back
+	// to the display rules below.
 	systemName := "Unknown"
-	if m.player != nil && m.player.CurrentSystem.String() != "00000000-0000-0000-0000-000000000000" {
-		// Try to load system name
-		// For now, just show "Space"
-		systemName = "Space"
+	if m.player != nil {
+		if m.currentSystem != nil {
+			systemName = m.currentSystem.Name
+		} else if m.player.CurrentSystem != uuid.Nil {
+			// Player has a system assigned but the TUI hasn't loaded it yet
+			// (e.g., on the very first frame after login). Show a neutral
+			// "In transit" label rather than "Unknown".
+			systemName = "In transit"
+		}
 	}
 
 	// Render header with player stats

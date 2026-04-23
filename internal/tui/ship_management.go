@@ -78,9 +78,14 @@ func (m Model) updateShipManagement(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 
 			default:
-				// Add character to input
-				if len(msg.String()) == 1 && len(m.shipManagement.renameInput) < 30 {
-					m.shipManagement.renameInput += msg.String()
+				if s, ok := printableRuneString(msg); ok {
+					room := 30 - len([]rune(m.shipManagement.renameInput))
+					if room > 0 {
+						if len([]rune(s)) > room {
+							s = string([]rune(s)[:room])
+						}
+						m.shipManagement.renameInput += s
+					}
 				}
 				return m, nil
 			}
@@ -225,8 +230,14 @@ func (m Model) viewShipInventory() string {
 		return s
 	}
 
-	// Current active ship info
-	s += fmt.Sprintf("Active Ship: %s\n", statsStyle.Render(m.currentShip.Name))
+	// Current active ship info. Ships may be owned without any being flagged
+	// active (e.g. just destroyed and respawn pending) — guard the nil
+	// dereference that used to panic here.
+	activeName := "(none)"
+	if m.currentShip != nil {
+		activeName = m.currentShip.Name
+	}
+	s += fmt.Sprintf("Active Ship: %s\n", statsStyle.Render(activeName))
 	s += fmt.Sprintf("Total Ships: %d\n\n", len(m.shipManagement.ownedShips))
 
 	// Ship table header

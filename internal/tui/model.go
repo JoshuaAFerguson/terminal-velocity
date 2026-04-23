@@ -90,12 +90,20 @@ const (
 type Model struct {
 	// Current screen
 	screen Screen
+	// previousScreen/hasPreviousScreen record who opened the current screen,
+	// so that screens reachable from multiple places (e.g. dock-at-station
+	// and the main menu both lead to ScreenOutfitterEnhanced) know where to
+	// send the user on Esc. We can't just use a Screen field with a zero
+	// sentinel because Screen(0) == ScreenMainMenu (iota).
+	previousScreen    Screen
+	hasPreviousScreen bool
 
 	// Player data
-	player      *models.Player
-	playerID    uuid.UUID
-	username    string
-	currentShip *models.Ship
+	player        *models.Player
+	playerID      uuid.UUID
+	username      string
+	currentShip   *models.Ship
+	currentSystem *models.StarSystem // cached lookup of player.CurrentSystem
 
 	// Database repositories
 	playerRepo *database.PlayerRepository
@@ -484,16 +492,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case playerLoadedMsg:
-		m.player = msg.player
-		m.currentShip = msg.ship
-		m.err = msg.err
+		// The login screen has its own playerLoadedMsg handler that ALSO
+		// transitions to ScreenMainMenu on success — if we consume the
+		// message here, login gets stuck. Skip when on login/registration
+		// screens and let updateLogin / updateRegistration handle it below.
+		if m.screen != ScreenLogin && m.screen != ScreenRegistration {
+			m.player = msg.player
+			m.currentShip = msg.ship
+			m.currentSystem = msg.system
+			m.err = msg.err
 
-		// Initialize presence when player loads
-		if m.player != nil && m.err == nil {
-			m.InitializePresence()
+			// Initialize presence when player loads.
+			if m.player != nil && m.err == nil {
+				m.InitializePresence()
+			}
+
+			return m, nil
 		}
-
-		return m, nil
 	}
 
 	// Delegate to screen-specific update
@@ -695,10 +710,14 @@ func (m Model) ViewWithTutorial(content string) string {
 type playerLoadedMsg struct {
 	player *models.Player
 	ship   *models.Ship
+	system *models.StarSystem
 	err    error
 }
 
-// loadPlayer loads player data from the database
+// loadPlayer loads player data from the database along with the player's
+// current ship and star system, if any. Ship and system lookups are
+// best-effort — a newly-registered account may not have either set yet, and
+// downstream screens are expected to handle nil.
 func (m Model) loadPlayer() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
@@ -707,17 +726,17 @@ func (m Model) loadPlayer() tea.Cmd {
 			return playerLoadedMsg{err: err}
 		}
 
-		// Load player's ship if they have one
 		var ship *models.Ship
-		if player.ShipID != uuid.Nil {
-			ship, err = m.shipRepo.GetByID(ctx, player.ShipID)
-			if err != nil {
-				// Log error but don't fail - player might not have a ship yet
-				// In future, we should handle this better
-			}
+		if player != nil && player.ShipID != uuid.Nil {
+			ship, _ = m.shipRepo.GetByID(ctx, player.ShipID)
 		}
 
-		return playerLoadedMsg{player: player, ship: ship, err: nil}
+		var system *models.StarSystem
+		if player != nil && player.CurrentSystem != uuid.Nil {
+			system, _ = m.systemRepo.GetSystemByID(ctx, player.CurrentSystem)
+		}
+
+		return playerLoadedMsg{player: player, ship: ship, system: system, err: nil}
 	}
 }
 

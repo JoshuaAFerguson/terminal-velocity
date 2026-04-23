@@ -20,7 +20,34 @@ func (m Model) updateGame(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc", "backspace":
 			m.screen = ScreenMainMenu
 			return m, nil
+		case "n":
+			// Navigation — must init the navigation model and kick off a
+			// systems load, matching what main_menu does when selecting it.
+			m.navigation = newNavigationModel()
+			m.previousScreen = ScreenGame
+			m.hasPreviousScreen = true
+			m.screen = ScreenNavigation
+			return m, m.loadConnectedSystems()
+		case "t":
+			m.trading = newTradingModel()
+			m.previousScreen = ScreenGame
+			m.hasPreviousScreen = true
+			m.screen = ScreenTrading
+			return m, m.loadTradingMarket()
+		case "s":
+			m.shipyard = newShipyardModel()
+			m.previousScreen = ScreenGame
+			m.hasPreviousScreen = true
+			m.screen = ScreenShipyard
+			return m, m.loadShipyard()
+		case "m":
+			m.previousScreen = ScreenGame
+			m.hasPreviousScreen = true
+			m.screen = ScreenMissions
+			return m, nil
 		case "r":
+			m.previousScreen = ScreenGame
+			m.hasPreviousScreen = true
 			m.screen = ScreenTradeRoutes
 			return m, nil
 		case "M":
@@ -28,6 +55,8 @@ func (m Model) updateGame(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mail.mode = mailModeInbox
 			m.mail.selectedIndex = 0
 			m.mail.loading = true
+			m.previousScreen = ScreenGame
+			m.hasPreviousScreen = true
 			m.screen = ScreenMail
 			return m, m.loadInbox()
 		}
@@ -37,7 +66,11 @@ func (m Model) updateGame(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewGame() string {
-	s := renderHeader(m.username, m.player.Credits, "Space")
+	location := "Space"
+	if m.currentSystem != nil {
+		location = m.currentSystem.Name + " System"
+	}
+	s := renderHeader(m.username, m.player.Credits, location)
 	s += "\n"
 
 	content := `You are floating in space.
