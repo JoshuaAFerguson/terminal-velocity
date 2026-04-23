@@ -89,12 +89,71 @@ func (r *PlayerRepository) CreateWithEmail(ctx context.Context, username, passwo
 	}
 
 	player.Reputation = make(map[string]int)
+
+	// Give the new player a starter ship and drop them into a random system
+	// from the current universe. Without this, the main menu shows
+	// "Location: Unknown" and every screen that depends on m.player.ShipID or
+	// m.player.CurrentSystem treats them as a nil player. The errors are
+	// non-fatal for account creation — if the universe hasn't been generated
+	// yet the account still exists and the player can be launched into orbit
+	// manually later.
+	if err := r.bootstrapStarterState(ctx, &player); err != nil {
+		log.Warn("Failed to bootstrap starter state for %s: %v", username, err)
+	}
 	return &player, nil
 }
 
 // CreateWithSSHKey creates a new player account with an SSH key (no password)
 func (r *PlayerRepository) CreateWithSSHKey(ctx context.Context, username, email string) (*models.Player, error) {
 	return r.CreateWithEmail(ctx, username, "", email)
+}
+
+// bootstrapStarterState assigns a random starting system and a starter Shuttle
+// to a freshly-created player, updating the players row and the player struct
+// in place. Returns nil if it succeeds or if the universe is empty.
+func (r *PlayerRepository) bootstrapStarterState(ctx context.Context, player *models.Player) error {
+	// Pick a random system from what's been generated. ORDER BY random() on a
+	// ~100-row table is cheap; we run this exactly once per account.
+	var systemID uuid.UUID
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id FROM star_systems ORDER BY random() LIMIT 1`).Scan(&systemID)
+	if err == sql.ErrNoRows {
+		// Universe not generated yet — leave the player unbound. They'll pick
+		// up a system the first time one gets generated if the registration
+		// flow handles that, or an admin can set one manually.
+		return fmt.Errorf("no systems in universe (run genmap -save first)")
+	}
+	if err != nil {
+		return fmt.Errorf("pick starter system: %w", err)
+	}
+
+	// Look up the canonical shuttle definition. StandardShipTypes[0] is the
+	// shuttle; we reference it by ID in case the ordering changes.
+	shuttle := models.GetShipTypeByID("shuttle")
+	if shuttle == nil {
+		return fmt.Errorf("shuttle ship type not found in StandardShipTypes")
+	}
+
+	shipID := uuid.New()
+	_, err = r.db.ExecContext(ctx, `
+		INSERT INTO ships (id, owner_id, type_id, name, hull, shields, fuel, crew)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, shipID, player.ID, shuttle.ID, "Starter "+shuttle.Name,
+		shuttle.MaxHull, shuttle.MaxShields, shuttle.MaxFuel, 1)
+	if err != nil {
+		return fmt.Errorf("create starter ship: %w", err)
+	}
+
+	_, err = r.db.ExecContext(ctx,
+		`UPDATE players SET current_system = $1, ship_id = $2 WHERE id = $3`,
+		systemID, shipID, player.ID)
+	if err != nil {
+		return fmt.Errorf("link starter ship/system to player: %w", err)
+	}
+
+	player.CurrentSystem = systemID
+	player.ShipID = shipID
+	return nil
 }
 
 // Authenticate verifies a player's credentials and returns the player if valid
@@ -176,8 +235,11 @@ func (r *PlayerRepository) Authenticate(ctx context.Context, username, password 
 
 // GetByID retrieves a player by ID
 func (r *PlayerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Player, error) {
+	// ship_id is required here — without it m.currentShip never loads, and
+	// every screen that dereferences it (Ship Management, space-view HUD,
+	// combat, shipyard trade-in) panics.
 	query := `
-		SELECT id, username, credits, current_system, combat_rating,
+		SELECT id, username, credits, current_system, ship_id, combat_rating,
 		       total_kills, is_online, is_criminal, faction_id, faction_rank, created_at,
 		       crafting_skill, total_crafts, research_points
 		FROM players
@@ -185,7 +247,7 @@ func (r *PlayerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.P
 	`
 
 	var player models.Player
-	var currentSystem, factionID sql.NullString
+	var currentSystem, shipID, factionID sql.NullString
 	var factionRank sql.NullString
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
@@ -193,6 +255,7 @@ func (r *PlayerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.P
 		&player.Username,
 		&player.Credits,
 		&currentSystem,
+		&shipID,
 		&player.CombatRating,
 		&player.TotalKills,
 		&player.IsOnline,
@@ -217,6 +280,12 @@ func (r *PlayerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.P
 		sysID, err := uuid.Parse(currentSystem.String)
 		if err == nil {
 			player.CurrentSystem = sysID
+		}
+	}
+	if shipID.Valid {
+		parsed, err := uuid.Parse(shipID.String)
+		if err == nil {
+			player.ShipID = parsed
 		}
 	}
 
@@ -239,7 +308,7 @@ func (r *PlayerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.P
 // GetByUsername retrieves a player by username
 func (r *PlayerRepository) GetByUsername(ctx context.Context, username string) (*models.Player, error) {
 	query := `
-		SELECT id, username, credits, current_system, combat_rating,
+		SELECT id, username, credits, current_system, ship_id, combat_rating,
 		       total_kills, is_online, is_criminal, faction_id, faction_rank, created_at,
 		       crafting_skill, total_crafts, research_points
 		FROM players
@@ -247,7 +316,7 @@ func (r *PlayerRepository) GetByUsername(ctx context.Context, username string) (
 	`
 
 	var player models.Player
-	var currentSystem, factionID sql.NullString
+	var currentSystem, shipID, factionID sql.NullString
 	var factionRank sql.NullString
 
 	err := r.db.QueryRowContext(ctx, query, username).Scan(
@@ -255,6 +324,7 @@ func (r *PlayerRepository) GetByUsername(ctx context.Context, username string) (
 		&player.Username,
 		&player.Credits,
 		&currentSystem,
+		&shipID,
 		&player.CombatRating,
 		&player.TotalKills,
 		&player.IsOnline,
@@ -279,6 +349,12 @@ func (r *PlayerRepository) GetByUsername(ctx context.Context, username string) (
 		sysID, err := uuid.Parse(currentSystem.String)
 		if err == nil {
 			player.CurrentSystem = sysID
+		}
+	}
+	if shipID.Valid {
+		parsed, err := uuid.Parse(shipID.String)
+		if err == nil {
+			player.ShipID = parsed
 		}
 	}
 

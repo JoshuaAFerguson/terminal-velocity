@@ -61,15 +61,24 @@ CREATE TABLE IF NOT EXISTS players (
     -- Progression - Mining
     total_mining_ops INTEGER DEFAULT 0,
     total_yield BIGINT DEFAULT 0,
+    resources_mined JSONB DEFAULT '{}'::jsonb,  -- (archived migration 016)
 
     -- Progression - Crafting
+    --
+    -- `crafting_skill` is the single-value skill the Go code actually uses
+    -- (see internal/database/player_repository.go:GetByID). The four
+    -- subcategory columns below were added for a finer-grained design that
+    -- was never wired up — they're preserved so existing rows don't lose data
+    -- but are not read by the application today.
+    crafting_skill INTEGER DEFAULT 0 CHECK (crafting_skill >= 0 AND crafting_skill <= 100),
+    total_crafts INTEGER DEFAULT 0 CHECK (total_crafts >= 0),
     crafting_skill_metalwork INTEGER DEFAULT 0,
     crafting_skill_electronics INTEGER DEFAULT 0,
     crafting_skill_weapons INTEGER DEFAULT 0,
     crafting_skill_propulsion INTEGER DEFAULT 0,
 
     -- Progression - Research
-    research_points INTEGER DEFAULT 0,
+    research_points INTEGER DEFAULT 100 CHECK (research_points >= 0),
 
     -- Progression - Overall
     level INTEGER DEFAULT 1,
