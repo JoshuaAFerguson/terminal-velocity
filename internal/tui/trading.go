@@ -161,6 +161,26 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.player != nil {
 				m.player.RecordTrade(msg.profit)
 
+				// Announce meaningful trades to the news feed. Thresholds
+				// keep the feed from drowning in routine 10-credit food
+				// buys — only profitable sales and large purchases get
+				// written. The news package prunes expired articles
+				// periodically (not per-tick yet).
+				if m.newsManager != nil {
+					systemName := ""
+					if m.currentSystem != nil {
+						systemName = m.currentSystem.Name
+					}
+					commodityName := ""
+					if m.trading.selectedCommodity != nil {
+						commodityName = m.trading.selectedCommodity.Name
+					}
+					// A sale with real profit, or a buy over 10k cr.
+					if msg.profit >= 500 || msg.profit <= -10000 {
+						m.newsManager.OnPlayerTrade(m.username, msg.profit, commodityName, systemName)
+					}
+				}
+
 				// Check for achievement unlocks
 				m.checkAchievements()
 

@@ -25,6 +25,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/ratelimit"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/tick"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
@@ -59,6 +60,12 @@ type Server struct {
 	notificationsManager *notifications.Manager
 	friendsManager       *friends.Manager
 	marketplaceManager   *marketplace.Manager
+
+	// Universe simulation. The tick service owns background work that
+	// makes the world feel alive between player actions — market stocks
+	// drift back to equilibrium, news trickles in, encounters spawn in
+	// unvisited systems. See internal/tick.
+	tickService *tick.Service
 }
 
 // Config holds server configuration
@@ -290,6 +297,22 @@ func (s *Server) initDatabase() error {
 	s.notificationsManager.Start()
 	s.marketplaceManager.Start()
 
+	// Universe simulation. Handlers run until Shutdown() cancels them.
+	// Market drift is the minimum Phase 2 loop: every 30s every market
+	// row walks one step back toward equilibrium (stock=100, demand=50)
+	// so planet economies slowly recover from player trading.
+	s.tickService = tick.New()
+	s.tickService.Register("market_drift", 30*time.Second, func(ctx context.Context) error {
+		n, err := s.marketRepo.DriftTowardEquilibrium(ctx)
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			log.Debug("market_drift: nudged %d rows", n)
+		}
+		return nil
+	})
+
 	log.Info("Database connected successfully")
 	return nil
 }
@@ -307,6 +330,14 @@ func (s *Server) Start(ctx context.Context) error {
 	s.listener = listener
 
 	log.Info("SSH server listening on %s", addr)
+
+	// Start the universe simulation loop. If this fails we still accept
+	// connections — the tick service is enhancement, not requirement.
+	if s.tickService != nil {
+		if err := s.tickService.Start(ctx); err != nil {
+			log.Warn("Tick service failed to start: %v", err)
+		}
+	}
 
 	// Start accepting connections
 	go s.acceptConnections(ctx)
@@ -881,6 +912,12 @@ func (s *Server) shutdown() error {
 	if s.rateLimiter != nil {
 		s.rateLimiter.Stop()
 		log.Info("Rate limiter stopped")
+	}
+
+	// Stop the tick service before closing the DB so no late handler
+	// runs an UPDATE against a closed pool.
+	if s.tickService != nil {
+		s.tickService.Stop()
 	}
 
 	// Close database connection

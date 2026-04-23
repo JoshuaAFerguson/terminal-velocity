@@ -206,6 +206,42 @@ func (r *MarketRepository) DeleteMarketPrice(ctx context.Context, planetID uuid.
 	return nil
 }
 
+// Equilibrium values used by InitializePlanetMarket and DriftTowardEquilibrium.
+// Stock 100 / Demand 50 keeps markets stable in the absence of player action;
+// trades push them away and the tick service slowly pulls them back.
+const (
+	marketEquilibriumStock  = 100
+	marketEquilibriumDemand = 50
+)
+
+// DriftTowardEquilibrium nudges every market price one tick closer to its
+// equilibrium: stock walks 2 units toward 100, demand walks 1 unit toward 50.
+// Bulk single-statement update so it scales with planet count. Returns the
+// number of rows modified so callers can log cadence.
+func (r *MarketRepository) DriftTowardEquilibrium(ctx context.Context) (int64, error) {
+	query := `
+		UPDATE market_prices
+		SET stock = stock + CASE
+				WHEN stock < $1 THEN LEAST(2, $1 - stock)
+				WHEN stock > $1 THEN -LEAST(2, stock - $1)
+				ELSE 0
+			END,
+			demand = demand + CASE
+				WHEN demand < $2 THEN LEAST(1, $2 - demand)
+				WHEN demand > $2 THEN -LEAST(1, demand - $2)
+				ELSE 0
+			END,
+			last_update = EXTRACT(EPOCH FROM NOW())::bigint
+		WHERE stock != $1 OR demand != $2
+	`
+	result, err := r.db.ExecContext(ctx, query, marketEquilibriumStock, marketEquilibriumDemand)
+	if err != nil {
+		return 0, fmt.Errorf("drift market prices: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
 // InitializePlanetMarket seeds market_prices for every commodity in the
 // standard catalog for a given planet. Idempotent via UpsertMarketPrice —
 // safe to call repeatedly. Pricing is deliberately naive for the initial
