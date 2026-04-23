@@ -51,6 +51,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Chat", screen: ScreenChat},
 			{label: "Factions", screen: ScreenFactions},
 			{label: "Trade", screen: ScreenTrade},
+			{label: "Marketplace", screen: ScreenMarketplace},
 			{label: "Mail", screen: ScreenMail},
 			{label: "Trade Routes", screen: ScreenTradeRoutes},
 			{label: "Notifications", screen: ScreenNotifications},
@@ -187,6 +188,11 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// updates surface without keystrokes. Same pattern as
 				// chat and space view.
 				return m, pvpPollTick()
+			}
+			if selected.screen == ScreenMarketplace {
+				// Poll so auctions / contracts / bounties posted by
+				// other players surface in the lists without input.
+				return m, marketplacePollTick()
 			}
 
 			return m, nil

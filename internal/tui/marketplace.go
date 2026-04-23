@@ -1,7 +1,7 @@
 // File: internal/tui/marketplace.go
 // Project: Terminal Velocity
 // Description: Marketplace TUI screen for auctions, contracts, and bounties
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Claude Code
 // Created: 2025-11-15
 
@@ -18,6 +18,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 )
+
+// marketplacePollMsg refreshes the Marketplace screen every 2 s so
+// listings posted by other players show up without a keypress. Same
+// shape as chat / pvp / space-view polls — pure polling, no subscription.
+type marketplacePollMsg struct{}
+
+func marketplacePollTick() tea.Cmd {
+	return tea.Tick(2*time.Second, func(time.Time) tea.Msg { return marketplacePollMsg{} })
+}
 
 // Marketplace screen modes
 const (
@@ -91,6 +100,11 @@ var (
 // updateMarketplace handles all marketplace screen updates
 func (m *Model) updateMarketplace(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case marketplacePollMsg:
+		// Re-arm so the auctions/contracts/bounties lists re-render
+		// when other players post new entries. View functions re-query
+		// the manager on every pass, so we don't need to pre-fetch.
+		return m, marketplacePollTick()
 	case tea.KeyMsg:
 		switch m.marketplace.mode {
 		case marketplaceModeMenu:
