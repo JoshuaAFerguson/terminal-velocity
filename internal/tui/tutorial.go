@@ -344,6 +344,8 @@ func (m Model) getScreenName() string {
 		return "faction_wars"
 	case ScreenTerritoryMap:
 		return "territory_map"
+	case ScreenFlight:
+		return "flight"
 	case ScreenTrade:
 		return "trade"
 	case ScreenPvP:

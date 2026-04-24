@@ -42,11 +42,13 @@ func newMainMenuModel() mainMenuModel {
 	return mainMenuModel{
 		cursor: 0,
 		items: []menuItem{
-			// Launch drops the player into the 2D space view — the actual
-			// gameplay loop (radar, HUD, target cycling, land on planets).
-			// The old text-hotkey hub at ScreenGame is still reachable via
-			// the Mail / Trade Routes entries (which route back to it).
-			{label: "Launch", screen: ScreenSpaceView},
+			// Launch drops the player into the real-time flight cockpit —
+			// the EV-style 2D viewport with WASD/arrow flight controls.
+			// The old static space-view radar is still reachable via the
+			// Space View entry below for players who want the menu/HUD
+			// flow until more flight features land.
+			{label: "Launch", screen: ScreenFlight},
+			{label: "Space View (legacy)", screen: ScreenSpaceView},
 			{label: "Navigation", screen: ScreenNavigation},
 			{label: "Trading", screen: ScreenTrading},
 			{label: "Cargo Hold", screen: ScreenCargo},

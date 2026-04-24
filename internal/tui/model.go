@@ -209,6 +209,10 @@ const (
 	ScreenPilotRecord
 	ScreenFactionWars
 	ScreenTerritoryMap
+	// ScreenFlight is the real-time flight cockpit. Phase 1.1 of the
+	// EV-style real-time-flight redesign — replaces ScreenSpaceView
+	// as the primary "in your ship" screen.
+	ScreenFlight
 )
 
 // Model is the main TUI model that holds all application state.
@@ -323,6 +327,7 @@ type Model struct {
 	newsTicker           newsTickerState           // Main-menu newsreel ticker state
 	factionWarsModel     factionWarsModel          // Faction wars screen state
 	territoryMap         territoryMapModel         // Territory map screen state
+	flight               flightModel               // Real-time flight cockpit state
 	leaderboardsModel    leaderboardsModel         // Player rankings
 	playersModel         playersModel              // Online players list
 	chatModel            chatModel                 // Multi-channel chat
@@ -683,6 +688,7 @@ func NewLoginModel(
 		npcTerritoryManager:  npcTerritoryManager,
 		factionWarsModel:     newFactionWarsModel(),
 		territoryMap:         newTerritoryMapModel(),
+		flight:               newFlightModel(),
 		tradeModel:           newTradeModel(),
 		tradeManager:         trade.NewManager(),
 		pvpModel:             newPvPModel(),
@@ -965,6 +971,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.stopNewsTicker()
 		return m, nil
 	}
+	// Same pattern for the flight tick: drop ticks that arrive when
+	// the player isn't in the cockpit. updateFlight re-arms its
+	// loop only while ScreenFlight is active, so without this guard
+	// a tick scheduled right before a screen change would be routed
+	// to the next screen's updater and silently kept the loop going
+	// (or worse, applied physics while the cockpit isn't visible).
+	if _, ok := msg.(flightTickMsg); ok && m.screen != ScreenFlight {
+		m.flight.active = false
+		return m, nil
+	}
 
 	// Delegate to screen-specific update
 	switch m.screen {
@@ -1054,6 +1070,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateFactionWars(msg)
 	case ScreenTerritoryMap:
 		return m.updateTerritoryMap(msg)
+	case ScreenFlight:
+		return m.updateFlight(msg)
 	default:
 		return m, nil
 	}
@@ -1193,6 +1211,8 @@ func (m Model) viewScreen() string {
 		return m.viewFactionWars()
 	case ScreenTerritoryMap:
 		return m.viewTerritoryMap()
+	case ScreenFlight:
+		return m.viewFlight()
 	default:
 		return "Unknown screen"
 	}
