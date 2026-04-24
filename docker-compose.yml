@@ -93,13 +93,33 @@ services:
     depends_on:
       server:
         condition: service_healthy
+    # Client options (-t) tune xterm.js for the BubbleTea TUI:
+    #   fontFamily: force a font that has full U+2500 box-drawing
+    #     coverage at strict 1-cell width. Browsers vary wildly on
+    #     fallback behavior with generic "monospace" and mis-render
+    #     heavy-line borders (┃ ┏ ┓), pushing columns out of
+    #     alignment one pixel per row.
+    #   fontSize:   readable default on modern displays.
+    #   rendererType: 'canvas' >> 'dom' for character grid stability,
+    #     especially with wide/full-block Unicode.
+    #   disableLeaveAlert: don't prompt "are you sure you want to
+    #     leave?" on tab close — feels like a popup virus on first
+    #     load.
+    # `-T xterm-256color` is already the ttyd default but explicit
+    # for clarity; the game reads $TERM and colors accordingly.
     command: >
       ttyd
       --writable
       --port 7681
       --max-clients 100
       --base-path /play
+      -t fontFamily='"JetBrains Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace'
+      -t fontSize=14
+      -t rendererType=canvas
+      -t disableLeaveAlert=true
+      -T xterm-256color
       ssh
+      -tt
       -o StrictHostKeyChecking=no
       -o UserKnownHostsFile=/dev/null
       -o LogLevel=ERROR
