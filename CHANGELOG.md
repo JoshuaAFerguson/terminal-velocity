@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-24
+
+**Phase 5 release — Meta Depth & Polish.** A major expansion of the
+simulation layer and presentation layer. The galaxy is now a living
+political system: NPC factions declare wars, fight over border
+systems, capture and lose territory, and all of it persists across
+restarts. Players see the evolving map through a scrolling
+main-menu news ticker, a war-zone banner on contested systems, a
+territory-ownership screen, and a first-class faction-wars screen.
+
+Highlights:
+- **Faction wars (P5C)**: end-to-end war lifecycle — declaration,
+  resolution, ceasefire, emergent triggers, news integration,
+  war-economy price spikes, reputation amplifier, TUI screen.
+- **Territory capture (P5D)**: NPC system ownership shifts on war
+  resolution, player contributions can sway outcomes, dedicated
+  territory-map screen, DB persistence so captures survive restart.
+- **Fleet play (P5B)**: escorts now appear in combat, take turns
+  per behavior, take damage, can be destroyed, persist loss back
+  to fleet manager.
+- **Meta polish**: scrolling newsreel on main menu (P5H),
+  underline-style leaderboard tabs (P5G), tutorial overlay with
+  Ctrl-hotkeys (P5F), server-owned manager refactor (P5A-1),
+  marketplace auction persistence (P5A-2), PvP challenger auto-
+  transition (P5A-3).
+
+Full per-slice details below.
+
 ### Added (2026-04-24 - P5D-3 territory persistence, closes P5D block)
 - **NPC territory ownership now survives server restarts.** A war-
   captured system that flipped from UEF to Crimson on Monday stays

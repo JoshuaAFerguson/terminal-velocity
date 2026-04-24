@@ -1,7 +1,12 @@
 # Terminal Velocity Development Roadmap
-**Last Updated:** 2025-11-15
-**Current Status:** Phase 20 Complete - Production Ready
-**Version:** 1.0.0
+**Last Updated:** 2026-04-24
+**Current Status:** Phase 20 Complete · Meta-Depth & Polish Release (v0.5.0)
+**Version:** 0.5.0
+
+> Note: early CHANGELOG entries used `0.x` semver; the 20-phase
+> development plan reached feature-complete at narrative "1.0.0"
+> milestone. A post-1.0 "Meta Depth & Polish" expansion shipped as
+> `v0.5.0` in the CHANGELOG's own series — this doc tracks both.
 
 ---
 
