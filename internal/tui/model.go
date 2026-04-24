@@ -27,6 +27,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/npcterritory"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/outfitting"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
@@ -210,6 +211,11 @@ type Model struct {
 	// standalone/test model construction.
 	factionWarManager *factionwar.Manager
 
+	// NPC territory system (P5D). Shared across sessions so a
+	// system captured mid-war is reflected on every player's
+	// space-view banner immediately.
+	npcTerritoryManager *npcterritory.Manager
+
 	// Trade system
 	tradeManager *trade.Manager
 
@@ -270,6 +276,7 @@ func NewModel(
 	territoryManager *territory.Manager,
 	tutorialManager *tutorial.Manager,
 	factionWarManager *factionwar.Manager,
+	npcTerritoryManager *npcterritory.Manager,
 ) Model {
 	// All server-wide feeds fall back to standalone managers so tests
 	// injecting nil still run. Production call sites always pass a
@@ -425,6 +432,7 @@ func NewLoginModel(
 	territoryManager *territory.Manager,
 	tutorialManager *tutorial.Manager,
 	factionWarManager *factionwar.Manager,
+	npcTerritoryManager *npcterritory.Manager,
 ) Model {
 	if newsManager == nil {
 		newsManager = news.NewManager()
@@ -489,6 +497,7 @@ func NewLoginModel(
 		factionManager:       factions.NewManager(),
 		territoryManager:     territoryManager,
 		factionWarManager:    factionWarManager,
+		npcTerritoryManager:  npcTerritoryManager,
 		factionWarsModel:     newFactionWarsModel(),
 		tradeModel:           newTradeModel(),
 		tradeManager:         trade.NewManager(),

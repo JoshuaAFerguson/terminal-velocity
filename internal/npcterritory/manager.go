@@ -1,0 +1,340 @@
+// File: internal/npcterritory/manager.go
+// Project: Terminal Velocity
+// Description: NPC system ownership — which NPC faction currently
+//   controls a given star system. Seeded from the static
+//   StandardNPCFactions.CoreSystems data at server start, then
+//   mutated as wars resolve and systems flip between factions.
+//   Separate from internal/territory/, which tracks *player-founded*
+//   guild claims keyed by uuid.UUID — NPC control uses string slugs
+//   and is driven by the faction-war lifecycle, not player actions
+//   against a repo.
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2026-04-24
+
+package npcterritory
+
+import (
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+)
+
+// Sentinel errors — callers `errors.Is` against these to branch on
+// specific failure modes rather than string-matching.
+var (
+	ErrUnknownSystem  = errors.New("system not tracked")
+	ErrUnknownFaction = errors.New("faction not tracked")
+)
+
+// NewsBus is the minimum news.Manager surface this package needs.
+// Kept as an interface so npcterritory doesn't pull the full news
+// package, and so tests can record emissions without a real manager.
+type NewsBus interface {
+	AddArticle(*models.NewsArticle)
+}
+
+// FlipRecord captures one ownership change. Returned from
+// ResolveWarTerritory so callers (the factionwar manager, primarily)
+// can surface the news, update caches, and trigger downstream
+// systems. Separate from news emission because the manager is
+// decoupled from the news package at this layer — the caller wires
+// the news bus.
+type FlipRecord struct {
+	SystemName string
+	FromID     string
+	FromName   string
+	ToID       string
+	ToName     string
+	At         time.Time
+}
+
+// Manager tracks system → NPC-faction ownership. Thread-safe for
+// concurrent reads during TUI rendering alongside war-resolution
+// writes via TickWars.
+//
+// Ownership is keyed by lowercased system name so lookups match the
+// case-insensitive convention established in the factionwar
+// war-zone index. Faction metadata (display name, short name) is
+// cached alongside the ID so the news + banner paths don't have to
+// re-query the static faction list.
+type Manager struct {
+	mu sync.RWMutex
+
+	// ownerBySystem: lowercased system name → NPCFaction.ID slug.
+	ownerBySystem map[string]string
+
+	// originalCase preserves the system name's casing at first
+	// sight so the TUI can display "Alpha Centauri" rather than
+	// "alpha centauri" after a lookup round-trip.
+	originalCase map[string]string
+
+	// factionName / factionShortName: ID → display name / tag, so
+	// news emission and UI code don't need to re-scan the static
+	// faction list. Populated at Seed() time; the list is
+	// small (~8) so a full copy is fine.
+	factionName      map[string]string
+	factionShortName map[string]string
+
+	newsBus NewsBus
+	now     func() time.Time // seam for deterministic tests
+}
+
+// NewManager constructs a Manager. newsBus may be nil — callers that
+// don't need territory-flip headlines (tests, one-off migrations)
+// can pass nil and the flip-news emission becomes a no-op.
+func NewManager(newsBus NewsBus) *Manager {
+	return &Manager{
+		ownerBySystem:    make(map[string]string),
+		originalCase:     make(map[string]string),
+		factionName:      make(map[string]string),
+		factionShortName: make(map[string]string),
+		newsBus:          newsBus,
+		now:              time.Now,
+	}
+}
+
+// Seed populates the manager from the static NPC faction list,
+// using each faction's CoreSystems as the initial owned set.
+// Influence systems are *not* seeded as owned — influence means
+// "some presence," not control. Later wars will transfer core
+// systems between factions.
+//
+// Idempotent: re-seeding overwrites prior state. Useful for
+// hot-reload and test resets.
+func (m *Manager) Seed(factions []models.NPCFaction) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.ownerBySystem = make(map[string]string, 64)
+	m.originalCase = make(map[string]string, 64)
+	m.factionName = make(map[string]string, len(factions))
+	m.factionShortName = make(map[string]string, len(factions))
+
+	for _, f := range factions {
+		m.factionName[f.ID] = f.Name
+		m.factionShortName[f.ID] = f.ShortName
+
+		for _, sys := range f.CoreSystems {
+			key := normalize(sys)
+			if key == "" {
+				continue
+			}
+			// Last faction in the list wins if two factions
+			// claim the same core system in the fixture data —
+			// fine for tests; production data is unambiguous.
+			m.ownerBySystem[key] = f.ID
+			if _, kept := m.originalCase[key]; !kept {
+				m.originalCase[key] = sys
+			}
+		}
+	}
+}
+
+// GetOwner returns the NPCFaction.ID that currently controls the
+// named system. Returns "", ErrUnknownSystem if the system isn't
+// tracked (wasn't in anyone's CoreSystems at seed time).
+// Case-insensitive lookup.
+func (m *Manager) GetOwner(systemName string) (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	owner, ok := m.ownerBySystem[normalize(systemName)]
+	if !ok {
+		return "", ErrUnknownSystem
+	}
+	return owner, nil
+}
+
+// GetOwnerName returns the owning faction's full display name, or
+// empty string if the system or faction isn't tracked. Convenience
+// for TUI code that doesn't want to stitch GetOwner + factionName
+// together manually.
+func (m *Manager) GetOwnerName(systemName string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	ownerID, ok := m.ownerBySystem[normalize(systemName)]
+	if !ok {
+		return ""
+	}
+	return m.factionName[ownerID]
+}
+
+// GetOwnerShortName returns the owning faction's tag (e.g., "UEF").
+// Used by the space-view territory banner where full names would
+// overflow a one-line strip.
+func (m *Manager) GetOwnerShortName(systemName string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	ownerID, ok := m.ownerBySystem[normalize(systemName)]
+	if !ok {
+		return ""
+	}
+	return m.factionShortName[ownerID]
+}
+
+// GetFactionSystems returns the system names currently owned by a
+// faction, in alphabetical order for stable iteration. Returns nil
+// if the faction isn't tracked or owns nothing (note: empty slice vs
+// nil is semantically distinct — nil means "we don't know this
+// faction"; empty means "known faction, no holdings").
+func (m *Manager) GetFactionSystems(factionID string) []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, tracked := m.factionName[factionID]; !tracked {
+		return nil
+	}
+	out := []string{}
+	for key, owner := range m.ownerBySystem {
+		if owner == factionID {
+			if orig, ok := m.originalCase[key]; ok {
+				out = append(out, orig)
+			} else {
+				out = append(out, key)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TransferSystem moves a named system from its current owner to
+// newFactionID and (if newsBus is configured and the flip actually
+// happened) emits a political news article. Returns the FlipRecord
+// so callers can log, audit, or chain further side-effects.
+//
+// Returns nil FlipRecord + nil error when newFactionID already
+// controls the system (no-op — not an error; the factionwar
+// integration may call this unconditionally on every war-zone
+// system and we don't want to spam the news feed on a trivial
+// re-transfer).
+func (m *Manager) TransferSystem(systemName, newFactionID string) (*FlipRecord, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, known := m.factionName[newFactionID]; !known {
+		return nil, fmt.Errorf("%w: %s", ErrUnknownFaction, newFactionID)
+	}
+	key := normalize(systemName)
+	if key == "" {
+		return nil, ErrUnknownSystem
+	}
+	prev, tracked := m.ownerBySystem[key]
+	if !tracked {
+		return nil, ErrUnknownSystem
+	}
+	if prev == newFactionID {
+		return nil, nil // already-owned, idempotent no-op
+	}
+
+	rec := &FlipRecord{
+		SystemName: m.originalCase[key],
+		FromID:     prev,
+		FromName:   m.factionName[prev],
+		ToID:       newFactionID,
+		ToName:     m.factionName[newFactionID],
+		At:         m.now(),
+	}
+	m.ownerBySystem[key] = newFactionID
+
+	m.emitFlipNews(rec)
+	return rec, nil
+}
+
+// ResolveWarTerritory is the factionwar-driven capture path: called
+// when a war resolves, it flips every war-zone system currently
+// owned by the loser over to the winner. Systems owned by third
+// parties (or the winner already) are untouched — a UEF vs Crimson
+// war doesn't redistribute ROM-owned border systems even if they
+// appear in the war-zone list because both belligerents had
+// influence there.
+//
+// Returns the ordered list of flips so the caller can append them
+// to a combat/news log. Empty slice = war had no territorial
+// impact (resolution still happens, just no systems changed hands).
+func (m *Manager) ResolveWarTerritory(zoneSystems []string, loserID, winnerID string) []*FlipRecord {
+	if m == nil || loserID == winnerID {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, known := m.factionName[winnerID]; !known {
+		return nil
+	}
+	var flips []*FlipRecord
+	for _, sys := range zoneSystems {
+		key := normalize(sys)
+		if key == "" {
+			continue
+		}
+		if m.ownerBySystem[key] != loserID {
+			continue // not owned by loser → not captured
+		}
+		rec := &FlipRecord{
+			SystemName: m.originalCase[key],
+			FromID:     loserID,
+			FromName:   m.factionName[loserID],
+			ToID:       winnerID,
+			ToName:     m.factionName[winnerID],
+			At:         m.now(),
+		}
+		m.ownerBySystem[key] = winnerID
+		m.emitFlipNews(rec)
+		flips = append(flips, rec)
+	}
+	return flips
+}
+
+// AllOwnership returns a snapshot of every tracked system → owner
+// mapping, using original-case system names. Primarily for admin
+// tools and territory-map rendering. O(n) copy; pin the result
+// rather than calling this in a hot loop.
+func (m *Manager) AllOwnership() map[string]string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make(map[string]string, len(m.ownerBySystem))
+	for key, owner := range m.ownerBySystem {
+		name := key
+		if orig, ok := m.originalCase[key]; ok {
+			name = orig
+		}
+		out[name] = owner
+	}
+	return out
+}
+
+// ============================================================================
+// Internal helpers
+// ============================================================================
+
+func normalize(systemName string) string {
+	return strings.ToLower(strings.TrimSpace(systemName))
+}
+
+func (m *Manager) emitFlipNews(rec *FlipRecord) {
+	if m.newsBus == nil || rec == nil {
+		return
+	}
+	fromShort := m.factionShortName[rec.FromID]
+	toShort := m.factionShortName[rec.ToID]
+	if fromShort == "" {
+		fromShort = rec.FromName
+	}
+	if toShort == "" {
+		toShort = rec.ToName
+	}
+	headline := fmt.Sprintf("%s captures %s from %s", toShort, rec.SystemName, fromShort)
+	body := fmt.Sprintf("%s forces have wrested control of %s from %s. New patrol patterns and station allegiances are expected within the week.",
+		rec.ToName, rec.SystemName, rec.FromName)
+	m.newsBus.AddArticle(models.NewNewsArticle(
+		models.NewsCategoryPolitical,
+		models.NewsPriorityHigh,
+		headline,
+		body,
+	))
+}

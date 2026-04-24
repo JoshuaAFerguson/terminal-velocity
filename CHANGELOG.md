@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5D-1 NPC territory capture)
+- **NPC faction territory now shifts when wars resolve.** New
+  `internal/npcterritory` package tracks which NPC faction
+  currently controls each star system, seeded from
+  `StandardNPCFactions.CoreSystems` at server startup. When a war
+  resolves, the loser's war-zone systems flip to the winner — the
+  war screen's "Winner: UEF" stops being cosmetic and actually
+  redraws borders.
+  - `npcterritory.Manager`: system → factionID ownership keyed by
+    lowercased name (case-insensitive lookup, preserved-case
+    display via `originalCase` map). Thread-safe with RW mutex;
+    concurrent reads during TUI rendering race cleanly against
+    the write-locked `TransferSystem` / `ResolveWarTerritory`
+    paths.
+  - `TransferSystem(system, newFactionID)` — direct transfer,
+    idempotent (no-op when already owned, no spam news). Returns
+    a `FlipRecord` for audit chaining.
+  - `ResolveWarTerritory(zones, loserID, winnerID)` — factionwar-
+    driven batch flip. Only flips systems currently owned by the
+    loser; third-party holdings (a ROM system in a UEF-vs-Crimson
+    zone) are preserved. Returns the ordered flip list.
+  - Flip news: each transfer emits `"UEF captures Sol from CRM"`
+    at `NewsPriorityHigh` via the shared `NewsBus` interface —
+    lands straight in the main-menu ticker.
+  - Query surface: `GetOwner`, `GetOwnerName`, `GetOwnerShortName`
+    (used by the new space-view territory banner),
+    `GetFactionSystems` (alphabetical, nil vs empty disambiguates
+    unknown faction from known-but-landless), `AllOwnership`
+    (snapshot map for admin / map UIs).
+- **factionwar ↔ npcterritory wiring** via callback:
+  `factionwar.TerritoryHook` is a function type (no package import
+  either direction) that the server wires at startup.
+  `ResolveWar` and TickWars' auto-resolve path both invoke it with
+  the winner's perspective; `CeaseFire` deliberately doesn't —
+  no winner means no territorial shift. `SetTerritoryHook(nil)`
+  disables integration for tests.
+- **Space-view territory banner**: teal `⚑  UEF territory` strip
+  rendered below the war-zone banner. Nil-safe (empty string when
+  manager or system is nil). Muted color so it reads as context
+  rather than alert, letting the red war banner keep eye-pull
+  priority when both are present.
+- **Wiring**: `npcTerritoryManager` threaded through `NewModel` /
+  `NewLoginModel` as a new final param. Server's `initDatabase`
+  constructs it after the news manager (as its `NewsBus`), seeds
+  from `models.StandardNPCFactions`, then installs the
+  one-line territory hook on `factionWarManager`.
+- **22 new tests (14 npcterritory + 4 factionwar hook + 4
+  interaction)**. npcterritory: seed / re-seed idempotency,
+  case-insensitive lookup, unknown-system / unknown-faction
+  sentinel errors, transfer happy path + idempotent no-op,
+  ResolveWarTerritory with third-party preservation + same-winner-
+  loser no-op + unknown-winner guard, faction-systems filtering
+  with nil-vs-empty semantics, flip timestamp, nil news bus,
+  concurrent reads via `-race`. factionwar: hook fires on
+  ResolveWar with correct loser ID, hook fires on TickWars
+  auto-resolve, hook does NOT fire on ceasefire (winnerless),
+  nil hook is safe. Coverage: npcterritory 93.1%, factionwar
+  93.7%.
+
 ### Added (2026-04-24 - P5C-4 war lifecycle automation, closes P5C block)
 - **Faction wars now start and end without admin intervention.** A
   new `TickWars` pass runs every 5 minutes via the existing tick

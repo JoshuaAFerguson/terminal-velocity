@@ -379,6 +379,14 @@ func (m Model) viewSpaceView() string {
 		sb.WriteString(banner + "\n")
 	}
 
+	// Territory-owner banner (P5D). Teal strip identifying the NPC
+	// faction currently controlling this system. Muted so it reads
+	// as context rather than alert, and the red war banner (if
+	// also present) still gets eye-pull priority.
+	if banner := m.territoryOwnerBanner(); banner != "" {
+		sb.WriteString(banner + "\n")
+	}
+
 	// Main content area
 	contentHeight := height - 6 // Header + footer + chat
 	if m.spaceView.chatExpanded {

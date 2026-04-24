@@ -27,6 +27,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/news"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/notifications"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/npcterritory"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/ratelimit"
@@ -97,6 +98,10 @@ type Server struct {
 	// currently admin-driven; in-game triggers (reputation thresholds,
 	// border incidents) land in P5C-2+.
 	factionWarManager *factionwar.Manager
+	// NPC system ownership (P5D). Seeded from StandardNPCFactions
+	// at startup; mutated on war resolve via the factionwar
+	// territory-hook plumbing.
+	npcTerritoryManager *npcterritory.Manager
 	// Server-wide tutorial progress. Persisting to DB is a future
 	// enhancement; today the shared in-memory manager at least keeps
 	// progress alive across reconnects within a single server process
@@ -364,6 +369,16 @@ func (s *Server) initDatabase() error {
 	// Wire the news manager as the war's news bus so declaration /
 	// resolution events land in the main-menu ticker feed.
 	s.factionWarManager = factionwar.NewManager(s.newsManager)
+	// NPC territory: seed from the static NPC faction list, then
+	// install the war-resolution hook so wars flip system
+	// ownership. Hook captures the territory manager and discards
+	// the FlipRecord return — flips already emit their own news
+	// articles, so factionwar doesn't need to re-log them.
+	s.npcTerritoryManager = npcterritory.NewManager(s.newsManager)
+	s.npcTerritoryManager.Seed(models.StandardNPCFactions)
+	s.factionWarManager.SetTerritoryHook(func(zones []string, loserID, winnerID string) {
+		s.npcTerritoryManager.ResolveWarTerritory(zones, loserID, winnerID)
+	})
 
 	// Start background workers for managers
 	s.fleetManager.Start()
@@ -693,6 +708,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		s.territoryManager,
 		s.tutorialManager,
 		s.factionWarManager,
+		s.npcTerritoryManager,
 	)
 
 	// Create BubbleTea program with SSH channel as input/output
@@ -724,7 +740,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 func (s *Server) startAnonymousSession(channel ssh.Channel, requests <-chan *ssh.Request, initialSize ptySize) {
 	log.Debug("startAnonymousSession called (initial size %dx%d)", initialSize.cols, initialSize.rows)
 
-	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager, s.presenceManager, s.pvpManager, s.territoryManager, s.tutorialManager, s.factionWarManager)
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager, s.presenceManager, s.pvpManager, s.territoryManager, s.tutorialManager, s.factionWarManager, s.npcTerritoryManager)
 
 	p := tea.NewProgram(
 		model,

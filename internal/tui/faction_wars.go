@@ -381,3 +381,27 @@ func (m Model) warZoneBanner() string {
 var warBannerStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("196")). // Red
 	Bold(true)
+
+// ============================================================================
+// P5D-1 territory banner (space view)
+// ============================================================================
+
+// territoryOwnerBanner returns a single-line strip showing the NPC
+// faction currently controlling the player's system. Returns "" if
+// ownership isn't tracked (peaceful / unaligned system) or the
+// manager isn't wired. Color is a muted cyan to differentiate from
+// the red war banner — both can appear on the same screen.
+func (m Model) territoryOwnerBanner() string {
+	if m.npcTerritoryManager == nil || m.currentSystem == nil {
+		return ""
+	}
+	name := m.npcTerritoryManager.GetOwnerShortName(m.currentSystem.Name)
+	if name == "" {
+		return ""
+	}
+	return territoryBannerStyle.Render(fmt.Sprintf("⚑  %s territory", name))
+}
+
+var territoryBannerStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("44")). // Teal
+	Bold(true)

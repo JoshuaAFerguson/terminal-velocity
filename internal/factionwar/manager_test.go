@@ -819,6 +819,101 @@ func TestReportIncidentNilSafety(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// P5D-1 territory hook integration
+// ============================================================================
+
+func TestTerritoryHookFiresOnResolve(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+
+	// Record every hook invocation so we can assert parameters.
+	type hookCall struct {
+		zones    []string
+		loserID  string
+		winnerID string
+	}
+	var calls []hookCall
+	m.SetTerritoryHook(func(zones []string, loserID, winnerID string) {
+		calls = append(calls, hookCall{zones: zones, loserID: loserID, winnerID: winnerID})
+	})
+
+	war, _ := m.DeclareWar(a, b, "border")
+	if err := m.ResolveWar(war.ID, a.ID); err != nil {
+		t.Fatalf("ResolveWar: %v", err)
+	}
+
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 hook call, got %d", len(calls))
+	}
+	if calls[0].winnerID != a.ID {
+		t.Errorf("winner: got %q, want %q", calls[0].winnerID, a.ID)
+	}
+	if calls[0].loserID != b.ID {
+		t.Errorf("loser: got %q, want %q", calls[0].loserID, b.ID)
+	}
+	if len(calls[0].zones) != len(war.WarZoneSystems) {
+		t.Errorf("zones count: got %d, want %d", len(calls[0].zones), len(war.WarZoneSystems))
+	}
+}
+
+func TestTerritoryHookFiresOnAutoResolve(t *testing.T) {
+	// TickWars' auto-resolution path must also call the hook — this
+	// is how emergent wars flip territory without admin action.
+	m, _, clock := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+
+	called := false
+	m.SetTerritoryHook(func(zones []string, loserID, winnerID string) {
+		called = true
+	})
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.5}, ints: []int{1}}) // aggressor wins
+	m.SetLifecycleConfig(LifecycleConfig{MaxWarDuration: time.Hour, DeclarationProbability: 0.0})
+
+	*clock = clock.Add(2 * time.Hour)
+	m.TickWars([]models.NPCFaction{
+		{ID: a.ID, Enemies: []string{b.ID}, CoreSystems: a.CoreSystems},
+		{ID: b.ID, Enemies: []string{a.ID}, CoreSystems: b.CoreSystems},
+	})
+
+	if !called {
+		t.Error("territory hook should fire on auto-resolution too")
+	}
+	_ = war
+}
+
+func TestTerritoryHookNotFiredOnCeaseFire(t *testing.T) {
+	// Ceasefire means neither side "won," so no territory flips.
+	// The hook is specifically a resolve-path concern.
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+	called := false
+	m.SetTerritoryHook(func(zones []string, loserID, winnerID string) {
+		called = true
+	})
+	war, _ := m.DeclareWar(a, b, "")
+	if err := m.CeaseFire(war.ID); err != nil {
+		t.Fatalf("CeaseFire: %v", err)
+	}
+	if called {
+		t.Error("ceasefire should not flip territory")
+	}
+}
+
+func TestTerritoryHookNilSafe(t *testing.T) {
+	// nil hook → ResolveWar still succeeds.
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+	// Hook was nil by default; explicit SetTerritoryHook(nil) is redundant
+	// but documents intent.
+	m.SetTerritoryHook(nil)
+	if err := m.ResolveWar(war.ID, a.ID); err != nil {
+		t.Errorf("ResolveWar with nil hook: %v", err)
+	}
+}
+
 func TestConcurrentDeclareAndQuery(t *testing.T) {
 	// Race test — run with -race to catch lock misuse. Spawns one
 	// declarer and many readers; all queries should return

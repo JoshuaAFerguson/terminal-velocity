@@ -44,6 +44,18 @@ type NewsBus interface {
 	AddArticle(*models.NewsArticle)
 }
 
+// TerritoryHook is the callback factionwar invokes when a war
+// resolves so the territory layer can flip ownership of war-zone
+// systems from loser to winner. A callback (vs. interface) keeps
+// factionwar decoupled from any particular territory implementation
+// — tests pass an in-line closure, production passes a one-line
+// adapter that calls (*npcterritory.Manager).ResolveWarTerritory.
+//
+// The hook is nil-safe on the call site (ResolveWar / TickWars
+// check before invoking); passing nil means "no territory
+// integration" which is the default for tests.
+type TerritoryHook func(zoneSystems []string, loserID, winnerID string)
+
 // Manager holds all faction-war state. All mutating methods take
 // the write lock; queries take the read lock. Thread-safe for
 // concurrent use by SSH session goroutines.
@@ -76,6 +88,13 @@ type Manager struct {
 	// is needed on these fields once set.
 	config LifecycleConfig
 	rng    LifecycleRNG
+
+	// P5D-1: territory integration hook. Invoked from ResolveWar /
+	// CeaseFire with the zone list and belligerent IDs so the
+	// territory layer can flip system ownership. nil when no
+	// integration is wired (tests default; production sets via
+	// SetTerritoryHook at startup).
+	territoryHook TerritoryHook
 }
 
 // NewManager constructs a Manager with optional news integration.
@@ -110,6 +129,16 @@ func (m *Manager) SetLifecycleRNG(r LifecycleRNG) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.rng = r
+}
+
+// SetTerritoryHook wires the territory-flip callback invoked on
+// war resolution. Pass nil to disable. Not thread-safe against
+// concurrent ResolveWar — call at server startup, before the first
+// war is declared.
+func (m *Manager) SetTerritoryHook(hook TerritoryHook) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.territoryHook = hook
 }
 
 // DeclareWar creates a new active war between two NPC factions and
@@ -192,8 +221,30 @@ func (m *Manager) ResolveWar(warID uuid.UUID, winnerFactionID string) error {
 		m.removeWarZone(sys, war.ID)
 	}
 
+	// P5D-1: flip territorial control from loser to winner. Loser
+	// is whichever belligerent isn't the winner. Hook is called
+	// while holding the write lock so the territory manager's
+	// lock ordering must be {factionwar → territory} to avoid
+	// deadlocks with any future cross-lookup.
+	m.invokeTerritoryHookLocked(war, winnerFactionID)
+
 	m.emitResolutionNews(war)
 	return nil
+}
+
+// invokeTerritoryHookLocked fires territoryHook with the loser's
+// faction ID (aggressor or defender, whichever isn't the winner).
+// Must be called with m.mu held in write mode; no-op when no hook
+// is wired.
+func (m *Manager) invokeTerritoryHookLocked(war *models.FactionWar, winnerID string) {
+	if m.territoryHook == nil {
+		return
+	}
+	loserID := war.AggressorID
+	if winnerID == war.AggressorID {
+		loserID = war.DefenderID
+	}
+	m.territoryHook(war.WarZoneSystems, loserID, winnerID)
 }
 
 // CeaseFire ends a war with no winner. Shares most of its body with
@@ -629,6 +680,7 @@ func (m *Manager) resolveLocked(war *models.FactionWar, winnerFactionID string) 
 	for _, sys := range war.WarZoneSystems {
 		m.removeWarZone(sys, war.ID)
 	}
+	m.invokeTerritoryHookLocked(war, winnerFactionID)
 	m.emitResolutionNews(war)
 }
 
