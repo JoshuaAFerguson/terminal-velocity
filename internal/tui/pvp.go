@@ -1,6 +1,6 @@
 // File: internal/tui/pvp.go
 // Project: Terminal Velocity
-// Version: 1.2.0
+// Version: 1.3.0
 
 package tui
 
@@ -62,9 +62,43 @@ func newPvPModel() pvpModel {
 	}
 }
 
+// findChallengerActiveChallenge returns the first challenge in the
+// list where `playerID` is the challenger and the target has already
+// accepted (status Active). The target's accept path transitions
+// Pending → Accepted → Start()→Active atomically under one lock, so
+// the challenger-observable terminal state is Active.
+func findChallengerActiveChallenge(challenges []*models.PvPChallenge, playerID uuid.UUID) *models.PvPChallenge {
+	for _, c := range challenges {
+		if c == nil {
+			continue
+		}
+		if c.ChallengerID == playerID && c.Status == models.ChallengeActive {
+			return c
+		}
+	}
+	return nil
+}
+
 func (m Model) updatePvP(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case pvpPollMsg:
+		// Challenger-side auto-transition: when the target accepts,
+		// the challenger's session would otherwise sit on the PvP
+		// screen watching an "Active" entry. Match the target's
+		// on-Accept path (updatePvPList "a" case) and jump into
+		// combat so both sides arrive simultaneously.
+		if m.pvpManager != nil {
+			all := m.pvpManager.GetPlayerChallenges(m.playerID)
+			if ch := findChallengerActiveChallenge(all, m.playerID); ch != nil {
+				m.combatEnhanced.initializePvPCombat(
+					ch.ID,
+					ch.DefenderName,
+					"Corvette",
+				)
+				m.screen = ScreenCombatEnhanced
+				return m, nil
+			}
+		}
 		// Re-arm so the list keeps updating while the PvP screen is
 		// open. The view re-queries GetPendingChallenges /
 		// GetAllActiveBounties on every render, so we don't need to

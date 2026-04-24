@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-23 - P5A-3 PvP challenger-side auto-transition)
+- **Challenger's PvP session now auto-transitions to combat when the
+  target accepts.** Previously only the target (the side pressing `a`)
+  was routed into `combat_enhanced`; the challenger sat on the PvP
+  screen with their challenge entry flipped to "Active" and no
+  affordance to enter combat. The 2s `pvpPollTick` that already drives
+  list refresh now also scans the challenger's own outbound challenges
+  for `Status == Active` and, on match, mirrors the target's
+  `initializePvPCombat(...)` call and flips to `ScreenCombatEnhanced`.
+  Because `pvpPollMsg` only routes to `updatePvP` while on `ScreenPvP`,
+  the transition fires exactly once per accepted challenge — leaving
+  combat doesn't re-trigger it (status becomes `Complete`).
+  - New pure helper `findChallengerActiveChallenge` with a 10-case
+    table-driven unit test plus a manager-flow test that exercises the
+    real `Pending → Accepted → Active` transition.
+
 ### Changed (2026-04-23 - Main menu styling matches login)
 - **Main menu now uses the same heavy-border frame as the login screen.**
   Outer box, centered title, stats bar, and footer are rendered in the
