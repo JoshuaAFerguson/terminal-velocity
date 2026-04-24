@@ -258,11 +258,13 @@ func NewModel(
 	chatManager *chat.Manager,
 	presenceManager *presence.Manager,
 	pvpManager *pvp.Manager,
+	territoryManager *territory.Manager,
+	tutorialManager *tutorial.Manager,
 ) Model {
-	// newsManager / chatManager / presenceManager / pvpManager are the
-	// server-wide feeds; fall back to standalone managers so old call
-	// sites don't NPE. The fallback loses cross-session semantics, but
-	// tests that inject nil still run.
+	// All server-wide feeds fall back to standalone managers so tests
+	// injecting nil still run. Production call sites always pass a
+	// shared instance from the server so cross-session semantics
+	// (chat fan-out, bounty board visibility, presence, etc.) work.
 	if newsManager == nil {
 		newsManager = news.NewManager()
 	}
@@ -274,6 +276,12 @@ func NewModel(
 	}
 	if pvpManager == nil {
 		pvpManager = pvp.NewManager()
+	}
+	if territoryManager == nil {
+		territoryManager = territory.NewManager()
+	}
+	if tutorialManager == nil {
+		tutorialManager = tutorial.NewManager()
 	}
 	return Model{
 		screen:              ScreenMainMenu,
@@ -318,7 +326,7 @@ func NewModel(
 		marketplaceManager:  marketplaceManager,
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
-		territoryManager:    territory.NewManager(),
+		territoryManager:    territoryManager,
 		tradeModel:          newTradeModel(),
 		tradeManager:        trade.NewManager(),
 		pvpModel:            newPvPModel(),
@@ -332,7 +340,7 @@ func NewModel(
 		adminModel:          newAdminModel(),
 		adminManager:        admin.NewManager(playerRepo),
 		tutorialModel:       newTutorialModel(),
-		tutorialManager:     tutorial.NewManager(),
+		tutorialManager:     tutorialManager,
 		questsModel:         newQuestsModel(),
 		questManager:        quests.NewManager(),
 		missionManager:      missions.NewManager(),
@@ -400,6 +408,8 @@ func NewLoginModel(
 	chatManager *chat.Manager,
 	presenceManager *presence.Manager,
 	pvpManager *pvp.Manager,
+	territoryManager *territory.Manager,
+	tutorialManager *tutorial.Manager,
 ) Model {
 	if newsManager == nil {
 		newsManager = news.NewManager()
@@ -412,6 +422,12 @@ func NewLoginModel(
 	}
 	if pvpManager == nil {
 		pvpManager = pvp.NewManager()
+	}
+	if territoryManager == nil {
+		territoryManager = territory.NewManager()
+	}
+	if tutorialManager == nil {
+		tutorialManager = tutorial.NewManager()
 	}
 	return Model{
 		screen:              ScreenLogin,
@@ -452,7 +468,7 @@ func NewLoginModel(
 		mailManager:         mail.NewManager(socialRepo),
 		factionsModel:       newFactionsModel(),
 		factionManager:      factions.NewManager(),
-		territoryManager:    territory.NewManager(),
+		territoryManager:    territoryManager,
 		tradeModel:          newTradeModel(),
 		tradeManager:        trade.NewManager(),
 		pvpModel:            newPvPModel(),
@@ -466,7 +482,7 @@ func NewLoginModel(
 		adminModel:          newAdminModel(),
 		adminManager:        admin.NewManager(playerRepo),
 		tutorialModel:       newTutorialModel(),
-		tutorialManager:     tutorial.NewManager(),
+		tutorialManager:     tutorialManager,
 		questsModel:         newQuestsModel(),
 		questManager:        quests.NewManager(),
 		missionManager:      missions.NewManager(),

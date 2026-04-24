@@ -29,8 +29,10 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/presence"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/pvp"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/ratelimit"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/territory"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tick"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/tui"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/tutorial"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
@@ -82,6 +84,15 @@ type Server struct {
 	// bounties (e.g., attacking a police patrol) must land in one shared
 	// list so other players can see and claim them.
 	pvpManager *pvp.Manager
+	// Server-wide territory control (system ownership, docking fees).
+	// Phase 5D builds on this; for now the manager is tiny but wiring
+	// it server-side up front avoids a rewire later.
+	territoryManager *territory.Manager
+	// Server-wide tutorial progress. Persisting to DB is a future
+	// enhancement; today the shared in-memory manager at least keeps
+	// progress alive across reconnects within a single server process
+	// — previously every login restarted from step 1.
+	tutorialManager *tutorial.Manager
 
 	// Universe simulation. The tick service owns background work that
 	// makes the world feel alive between player actions — market stocks
@@ -323,6 +334,8 @@ func (s *Server) initDatabase() error {
 	s.chatManager = chat.NewManager()
 	s.presenceManager = presence.NewManager()
 	s.pvpManager = pvp.NewManager()
+	s.territoryManager = territory.NewManager()
+	s.tutorialManager = tutorial.NewManager()
 
 	// Start background workers for managers
 	s.fleetManager.Start()
@@ -636,6 +649,8 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		s.chatManager,
 		s.presenceManager,
 		s.pvpManager,
+		s.territoryManager,
+		s.tutorialManager,
 	)
 
 	// Create BubbleTea program with SSH channel as input/output
@@ -667,7 +682,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 func (s *Server) startAnonymousSession(channel ssh.Channel, requests <-chan *ssh.Request, initialSize ptySize) {
 	log.Debug("startAnonymousSession called (initial size %dx%d)", initialSize.cols, initialSize.rows)
 
-	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager, s.presenceManager, s.pvpManager)
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager, s.presenceManager, s.pvpManager, s.territoryManager, s.tutorialManager)
 
 	p := tea.NewProgram(
 		model,
