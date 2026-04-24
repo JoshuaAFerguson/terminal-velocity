@@ -59,10 +59,44 @@ build/
 dist/
 bin/
 
-# Environment
+# Environment + secrets
+#
+# Belt and braces: wildcard all dotenv variants, named secret files,
+# and common key/cert extensions. Keeps accidental secret commits
+# (like tunnel tokens, OAuth creds, DB passwords, bootstrapping
+# service accounts) out of git regardless of what naming convention
+# a contributor picks. `.env.example` is allowed back in by the
+# negation pattern — it's the only dotenv file that should be
+# committed, and it must never contain real values.
 .env
-.env.local
-.env.secret
+.env.*
+!.env.example
+*.secret
+*.secrets
+secrets/
+secrets.yaml
+secrets.yml
+
+# Credentials / keys
+*.key
+*.pem
+*.crt
+*.cert
+*.pfx
+*.p12
+*.jks
+*.keystore
+*_rsa
+*_ed25519
+*_ecdsa
+id_rsa*
+id_ed25519*
+id_ecdsa*
+
+# Cloud & tunnel provider creds
+.cloudflared/
+cert.pem
+*-credentials.json
 
 # Docker
-.env.prod
+# (redundant with .env.* above, kept as a marker for the section)

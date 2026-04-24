@@ -68,6 +68,31 @@ services:
       retries: 3
       start_period: 10s
 
+  # Cloudflare Tunnel (Optional — public access via tv.toconnect.me)
+  #
+  # Enable by setting CLOUDFLARE_TUNNEL_TOKEN in your .env (not committed).
+  # The tunnel's public-hostname configuration (in the Cloudflare dashboard)
+  # should target `ssh://server:2222` — the `server` DNS name resolves on the
+  # shared compose network, so host port 2222 can stay unexposed.
+  #
+  # Disabled by default via the `public` profile; run with:
+  #   docker compose --profile public up -d
+  # or enable permanently via docker-compose.prod.yml override.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: terminal-velocity-tunnel
+    restart: unless-stopped
+    profiles:
+      - public
+    depends_on:
+      server:
+        condition: service_healthy
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    networks:
+      - terminal-velocity-net
+
   # PgAdmin (Optional - for database management)
   pgadmin:
     image: dpage/pgadmin4:latest

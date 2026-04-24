@@ -1,0 +1,32 @@
+# docker-compose.prod.yml
+#
+# Production overlay. Combine with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What this changes vs. the base:
+#   - postgres: host port 5432 removed — DB is only reachable from the
+#     compose network, never from the public internet. Connect via
+#     `docker compose exec postgres psql ...` when needed.
+#   - server: host port 2222 removed — SSH reaches the server container
+#     via the cloudflared tunnel only. No direct LAN/WAN port binding.
+#   - cloudflared: explicitly enabled (base file has it gated behind a
+#     `public` profile so dev runs don't accidentally start it).
+#   - pgadmin: not started (no override = stays gated by its `tools`
+#     profile in the base file).
+#
+# Requires: CLOUDFLARE_TUNNEL_TOKEN and DB_PASSWORD set in .env.
+
+services:
+  postgres:
+    ports: !reset []
+
+  server:
+    ports: !reset []
+
+  cloudflared:
+    # `profiles: []` reliably un-gates the service in override files; a
+    # top-level `profiles:` key on the base service keeps dev runs from
+    # pulling cloudflared unless explicitly enabled, but this override
+    # clears that gate for the prod deployment.
+    profiles: []
+    restart: unless-stopped

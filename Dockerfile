@@ -1,5 +1,10 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+#
+# Multi-arch build: GOARCH is derived from TARGETARCH so `docker buildx`
+# and plain `docker build` on arm64 hosts (Orange Pi 5, Raspberry Pi 4+)
+# produce the right binary. Falls back to amd64 when TARGETARCH is unset
+# (e.g. local builds without buildx).
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
@@ -16,20 +21,25 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Build args that buildx sets automatically. Defaulted so a plain
+# `docker build` without --platform also works.
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s -X main.version=${VERSION:-dev} -X main.commit=${COMMIT:-unknown} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -o terminal-velocity \
     cmd/server/main.go
 
 # Build genmap tool
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s" \
     -o genmap \
     cmd/genmap/main.go
 
 # Final stage
-FROM alpine:latest
+FROM --platform=$TARGETPLATFORM alpine:latest
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata
