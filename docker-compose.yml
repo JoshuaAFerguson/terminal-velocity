@@ -113,7 +113,7 @@ services:
       --port 7681
       --max-clients 100
       --base-path /play
-      -t fontFamily='"JetBrains Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace'
+      -t fontFamily='"JetBrainsMonoWeb","JetBrains Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace'
       -t fontSize=14
       -t rendererType=canvas
       -t disableLeaveAlert=true
