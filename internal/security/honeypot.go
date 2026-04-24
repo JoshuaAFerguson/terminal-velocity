@@ -1,10 +1,98 @@
 // File: internal/security/honeypot.go
 // Project: Terminal Velocity
 // Description: Honeypot accounts and attack detection
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-11-14
 
+// Package security - Honeypot detection for identifying automated attacks.
+//
+// This file implements honeypot account detection to identify brute-force attacks,
+// credential stuffing, and automated scanning. Honeypot accounts are decoy usernames
+// that legitimate users would never attempt to access, so any login attempt indicates
+// malicious intent.
+//
+// Features:
+//   - Decoy Accounts: Pre-configured list of common attack usernames (admin, root, etc.)
+//   - Attack Tracking: Records all honeypot attempts with timestamps per IP
+//   - Auto-banning: Automatically bans IPs after honeypot attempts (configurable)
+//   - Custom Honeypots: Add/remove honeypot usernames dynamically
+//   - Statistics: Track suspicious IPs and total attack attempts
+//
+// Default Honeypot Accounts:
+//   - Administrative: admin, administrator, root, system, sysadmin, superadmin
+//   - Common: test, guest, demo, support, helpdesk, moderator, mod, staff
+//   - Game-related: owner, server, bot, npc
+//   - Variations: admin123, root123, test123, administrator1, admin1, testuser
+//
+// How Honeypots Work:
+//
+//	1. Any attempt to login as a honeypot username is logged
+//	2. IP address is recorded with timestamp
+//	3. If auto-ban enabled, IP is immediately banned
+//	4. Security team can review honeypot attempts to identify attack patterns
+//
+// Why Honeypots are Effective:
+//   - Legitimate users never try these obvious admin accounts
+//   - Automated attacks commonly target these usernames
+//   - Zero false positives if honeypot list is carefully curated
+//   - Early detection of scanning/brute-force attacks
+//   - Can reveal attacker patterns and timing
+//
+// Security Considerations:
+//   - Don't use honeypot names that real users might try accidentally
+//   - Log all honeypot attempts for security analysis
+//   - Auto-ban should be permanent or long-duration (e.g., 24 hours)
+//   - Monitor honeypot hit rate to detect attack campaigns
+//   - Consider rate limiting before honeypot check (prevent DoS)
+//
+// Thread Safety:
+// All HoneypotDetector methods are thread-safe using sync.RWMutex.
+//
+// Usage Example:
+//
+//	// Initialize honeypot detector
+//	detector := security.NewHoneypotDetector(
+//	    true,              // Enable auto-ban
+//	    24 * time.Hour,    // Ban duration
+//	)
+//
+//	// Add custom honeypot
+//	detector.AddHoneypot("backup")
+//	detector.AddHoneypot("database")
+//
+//	// Check if username is honeypot
+//	if detector.IsHoneypot(username) {
+//	    // Record attempt
+//	    detector.RecordAttempt(username, ipAddress)
+//
+//	    // Check if should ban
+//	    if detector.ShouldAutoban(ipAddress) {
+//	        banIP(ipAddress, 24 * time.Hour)
+//	        log.Error("AUTOBAN: IP %s attempted honeypot account %s", ipAddress, username)
+//	    }
+//
+//	    // Reject login immediately
+//	    return errors.New("authentication failed")
+//	}
+//
+//	// Get honeypot statistics
+//	stats := detector.GetStats()
+//	log.Info("Honeypot stats: %d accounts, %d suspicious IPs, %d total attempts",
+//	    stats["honeypot_accounts"], stats["suspicious_ips"], stats["total_attempts"])
+//
+//	// Review recent attacks
+//	attempts := detector.GetAllAttempts()
+//	for ip, timestamps := range attempts {
+//	    log.Warn("Suspicious IP %s: %d honeypot attempts", ip, len(timestamps))
+//	}
+//
+// Integration with Main Security Manager:
+// The Manager.ValidateLogin() method automatically checks honeypots before
+// credential verification, ensuring attacks are caught early in the authentication flow.
+//
+// Version: 1.1.0
+// Last Updated: 2025-11-16
 package security
 
 import (

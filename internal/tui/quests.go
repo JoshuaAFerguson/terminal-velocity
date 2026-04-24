@@ -1,9 +1,36 @@
 // File: internal/tui/quests.go
 // Project: Terminal Velocity
-// Description: Quest and storyline UI
-// Version: 1.0.0
+// Description: Quests screen - Main storyline and quest journal interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The quests screen provides access to the quest/storyline system:
+// - Browse available quests (main story, side quests, faction quests)
+// - View active quest progress with objectives and completion percentage
+// - Review completed quests for achievements and lore
+// - Start new quests (validates requirements)
+// - Abandon active quests (with confirmation)
+// - Track quest objectives with real-time progress updates
+// - View branching narrative choices and quest chains
+//
+// Quest Types (7 types):
+// - Main (★): Primary storyline quests
+// - Side (○): Optional side quests
+// - Faction (⚑): Faction-specific quests
+// - Daily (◎): Repeatable daily quests
+// - Chain (⚬): Multi-part quest chains
+// - Hidden (◆): Secret/discoverable quests
+// - Event (◈): Limited-time event quests
+//
+// Quest System:
+// - 12 objective types: Kill, Deliver, Explore, Trade, etc.
+// - Progress tracking: Percentage completion based on objectives
+// - Branching narratives: Choice-driven storylines
+// - Rewards: Credits, experience, items, special unlocks
+// - Optional objectives: Bonus rewards for completionists
+// - Quest chains: Completing one unlocks the next
+// - Level-gated quests: Unlock at specific player levels
 
 package tui
 
@@ -14,25 +41,28 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Quest view modes
-
+// Quest view modes - constants for screen navigation
 const (
-	questViewActive    = "active"
-	questViewAvailable = "available"
-	questViewCompleted = "completed"
-	questViewDetail    = "detail"
+	questViewActive    = "active"    // View active/in-progress quests
+	questViewAvailable = "available" // View quests available to start
+	questViewCompleted = "completed" // View completed quests
+	questViewDetail    = "detail"    // View detailed quest information
 )
 
+// questsModel contains the state for the quests screen.
+// Manages quest journal display, acceptance, and progress tracking.
 type questsModel struct {
-	viewMode        string
-	cursor          int
-	activeQuests    []*models.PlayerQuest
-	availableQuests []*models.Quest
-	completedQuests []*models.PlayerQuest
-	selectedQuest   *models.Quest
-	selectedPlayer  *models.PlayerQuest
+	viewMode        string                 // Current view mode (active, available, completed, detail)
+	cursor          int                    // Current cursor position in quest list
+	activeQuests    []*models.PlayerQuest  // Player's active quests
+	availableQuests []*models.Quest        // Quests available to start
+	completedQuests []*models.PlayerQuest  // Player's completed quests
+	selectedQuest   *models.Quest          // Quest selected for viewing
+	selectedPlayer  *models.PlayerQuest    // PlayerQuest data for selected quest
 }
 
+// newQuestsModel creates and initializes a new quests screen model.
+// Starts in active quests view with empty quest lists.
 func newQuestsModel() questsModel {
 	return questsModel{
 		viewMode:        questViewActive,
@@ -43,6 +73,35 @@ func newQuestsModel() questsModel {
 	}
 }
 
+// updateQuests handles input and state updates for the quests screen.
+//
+// Key Bindings (List Views):
+//   - esc/backspace: Return to main menu (or detail to list)
+//   - tab: Cycle through views (active → available → completed → active)
+//   - up/k, down/j: Navigate quest list
+//   - enter/space: View quest details or start quest (available view)
+//
+// Key Bindings (Detail View):
+//   - esc/backspace: Return to list view
+//   - a: Abandon quest (active quests only, confirmation required)
+//
+// Quest Workflow:
+//   1. Browse available quests in journal
+//   2. Select quest and view objectives/rewards
+//   3. Start quest (adds to active quests)
+//   4. Progress tracked automatically during gameplay
+//   5. Objectives update in real-time
+//   6. Complete quest when all objectives met
+//   7. Receive rewards and quest moves to completed
+//
+// Tab Navigation:
+//   - Active: Show in-progress quests with completion %
+//   - Available: Show quests that can be started
+//   - Completed: Show finished quests for review
+//   - Detail: Show full quest information
+//
+// Message Handling:
+//   - All updates happen synchronously through quest manager
 func (m Model) updateQuests(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -158,6 +217,52 @@ func (m Model) handleQuestSelect() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewQuests renders the quests screen.
+//
+// Layout (All List Views):
+//   - Header: Player stats (name, credits, "Quests")
+//   - Title: "=== Quest Journal ==="
+//   - Tab indicators: [•] Active  [ ] Available  [ ] Completed
+//   - View-specific content
+//   - Footer: Key bindings help
+//
+// Layout (Active Quests):
+//   - Quest list with type icons and titles
+//   - Progress percentage displayed (e.g., "50% complete")
+//   - Empty state: "No active quests" with helpful message
+//   - Cursor highlights selected quest
+//
+// Layout (Available Quests):
+//   - Quest list with type icons, titles, and levels
+//   - Description preview for selected quest
+//   - Empty state: "No available quests" with unlock hint
+//   - Cursor highlights selected quest
+//
+// Layout (Completed Quests):
+//   - Quest list with checkmarks (✓) and type icons
+//   - Completed quests styled in success color
+//   - Empty state: "No completed quests yet" with encouragement
+//   - Cursor highlights selected quest
+//
+// Layout (Quest Details):
+//   - Quest title (large/highlighted)
+//   - Type and level display
+//   - Full description
+//   - Quest giver name (if applicable)
+//   - Objectives list with completion status (○ incomplete, ✓ complete)
+//   - Progress tracking (current/required) for each objective
+//   - Optional objectives marked
+//   - Rewards section: Credits, experience, items, special unlocks
+//   - Progress bar (active quests only)
+//   - Footer: Abandon option for active quests
+//
+// Visual Features:
+//   - Quest type icons: ★ (main), ○ (side), ⚑ (faction), ◎ (daily), ⚬ (chain), ◆ (hidden), ◈ (event)
+//   - Tab indicators show current view with bullet (•)
+//   - Completion status: ○ (incomplete), ✓ (complete)
+//   - Progress percentage for active quests
+//   - Reward values highlighted in accent color
+//   - Special rewards highlighted prominently
 func (m Model) viewQuests() string {
 	if m.questManager == nil {
 		return errorView("Quest system not initialized")

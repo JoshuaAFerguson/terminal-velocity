@@ -1,13 +1,55 @@
 // File: internal/models/ship_types.go
 // Project: Terminal Velocity
-// Description: Data models for ship_types
-// Version: 1.0.0
+// Description: Standard ship type definitions for the game
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
 package models
 
-// Standard ship types available in the game
+// StandardShipTypes defines all ship types available for purchase in the game.
+//
+// This array contains 11 ship types organized into 6 classes, providing
+// a progression path from starter ships to end-game capital vessels:
+//
+// Progression Path:
+//   Shuttles (Starter):
+//     - Shuttle: 25,000 cr - Basic starter ship
+//     - Courier: 50,000 cr - Faster trader with more cargo
+//
+//   Fighters (Combat):
+//     - Interceptor: 75,000 cr - Fast, maneuverable fighter
+//     - Viper: 120,000 cr - Balanced fighter with good firepower
+//
+//   Freighters (Trading):
+//     - Hauler: 150,000 cr - Large cargo capacity
+//     - Bulk Freighter: 300,000 cr - Maximum cargo capacity
+//
+//   Corvettes (Multi-role):
+//     - Gunship: 250,000 cr - Armed patrol vessel
+//     - Frigate: 400,000 cr - Heavy armament escort
+//
+//   Destroyers (Heavy Combat):
+//     - Destroyer: 750,000 cr - Heavy warship
+//
+//   Cruisers (Capital):
+//     - Cruiser: 1,500,000 cr - Capital-class warship
+//     - Battleship: 3,000,000 cr - Ultimate endgame ship
+//
+// Key Characteristics:
+//   - Price ranges from 25,000 to 3,000,000 credits
+//   - Hull ranges from 100 to 1,500 HP
+//   - Shields range from 50 to 1,200 HP
+//   - Cargo space ranges from 10 to 200 tons
+//   - Weapon slots range from 1 to 12
+//   - Combat ratings required: 0 (starters) to 20 (Battleship)
+//
+// Trade-offs:
+//   - Fighters: High speed/maneuverability, low cargo/durability
+//   - Freighters: Maximum cargo, low speed/weapons
+//   - Capital ships: Maximum firepower/durability, very slow/expensive
+//
+// See ship.go for the ShipType struct definition.
 var StandardShipTypes = []ShipType{
 	// Starter Ships
 	{

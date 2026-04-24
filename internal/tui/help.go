@@ -1,6 +1,47 @@
 // File: internal/tui/help.go
 // Project: Terminal Velocity
-// Version: 1.0.0
+// Description: Help screen - Comprehensive help topics, tutorial, and quick reference
+// Version: 1.1.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+//
+// The help screen provides:
+// - Interactive help topic browser
+// - Tutorial system with step tracking
+// - Quick reference card for common commands
+// - Scrollable content for long help texts
+// - Context-sensitive help topics
+// - Key bindings documentation
+// - Getting started guides
+//
+// View Modes:
+//   - topics: List of all help topics
+//   - content: Viewing a specific help topic
+//   - tutorial: Tutorial progress and current step
+//   - quick: Quick reference card
+//
+// Help Topics:
+//   - Getting Started
+//   - Navigation
+//   - Trading
+//   - Combat
+//   - Ships
+//   - Multiplayer
+//   - Keyboard Shortcuts
+//
+// Tutorial System:
+//   - 7 categories covering core gameplay
+//   - 20+ tutorial steps
+//   - Step completion tracking
+//   - Progress indicators (✅/⬜)
+//   - Objectives and hints
+//   - Can skip tutorial anytime
+//
+// Visual Features:
+//   - Topic icons (🚀🗺️💰⚔️👥⌨️)
+//   - Scroll indicators for long content
+//   - Line numbers for content position
+//   - Active selection highlighting
 
 package tui
 
@@ -22,14 +63,18 @@ const (
 	helpViewQuick    = "quick"    // Quick reference
 )
 
+// helpModel contains the state for the help screen.
+// Manages topic browsing, content viewing, and scroll position.
 type helpModel struct {
-	viewMode     string
-	cursor       int
-	topics       []help.HelpTopic
-	currentTopic *help.HelpTopic
-	scroll       int // For scrolling long content
+	viewMode     string           // Current view: "topics", "content", "tutorial", "quick"
+	cursor       int              // Current cursor position in topic list
+	topics       []help.HelpTopic // Available help topics
+	currentTopic *help.HelpTopic  // Topic being viewed in detail
+	scroll       int              // Scroll offset for long content
 }
 
+// newHelpModel creates and initializes a new help screen model.
+// Loads all help topics and starts in topics view.
 func newHelpModel() helpModel {
 	return helpModel{
 		viewMode: helpViewTopics,
@@ -39,6 +84,14 @@ func newHelpModel() helpModel {
 	}
 }
 
+// updateHelp handles input and state updates for the help screen.
+// Routes to mode-specific update handlers.
+//
+// View Mode Routing:
+//   - content: Handled by updateHelpContent()
+//   - tutorial: Handled by updateHelpTutorial()
+//   - quick: Handled by updateHelpQuick()
+//   - topics: Handled by updateHelpTopics()
 func (m Model) updateHelp(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -57,6 +110,8 @@ func (m Model) updateHelp(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateHelpTopics handles input in topics list view.
+// Manages navigation and topic/tutorial/quick ref selection.
 func (m Model) updateHelpTopics(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -96,6 +151,8 @@ func (m Model) updateHelpTopics(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateHelpContent handles input in topic content view.
+// Manages scrolling through help text.
 func (m Model) updateHelpContent(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -115,6 +172,8 @@ func (m Model) updateHelpContent(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateHelpTutorial handles input in tutorial view.
+// Manages scrolling through tutorial content.
 func (m Model) updateHelpTutorial(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -133,6 +192,8 @@ func (m Model) updateHelpTutorial(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateHelpQuick handles input in quick reference view.
+// Manages scrolling through quick reference card.
 func (m Model) updateHelpQuick(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -151,6 +212,7 @@ func (m Model) updateHelpQuick(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewHelp renders the help screen (dispatches to mode-specific views).
 func (m Model) viewHelp() string {
 	switch m.helpModel.viewMode {
 	case helpViewContent:
@@ -164,6 +226,7 @@ func (m Model) viewHelp() string {
 	}
 }
 
+// viewHelpTopics renders the help topics list with tutorial and quick ref options.
 func (m Model) viewHelpTopics() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -226,6 +289,8 @@ func (m Model) viewHelpTopics() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewHelpContent renders a help topic's content with scroll support.
+// Shows key bindings if available for the topic.
 func (m Model) viewHelpContent() string {
 	if m.helpModel.currentTopic == nil {
 		return "No topic selected"
@@ -275,6 +340,8 @@ func (m Model) viewHelpContent() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewHelpTutorial renders the tutorial system with step tracking.
+// Shows overview, current step, and completion status.
 func (m Model) viewHelpTutorial() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -335,6 +402,7 @@ func (m Model) viewHelpTutorial() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewHelpQuick renders the quick reference card with scrolling.
 func (m Model) viewHelpQuick() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -372,7 +440,7 @@ func (m Model) viewHelpQuick() string {
 	return boxStyle.Render(s.String())
 }
 
-// Helper function
+// min returns the smaller of two integers.
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -380,6 +448,7 @@ func min(a, b int) int {
 	return b
 }
 
+// max returns the larger of two integers.
 func max(a, b int) int {
 	if a > b {
 		return a

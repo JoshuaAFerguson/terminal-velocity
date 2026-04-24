@@ -1,6 +1,38 @@
 // File: internal/tui/pvp.go
 // Project: Terminal Velocity
+// Description: PvP Combat screen - Player versus player combat challenges and bounty hunting
 // Version: 1.3.0
+// Author: Joshua Ferguson
+// Created: 2025-01-07
+//
+// The PvP combat screen provides:
+// - Player versus player combat challenge system
+// - Bounty board with wanted players
+// - Combat statistics and leaderboards
+// - Multiple challenge types (Duel, Aggression, Bounty Hunt)
+// - Wager system for stakes-based combat
+// - Combat rating and honor ranking
+// - Challenge management (create, accept, decline, track)
+//
+// View Modes:
+//   - challenges: Active challenges sent/received
+//   - bounties: Bounty board with wanted players
+//   - stats: Combat statistics and top pilots leaderboard
+//   - create: Create new combat challenge form
+//
+// Challenge Types:
+//   - Duel (⚔️): Honorable 1v1 combat, no penalties
+//   - Aggression (💢): Unprovoked attack, may result in bounty
+//   - Bounty Hunt (🎯): Hunt wanted players for bounty reward
+//
+// Challenge Flow:
+//   1. Create challenge: Select target, type, wager, message
+//   2. Challenge sent: Target receives challenge request
+//   3. Target accepts/declines
+//   4. On accept: Combat initiated via combat system
+//   5. Winner receives wager + reputation
+//
+// P5A-3: Added findChallengerActiveChallenge for challenger auto-transition.
 
 package tui
 
@@ -34,20 +66,24 @@ const (
 	pvpViewCreate     = "create"     // Create new challenge
 )
 
+// pvpModel contains the state for the PvP combat screen.
+// Manages challenges, bounties, stats viewing, and challenge creation.
 type pvpModel struct {
-	viewMode          string
-	cursor            int
-	selectedChallenge *models.PvPChallenge
+	viewMode          string                // Current view: "challenges", "bounties", "stats", "create"
+	cursor            int                   // Current cursor position in list
+	selectedChallenge *models.PvPChallenge  // Challenge being viewed/interacted with
+	challengeTypes    []models.PvPChallengeType // Available challenge types for creation
 
 	// Create mode fields
-	createTarget     string
-	createType       string
-	createWager      int64
-	createMessage    string
-	createInputField int // 0=target, 1=type, 2=wager, 3=message
-	challengeTypes   []models.PvPChallengeType
+	createTarget     string // Target player username
+	createType       string // Challenge type being created
+	createWager      int64  // Wager amount in credits
+	createMessage    string // Optional challenge message
+	createInputField int    // Active input field: 0=target, 1=type, 2=wager, 3=message
 }
 
+// newPvPModel creates and initializes a new PvP combat screen model.
+// Starts in challenges view with duel type selected for creation.
 func newPvPModel() pvpModel {
 	return pvpModel{
 		viewMode:         pvpViewChallenges,
@@ -79,6 +115,12 @@ func findChallengerActiveChallenge(challenges []*models.PvPChallenge, playerID u
 	return nil
 }
 
+// updatePvP handles input and state updates for the PvP combat screen.
+// Routes to mode-specific update handlers.
+//
+// View Mode Routing:
+//   - create: Handled by updatePvPCreate()
+//   - challenges/bounties/stats: Handled by updatePvPList()
 func (m Model) updatePvP(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case pvpPollMsg:
@@ -117,6 +159,8 @@ func (m Model) updatePvP(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updatePvPList handles input for challenges/bounties/stats list views.
+// Manages navigation, accept/reject/hunt actions, and view switching.
 func (m Model) updatePvPList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -219,6 +263,8 @@ func (m Model) updatePvPList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updatePvPCreate handles input in challenge creation mode.
+// Manages field navigation, input, and challenge submission with target validation.
 func (m Model) updatePvPCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "tab":
@@ -315,6 +361,7 @@ func (m Model) updatePvPCreate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewPvP renders the PvP combat screen (dispatches to mode-specific views).
 func (m Model) viewPvP() string {
 	switch m.pvpModel.viewMode {
 	case pvpViewCreate:
@@ -328,6 +375,7 @@ func (m Model) viewPvP() string {
 	}
 }
 
+// viewPvPChallenges renders the challenges list with pending/active/completed challenges.
 func (m Model) viewPvPChallenges() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -411,6 +459,7 @@ func (m Model) viewPvPChallenges() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewPvPBounties renders the bounty board with wanted players and bounty amounts.
 func (m Model) viewPvPBounties() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -467,6 +516,7 @@ func (m Model) viewPvPBounties() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewPvPStats renders player's combat statistics and top pilots leaderboard.
 func (m Model) viewPvPStats() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -543,6 +593,7 @@ func (m Model) viewPvPStats() string {
 	return boxStyle.Render(s.String())
 }
 
+// viewPvPCreate renders the challenge creation form with input fields.
 func (m Model) viewPvPCreate() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -604,7 +655,8 @@ func (m Model) viewPvPCreate() string {
 	return boxStyle.Render(s.String())
 }
 
-// simulateCombat simulates combat for demonstration purposes
+// simulateCombat simulates combat for demonstration purposes.
+// In production, combat is handled by the combat system.
 func (m *Model) simulateCombat(challengeID uuid.UUID) {
 	// Simple 50/50 simulation
 	winnerID := m.playerID

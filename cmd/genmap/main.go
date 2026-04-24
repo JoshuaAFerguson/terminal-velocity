@@ -1,10 +1,91 @@
 // File: cmd/genmap/main.go
 // Project: Terminal Velocity
 // Description: Universe generation and database population tool
-// Version: 1.1.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
+// Package main provides the universe generation CLI tool for Terminal Velocity.
+//
+// Tool Overview:
+// This utility generates procedural star system universes and optionally saves
+// them to the database. It's used for initial server setup and universe resets.
+//
+// Features:
+//   - Generate N star systems with realistic distribution
+//   - Create jump routes using Minimum Spanning Tree algorithm
+//   - Assign tech levels, governments, and planets
+//   - Display detailed statistics and visualizations
+//   - Save directly to PostgreSQL database
+//   - Preview before saving with confirmation prompt
+//
+// Command-Line Flags:
+//   -systems <N>        Number of star systems to generate (default: 100)
+//   -seed <N>           Random seed for reproducibility (0 for random)
+//   -stats              Show detailed statistics after generation
+//   -systems-list       List all generated systems
+//   -faction <id>       Filter system list by faction
+//   -save               Save universe to database (interactive)
+//   -db-host <host>     Database host (default: localhost)
+//   -db-port <port>     Database port (default: 5432)
+//   -db-user <user>     Database user (default: terminal_velocity)
+//   -db-password <pass> Database password
+//   -db-name <name>     Database name (default: terminal_velocity)
+//
+// Example Usage:
+//   # Preview 100-system universe with stats
+//   ./genmap -systems 100 -stats
+//
+//   # Generate reproducible universe with specific seed
+//   ./genmap -systems 50 -seed 12345 -stats
+//
+//   # List all systems filtered by faction
+//   ./genmap -systems 100 -systems-list -faction united_earth_federation
+//
+//   # Generate and save to database (with confirmation)
+//   ./genmap -systems 100 -save -db-password mypassword
+//
+//   # Save to custom database
+//   ./genmap -systems 200 -save \
+//     -db-host prod-db.example.com \
+//     -db-port 5432 \
+//     -db-user admin \
+//     -db-password secret \
+//     -db-name terminal_velocity_prod
+//
+// Universe Generation Algorithm:
+//   1. Generate system positions using spiral galaxy distribution
+//   2. Create Minimum Spanning Tree (MST) for initial connectivity
+//   3. Add extra random connections for gameplay variety
+//   4. Assign tech levels (higher in core, lower at edges)
+//   5. Distribute 6 NPC factions across systems
+//   6. Generate planets for each system with services
+//
+// Database Integration:
+// When -save flag is used:
+//   1. Connects to PostgreSQL database
+//   2. Checks for existing universe data
+//   3. Prompts for confirmation if data exists
+//   4. Clears old data (systems, planets, connections)
+//   5. Inserts new universe data with progress updates
+//   6. Commits transaction
+//
+// Safety Features:
+//   - Confirmation prompt before overwriting existing universe
+//   - Transaction rollback on error
+//   - Foreign key constraint handling
+//   - Progress indicators for large datasets
+//
+// Output Format:
+// The tool produces beautiful ASCII art visualizations:
+//   - Universe statistics (systems, planets, routes)
+//   - Faction distribution with symbols
+//   - Tech level histogram
+//   - System listing with coordinates
+//
+// Exit Codes:
+//   0 - Success
+//   1 - Generation error or database error
 package main
 
 import (
@@ -19,7 +100,22 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
+// main is the entry point for the universe generation tool.
+//
+// Execution Flow:
+//   1. Parse command-line flags
+//   2. Display banner
+//   3. Create universe generator with configuration
+//   4. Generate universe (systems, planets, connections)
+//   5. Display statistics and visualizations
+//   6. Optionally save to database (with confirmation)
+//
+// Error Handling:
+// Universe generation errors exit with code 1.
+// Database errors exit with code 1.
+// User cancellation (confirmation prompt) exits with code 0.
 func main() {
+	// Define command-line flags with defaults
 	var (
 		numSystems    = flag.Int("systems", 100, "Number of star systems to generate")
 		seed          = flag.Int64("seed", 0, "Random seed (0 for random)")
@@ -93,6 +189,32 @@ func main() {
 	}
 }
 
+// showUniverseStats displays formatted statistics about the generated universe.
+//
+// Displayed Information:
+//   - Total system count
+//   - Total planet count (with average per system)
+//   - Total jump routes (with average per system)
+//   - Faction distribution (count and percentage per faction)
+//   - Tech level distribution (histogram)
+//
+// Output Format:
+// Uses box-drawing characters and ASCII art for visual appeal:
+//   ╔═══════════════════════════════════╗
+//   ║   UNIVERSE STATISTICS             ║
+//   ╚═══════════════════════════════════╝
+//
+// Faction Symbols:
+//   ⊕ - United Earth Federation
+//   ♂ - Republic of Mars
+//   ¤ - Free Traders Guild
+//   ⚑ - Frontier Worlds Alliance
+//   ☠ - Crimson Collective
+//   ⧈ - Auroran Empire
+//   · - Independent
+//
+// Tech Level Bars:
+// Visual histogram using █ blocks (scaled to 40 characters max).
 func showUniverseStats(univ *universe.Universe) {
 	factionCounts := make(map[string]int)
 	techLevelCounts := make(map[int]int)
@@ -307,6 +429,41 @@ func showSystemsList(univ *universe.Universe, factionFilter string) {
 	fmt.Println()
 }
 
+// saveToDatabase saves the generated universe to PostgreSQL database.
+//
+// Process:
+//   1. Connect to database with provided credentials
+//   2. Check for existing universe data
+//   3. Prompt user for confirmation if data exists
+//   4. Clear old universe data (foreign key aware)
+//   5. Insert star systems with progress updates
+//   6. Insert planets with progress updates
+//   7. Insert system connections (jump routes)
+//
+// Parameters:
+//   - univ: Generated universe with systems, planets, connections
+//   - host: Database hostname
+//   - port: Database port number
+//   - user: Database username
+//   - password: Database password
+//   - dbName: Database name
+//
+// Returns:
+//   - error: Database connection, query, or transaction error
+//
+// Safety Features:
+//   - Interactive confirmation before overwriting
+//   - Foreign key constraint handling (delete order: connections, planets, systems)
+//   - Progress indicators for large datasets (every 20 systems, 50 planets)
+//   - Connection bidirectionality handling (only insert one direction)
+//
+// Transaction Handling:
+// Currently uses individual queries (not in transaction).
+// Future enhancement: Wrap in transaction for atomicity.
+//
+// Error Handling:
+// Any database error during insert causes immediate return with error.
+// Partial inserts may remain in database (no rollback currently).
 func saveToDatabase(univ *universe.Universe, host string, port int, user, password, dbName string) error {
 	ctx := context.Background()
 
@@ -407,12 +564,44 @@ func saveToDatabase(univ *universe.Universe, host string, port int, user, passwo
 	return nil
 }
 
+// clearUniverse deletes all existing universe data from the database.
+//
+// This function is called before inserting a new universe to avoid conflicts
+// and ensure a clean state.
+//
+// Deletion Order (Foreign Key Constraints):
+//   1. system_connections (references star_systems)
+//   2. planets (references star_systems)
+//   3. star_systems (no foreign key dependencies)
+//
+// If deletion order is wrong, foreign key constraints will cause errors.
+//
+// Parameters:
+//   - ctx: Context for database operations
+//   - db: Database connection
+//
+// Returns:
+//   - error: SQL execution error
+//
+// Data Loss Warning:
+// This function permanently deletes ALL universe data. It should only be called
+// after user confirmation.
+//
+// Transaction Handling:
+// Currently uses individual DELETE queries (not in transaction).
+// Future enhancement: Wrap in transaction for atomicity.
+//
+// Player Data:
+// This function does NOT delete player data (ships, positions, etc.).
+// After clearing universe, players may have invalid references (orphaned ships,
+// invalid system IDs). Server should handle this gracefully or also clear player data.
 func clearUniverse(ctx context.Context, db *database.DB) error {
 	// Delete in correct order due to foreign keys
+	// Order matters! References must be deleted before referenced rows
 	queries := []string{
-		"DELETE FROM system_connections",
-		"DELETE FROM planets",
-		"DELETE FROM star_systems",
+		"DELETE FROM system_connections", // References star_systems (both from_system_id and to_system_id)
+		"DELETE FROM planets",            // References star_systems (system_id)
+		"DELETE FROM star_systems",       // No foreign key dependencies
 	}
 
 	for _, query := range queries {

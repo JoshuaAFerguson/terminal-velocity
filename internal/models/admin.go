@@ -1,9 +1,59 @@
 // File: internal/models/admin.go
 // Project: Terminal Velocity
-// Description: Admin models and permissions
-// Version: 1.0.0
+// Description: Server administration system with RBAC
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// This file defines the server administration and moderation system.
+// It implements role-based access control (RBAC) for managing the game server.
+//
+// Admin System Components:
+//   1. Roles: Hierarchical privilege levels (Moderator < Admin < SuperAdmin)
+//   2. Permissions: Granular capabilities (kick, ban, edit economy, etc.)
+//   3. Audit Logging: Track all admin actions for accountability
+//   4. Player Moderation: Ban/mute system with expiration
+//   5. Server Settings: Configurable game parameters
+//   6. Metrics: Server performance and activity monitoring
+//
+// Role Hierarchy (4 levels):
+//   - Player: No admin privileges (default)
+//   - Moderator: Basic moderation (kick, mute, view logs)
+//   - Admin: Server management (settings, economy, content)
+//   - SuperAdmin: Full control (shutdown, database, execute commands)
+//
+// Permission System (20+ permissions):
+//   - Player Management: kick, ban, mute, view/edit player data
+//   - Server Management: settings, shutdown, restart, logs, commands
+//   - Content Management: economy, spawn items, edit systems/factions
+//   - Monitoring: metrics, sessions, database
+//   - Communication: broadcast, view all chat
+//
+// Security Features:
+//   - Action audit log (who, what, when, target, result)
+//   - IP address tracking for admin actions
+//   - Permission checks on every admin operation
+//   - Automatic logging of failures
+//   - Ban/mute expiration system
+//
+// Moderation Tools:
+//   - Player bans (temporary or permanent)
+//   - Chat mutes (temporary)
+//   - IP-based enforcement
+//   - Reason tracking
+//   - Appeal system (through audit log review)
+//
+// Server Metrics:
+//   - Player counts (total, active, peak)
+//   - Session metrics (active, average time)
+//   - Performance (CPU, memory, goroutines)
+//   - Game activity (trades, combats, jumps)
+//   - Database health (connections, latency, errors)
+//
+// Thread Safety:
+//   - Admin manager handles concurrent access
+//   - Database transactions ensure consistency
+//   - Audit log has bounded buffer (10,000 entries)
 
 package models
 
@@ -13,8 +63,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// AdminRole represents different admin privilege levels
-
+// AdminRole represents different admin privilege levels.
+//
+// Roles are hierarchical:
+//   - Higher roles include all permissions of lower roles
+//   - Roles determine default permissions (can be customized)
+//   - SuperAdmin has unrestricted access
+//
+// Role Capabilities:
+//   - Moderator: Community management, no server changes
+//   - Admin: Server configuration, economy management
+//   - SuperAdmin: Critical operations, database access
 type AdminRole string
 
 const (

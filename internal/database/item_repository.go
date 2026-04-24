@@ -1,7 +1,8 @@
 // File: internal/database/item_repository.go
 // Project: Terminal Velocity
-// Description: Repository for player inventory items with full CRUD operations
-// Version: 1.0.0
+// Description: Repository for player inventory items with CRUD operations,
+//              location tracking, and transfer audit logging
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-11-15
 
@@ -17,9 +18,25 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
 
-// ItemRepository handles database operations for player items
+// ItemRepository handles all database operations for player items.
+//
+// Manages player inventory and item ownership:
+//   - Item creation, retrieval, updates, deletion
+//   - Location tracking (ship, station, equipped)
+//   - Item properties (JSONB for flexible data)
+//   - Item transfers between players with audit logging
+//   - Batch operations for efficiency
+//
+// Data model:
+//   - Items have type, equipment_id, location, and properties
+//   - Properties stored as JSONB for flexibility
+//   - Transfer history logged in item_transfers table
+//
+// Thread-safety:
+//   - All methods are thread-safe
+//   - Transfers use transactions for atomicity
 type ItemRepository struct {
-	db *DB
+	db *DB // Database connection pool
 }
 
 // NewItemRepository creates a new ItemRepository

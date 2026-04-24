@@ -1,16 +1,76 @@
 // File: internal/models/trading.go
 // Project: Terminal Velocity
-// Description: Data models for trading
-// Version: 1.0.0
+// Description: Data models for trading and economy system
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// This file defines the trading and economy system for Terminal Velocity.
+// The economy is dynamic and driven by supply/demand with price variations
+// based on tech level, government type, and market conditions.
+//
+// Commodity System:
+//   - 31 total commodities across 8 categories
+//   - Categories: food, electronics, weapons, luxuries, industrial, medical, ore, contraband
+//   - Each commodity has base price, tech level requirement, and legality rules
+//   - Prices vary by ±30-50% based on planet conditions
+//
+// Price Modifiers:
+//   - Tech Level: High-tech planets sell high-tech goods cheaper
+//   - Government: Some goods illegal in certain governments (higher prices in black market)
+//   - Supply/Demand: Prices fluctuate based on trading activity
+//   - Distance: Longer routes can be more profitable
+//
+// Categories:
+//   - Food: Basic necessities (food, water, textiles, livestock)
+//   - Electronics: Technology goods (electronics, computers, robotics, AI cores)
+//   - Weapons: Military goods (weapons, ammunition, explosives, military hardware)
+//   - Medical: Healthcare items (medicine, equipment, vaccines, bio-organs)
+//   - Luxuries: High-value goods (luxuries, jewelry, art, exotic animals)
+//   - Industrial: Manufacturing (machinery, materials, power cells, chemicals)
+//   - Ore: Raw materials (ore, precious metals, crystals, radioactives)
+//   - Contraband: Illegal goods (narcotics, slaves, stolen goods, alien artifacts, intelligence)
+//
+// Contraband Trading:
+//   - Higher risk (legal penalties, reputation loss if caught)
+//   - Higher reward (20-25% price premium)
+//   - Varies by government (what's illegal where)
+//   - Can lead to confiscation, fines, or combat with authorities
+//
+// Tech Level Economics:
+//   - Low-tech planets (1-3): Import high-tech goods, export raw materials
+//   - Mid-tech planets (4-6): Balanced trade
+//   - High-tech planets (7-10): Export technology, import luxuries
+//
+// Trading Strategy:
+//   - Buy low tech level goods at high tech planets (cheap)
+//   - Sell at low tech planets (expensive)
+//   - Trade contraband for high profits (risky)
+//   - Follow trade routes for steady income
+//   - Watch for market events (affect prices)
 
 package models
 
 import "github.com/google/uuid"
 
-// Commodity represents a tradeable good
-
+// Commodity represents a tradeable good in the game economy.
+//
+// Each commodity has:
+//   - Base price (foundation for calculations)
+//   - Category (determines behavior and availability)
+//   - Tech level (minimum planet tech to trade)
+//   - Legality (which governments ban it)
+//
+// Price Calculation:
+//   Final price = BasePrice * TechModifier * SupplyDemandModifier * EventModifier
+//
+// Tech Modifier:
+//   - Selling high-tech goods at low-tech planets: 1.0 + (diff * 0.15) [expensive]
+//   - Buying high-tech goods at high-tech planets: 1.0 - (diff * 0.07) [cheap]
+//
+// Contraband Penalty:
+//   - If caught with illegal goods: confiscation, fine, reputation loss
+//   - Higher risk = higher reward (black market prices)
 type Commodity struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`

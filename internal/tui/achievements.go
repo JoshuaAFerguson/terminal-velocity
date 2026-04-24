@@ -1,9 +1,36 @@
 // File: internal/tui/achievements.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for achievements
-// Version: 1.0.0
+// Description: Achievements screen - Achievement tracking and rewards interface
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The achievements screen provides a comprehensive achievement system:
+// - Browse all achievements with filtering options
+// - View unlocked achievements with timestamps
+// - Track progress on locked achievements with progress bars
+// - Filter by category: Combat, Trading, Exploration, Missions
+// - Filter by status: All, Unlocked, Locked
+// - View achievement details, descriptions, and point values
+// - Track total achievement points earned
+// - View hidden achievements (revealed only when unlocked)
+//
+// Achievement System:
+// - Multiple categories: Combat, Trading, Exploration, Missions, Social, Story
+// - Rarity tiers: Common, Rare, Epic, Legendary
+// - Point values based on difficulty and rarity
+// - Progress tracking for incremental achievements
+// - Hidden achievements for spoiler-sensitive content
+// - Unlock notifications during gameplay
+// - Total points and completion percentage displayed
+//
+// Filtering System:
+// - Tab 1: All achievements (complete list)
+// - Tab 2: Unlocked only (earned achievements)
+// - Tab 3: Locked only (not yet earned)
+// - Tab 4-7: Category filters (Combat, Trading, Exploration, Missions)
+// - Progress bars show completion for locked achievements
+// - Hidden achievements show as "🔒 Hidden Achievement" until unlocked
 
 package tui
 
@@ -19,12 +46,16 @@ import (
 
 var log = logger.WithComponent("Tui")
 
+// achievementsModel contains the state for the achievements screen.
+// Manages achievement display, filtering, and progress tracking.
 type achievementsModel struct {
-	cursor int
-	tab    string // "all", "unlocked", "locked", or category name
-	filter models.AchievementCategory
+	cursor int                          // Current cursor position in achievement list
+	tab    string                       // Current tab/filter: "all", "unlocked", "locked", or category name
+	filter models.AchievementCategory   // Category filter for achievement display
 }
 
+// newAchievementsModel creates and initializes a new achievements screen model.
+// Starts with "all" achievements view and cursor at top.
 func newAchievementsModel() achievementsModel {
 	return achievementsModel{
 		cursor: 0,
@@ -32,6 +63,34 @@ func newAchievementsModel() achievementsModel {
 	}
 }
 
+// updateAchievements handles input and state updates for the achievements screen.
+//
+// Key Bindings:
+//   - esc/backspace/q: Return to main menu
+//   - up/k: Move cursor up in achievement list
+//   - down/j: Move cursor down in achievement list
+//   - 1: Show all achievements
+//   - 2: Show unlocked achievements only
+//   - 3: Show locked achievements only
+//   - 4: Filter by Combat category
+//   - 5: Filter by Trading category
+//   - 6: Filter by Exploration category
+//   - 7: Filter by Missions category
+//
+// Filtering Workflow:
+//   1. Press number key (1-7) to activate filter
+//   2. Achievement list updates to show filtered items
+//   3. Cursor resets to top of filtered list
+//   4. Progress updates for visible locked achievements
+//
+// Progress Display:
+//   - Unlocked achievements show "✓ Unlocked" status
+//   - Locked achievements show progress bar and percentage
+//   - Hidden achievements show as locked until unlocked
+//   - Progress bars color-coded: green (75%+), yellow (50-74%), normal (25-49%), dim (<25%)
+//
+// Message Handling:
+//   - All updates happen synchronously through achievement manager
 func (m Model) updateAchievements(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -97,6 +156,42 @@ func (m Model) updateAchievements(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewAchievements renders the achievements screen.
+//
+// Layout:
+//   - Title: "🏆 ACHIEVEMENTS"
+//   - Stats Header: Progress (unlocked/total), Points (earned/max)
+//   - Separator line
+//   - Filter Tabs: 1:All, 2:Unlocked, 3:Locked, 4:Combat, 5:Trading, 6:Exploration, 7:Missions
+//   - Achievement List: Icon, title, rarity, points
+//   - Achievement Details: Description, progress bar (locked), unlock status
+//   - Footer: Key bindings help
+//
+// Achievement Display:
+//   - Icon and title on first line
+//   - Rarity badge [Common/Rare/Epic/Legendary] and point value
+//   - Description (unless hidden and locked)
+//   - Progress bar for locked achievements (30 chars width)
+//   - Percentage display for progress
+//   - "✓ Unlocked" indicator for earned achievements
+//   - Cursor highlights selected achievement
+//
+// Visual Features:
+//   - Active filter tab highlighted in accent color
+//   - Unlocked achievements in success color (green)
+//   - Hidden locked achievements show "🔒 Hidden Achievement"
+//   - Progress bars color-coded by completion:
+//     * Green: 75-100% complete
+//     * Yellow: 50-74% complete
+//     * Normal: 25-49% complete
+//     * Dim: 0-24% complete
+//   - Achievement icons displayed (from achievement definition)
+//   - Rarity and points shown in help text style
+//
+// Stats Display:
+//   - Total unlocked vs total achievements
+//   - Total points earned vs maximum possible points
+//   - Formatted as "Progress: X/Y unlocked | Points: X/Y"
 func (m Model) viewAchievements() string {
 	s := titleStyle.Render("🏆 ACHIEVEMENTS") + "\n\n"
 

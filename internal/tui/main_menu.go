@@ -1,9 +1,14 @@
 // File: internal/tui/main_menu.go
 // Project: Terminal Velocity
-// Description: Terminal UI component for main_menu
+// Description: Main menu screen - Central navigation hub for accessing all game features
 // Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
+//
+// The main menu serves as the primary navigation interface, providing access to all
+// major game systems including navigation, trading, combat, missions, quests, and
+// multiplayer features. It displays player stats in the header and presents a
+// scrollable list of menu options.
 
 package tui
 
@@ -15,17 +20,24 @@ import (
 	"github.com/google/uuid"
 )
 
+// mainMenuModel contains the state for the main menu screen.
+// It manages cursor position and the list of available menu items.
 type mainMenuModel struct {
-	cursor int
-	items  []menuItem
+	cursor int        // Current cursor position (0-indexed)
+	items  []menuItem // List of menu items to display
 }
 
+// menuItem represents a single selectable option in the main menu.
+// Each item can either navigate to a screen or execute a custom action.
 type menuItem struct {
-	label  string
-	screen Screen
-	action func(*Model) tea.Cmd
+	label  string              // Display text for the menu item
+	screen Screen              // Target screen to navigate to (if action is nil)
+	action func(*Model) tea.Cmd // Optional custom action (e.g., quit game)
 }
 
+// newMainMenuModel creates and initializes a new main menu model.
+// Sets up the complete menu with all available screens and actions.
+// Returns a mainMenuModel with cursor at position 0.
 func newMainMenuModel() mainMenuModel {
 	return mainMenuModel{
 		cursor: 0,
@@ -68,6 +80,16 @@ func newMainMenuModel() mainMenuModel {
 	}
 }
 
+// updateMainMenu handles input and state updates for the main menu screen.
+//
+// Key Bindings:
+//   - q: Quit the game
+//   - up/k: Move cursor up
+//   - down/j: Move cursor down
+//   - enter/space: Select current menu item
+//
+// This function routes the player to different screens based on their selection
+// and initializes the appropriate screen state (loading data, setting up models).
 func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Self-start the ticker when re-entering the main menu. The
 	// top-level Update routes off-screen newsTickerMsg into
@@ -108,15 +130,20 @@ func (m Model) updateMainMenuDispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Quit from main menu
 			return m, tea.Quit
 		case "up", "k":
+			// Move cursor up (vi-style navigation supported with k)
 			if m.mainMenu.cursor > 0 {
 				m.mainMenu.cursor--
 			}
 		case "down", "j":
+			// Move cursor down (vi-style navigation supported with j)
 			if m.mainMenu.cursor < len(m.mainMenu.items)-1 {
 				m.mainMenu.cursor++
 			}
 		case "enter", " ":
+			// Select current menu item
 			selected := m.mainMenu.items[m.mainMenu.cursor]
+
+			// If item has a custom action (like quit), execute it
 			if selected.action != nil {
 				return m, selected.action(&m)
 			}
@@ -236,6 +263,17 @@ func (m Model) updateMainMenuDispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// viewMainMenu renders the main menu screen.
+//
+// Layout:
+//   - Header: Player name, credits, and current location
+//   - Welcome message: Personalized greeting
+//   - Menu items: Scrollable list with cursor highlight
+//   - Footer: Key binding help text
+//
+// Visual Styling:
+//   - Selected item: Highlighted with ">" prefix and special styling
+//   - Unselected items: Normal styling with spacing indent
 func (m Model) viewMainMenu() string {
 	// The login screen uses a full-width heavy box with centered content;
 	// keep the main menu in the same visual language so the login->menu
