@@ -107,13 +107,13 @@ type Model struct {
 	currentPlanet *models.Planet     // cached when docked; nil when in space
 
 	// Database repositories
-	playerRepo *database.PlayerRepository
-	systemRepo *database.SystemRepository
-	sshKeyRepo *database.SSHKeyRepository
-	shipRepo   *database.ShipRepository
-	marketRepo *database.MarketRepository
-	mailRepo   *database.MailRepository
-	socialRepo *database.SocialRepository
+	playerRepo      *database.PlayerRepository
+	systemRepo      *database.SystemRepository
+	sshKeyRepo      *database.SSHKeyRepository
+	shipRepo        *database.ShipRepository
+	marketRepo      *database.MarketRepository
+	mailRepo        *database.MailRepository
+	socialRepo      *database.SocialRepository
 	itemRepo        *database.ItemRepository
 	achievementRepo *database.AchievementRepository
 
@@ -122,47 +122,48 @@ type Model struct {
 	height int
 
 	// Sub-models for different screens
-	mainMenu          mainMenuModel
-	gameView          gameViewModel
-	registration      registrationModel
-	navigation        navigationModel
-	trading           tradingModel
-	cargo             cargoModel
-	shipyard          shipyardModel
-	outfitter         outfitterModel
-	shipManagement    shipManagementModel
-	combat            combatModel
-	missions          missionsModel
-	pilotRecord       pilotRecordModel
-	achievementsUI    achievementsModel
-	encounterModel    encounterModel
-	newsModel         newsModel
-	leaderboardsModel leaderboardsModel
-	playersModel      playersModel
-	chatModel         chatModel
-	factionsModel     factionsModel
-	tradeModel        tradeModel
-	pvpModel          pvpModel
-	helpModel         helpModel
-	outfitterEnhanced outfitterEnhancedModel
-	settingsModel     settingsModel
-	adminModel        adminModel
-	tutorialModel     tutorialModel
-	questsModel       questsModel
-	loginModel        loginModel
-	spaceView         spaceViewModel
-	landing               landingModel
-	tradingEnhanced       tradingEnhancedModel
-	shipyardEnhanced      shipyardEnhancedModel
-	missionBoardEnhanced  missionBoardEnhancedModel
-	combatEnhanced        combatEnhancedModel
-	questBoardEnhanced    questBoardEnhancedModel
-	tradeRoutes           tradeRoutesState
-	mail                  mailState
-	fleet                 fleetState
-	friends               friendsState
-	marketplace           marketplaceState
-	notifications         notificationsState
+	mainMenu             mainMenuModel
+	gameView             gameViewModel
+	registration         registrationModel
+	navigation           navigationModel
+	trading              tradingModel
+	cargo                cargoModel
+	shipyard             shipyardModel
+	outfitter            outfitterModel
+	shipManagement       shipManagementModel
+	combat               combatModel
+	missions             missionsModel
+	pilotRecord          pilotRecordModel
+	achievementsUI       achievementsModel
+	encounterModel       encounterModel
+	newsModel            newsModel
+	newsTicker           newsTickerState
+	leaderboardsModel    leaderboardsModel
+	playersModel         playersModel
+	chatModel            chatModel
+	factionsModel        factionsModel
+	tradeModel           tradeModel
+	pvpModel             pvpModel
+	helpModel            helpModel
+	outfitterEnhanced    outfitterEnhancedModel
+	settingsModel        settingsModel
+	adminModel           adminModel
+	tutorialModel        tutorialModel
+	questsModel          questsModel
+	loginModel           loginModel
+	spaceView            spaceViewModel
+	landing              landingModel
+	tradingEnhanced      tradingEnhancedModel
+	shipyardEnhanced     shipyardEnhancedModel
+	missionBoardEnhanced missionBoardEnhancedModel
+	combatEnhanced       combatEnhancedModel
+	questBoardEnhanced   questBoardEnhancedModel
+	tradeRoutes          tradeRoutesState
+	mail                 mailState
+	fleet                fleetState
+	friends              friendsState
+	marketplace          marketplaceState
+	notifications        notificationsState
 
 	// Achievement tracking
 	achievementManager  *achievements.Manager
@@ -229,11 +230,11 @@ type Model struct {
 	missionManager *missions.Manager
 
 	// Error handling
-	err               error
-	errorMessage      string
-	showErrorDialog   bool
-	loadingOperation  string
-	isLoading         bool
+	err              error
+	errorMessage     string
+	showErrorDialog  bool
+	loadingOperation string
+	isLoading        bool
 }
 
 // NewModel creates a new TUI model
@@ -284,69 +285,70 @@ func NewModel(
 		tutorialManager = tutorial.NewManager()
 	}
 	return Model{
-		screen:              ScreenMainMenu,
-		playerID:            playerID,
-		username:            username,
-		playerRepo:          playerRepo,
-		systemRepo:          systemRepo,
-		sshKeyRepo:          sshKeyRepo,
-		shipRepo:            shipRepo,
-		marketRepo:          marketRepo,
-		mailRepo:            mailRepo,
-		socialRepo:          socialRepo,
-		itemRepo:            itemRepo,
-		achievementRepo:     achievementRepo,
-		width:               80,
-		height:              24,
-		mainMenu:            newMainMenuModel(),
-		trading:             newTradingModel(),
-		cargo:               newCargoModel(),
-		shipyard:            newShipyardModel(),
-		outfitter:           newOutfitterModel(),
-		shipManagement:      newShipManagementModel(),
-		combat:              newCombatModel(),
-		missions:            newMissionsModel(),
-		pilotRecord:         newPilotRecordModel(),
-		achievementsUI:      newAchievementsModel(),
-		achievementManager:  achievements.NewManager(),
-		pendingAchievements: []*models.Achievement{},
-		encounterModel:      newEncounterModel(),
-		newsModel:           newNewsModel(),
-		newsManager:         newsManager,
-		leaderboardsModel:   newLeaderboardsModel(),
-		leaderboardManager:  leaderboards.NewManager(),
-		playersModel:        newPlayersModel(),
-		presenceManager:     presenceManager,
-		chatModel:           newChatModel(),
-		chatManager:         chatManager,
-		fleetManager:        fleetManager,
-		mailManager:         mailManager,
+		screen:               ScreenMainMenu,
+		playerID:             playerID,
+		username:             username,
+		playerRepo:           playerRepo,
+		systemRepo:           systemRepo,
+		sshKeyRepo:           sshKeyRepo,
+		shipRepo:             shipRepo,
+		marketRepo:           marketRepo,
+		mailRepo:             mailRepo,
+		socialRepo:           socialRepo,
+		itemRepo:             itemRepo,
+		achievementRepo:      achievementRepo,
+		width:                80,
+		height:               24,
+		mainMenu:             newMainMenuModel(),
+		trading:              newTradingModel(),
+		cargo:                newCargoModel(),
+		shipyard:             newShipyardModel(),
+		outfitter:            newOutfitterModel(),
+		shipManagement:       newShipManagementModel(),
+		combat:               newCombatModel(),
+		missions:             newMissionsModel(),
+		pilotRecord:          newPilotRecordModel(),
+		achievementsUI:       newAchievementsModel(),
+		achievementManager:   achievements.NewManager(),
+		pendingAchievements:  []*models.Achievement{},
+		encounterModel:       newEncounterModel(),
+		newsModel:            newNewsModel(),
+		newsTicker:           newNewsTickerState(),
+		newsManager:          newsManager,
+		leaderboardsModel:    newLeaderboardsModel(),
+		leaderboardManager:   leaderboards.NewManager(),
+		playersModel:         newPlayersModel(),
+		presenceManager:      presenceManager,
+		chatModel:            newChatModel(),
+		chatManager:          chatManager,
+		fleetManager:         fleetManager,
+		mailManager:          mailManager,
 		notificationsManager: notificationsManager,
-		friendsManager:      friendsManager,
-		marketplaceManager:  marketplaceManager,
-		factionsModel:       newFactionsModel(),
-		factionManager:      factions.NewManager(),
-		territoryManager:    territoryManager,
-		tradeModel:          newTradeModel(),
-		tradeManager:        trade.NewManager(),
-		pvpModel:            newPvPModel(),
-		pvpManager:          pvpManager,
-		helpModel:           newHelpModel(),
-		encounterManager:    encounters.NewManager(),
-		outfitterEnhanced:   newOutfitterEnhancedModel(),
-		outfittingManager:   outfitting.NewManager(),
-		settingsModel:       newSettingsModel(),
-		settingsManager:     settings.NewManager(".config/terminal-velocity"),
-		adminModel:          newAdminModel(),
-		adminManager:        admin.NewManager(playerRepo),
-		tutorialModel:       newTutorialModel(),
-		tutorialManager:     tutorialManager,
-		questsModel:         newQuestsModel(),
-		questManager:        quests.NewManager(),
-		missionManager:      missions.NewManager(),
-		loginModel:          newLoginModel(),
-		spaceView:           newSpaceViewModel(),
-		landing:             newLandingModel(),
+		friendsManager:       friendsManager,
+		marketplaceManager:   marketplaceManager,
+		factionsModel:        newFactionsModel(),
+		factionManager:       factions.NewManager(),
+		territoryManager:     territoryManager,
+		tradeModel:           newTradeModel(),
+		tradeManager:         trade.NewManager(),
+		pvpModel:             newPvPModel(),
+		pvpManager:           pvpManager,
+		helpModel:            newHelpModel(),
+		encounterManager:     encounters.NewManager(),
+		outfitterEnhanced:    newOutfitterEnhancedModel(),
+		outfittingManager:    outfitting.NewManager(),
+		settingsModel:        newSettingsModel(),
+		settingsManager:      settings.NewManager(".config/terminal-velocity"),
+		adminModel:           newAdminModel(),
+		adminManager:         admin.NewManager(playerRepo),
+		tutorialModel:        newTutorialModel(),
+		tutorialManager:      tutorialManager,
+		questsModel:          newQuestsModel(),
+		questManager:         quests.NewManager(),
+		missionManager:       missions.NewManager(),
+		loginModel:           newLoginModel(),
+		spaceView:            newSpaceViewModel(),
+		landing:              newLandingModel(),
 		tradingEnhanced:      newTradingEnhancedModel(),
 		shipyardEnhanced:     newShipyardEnhancedModel(),
 		missionBoardEnhanced: newMissionBoardEnhancedModel(),
@@ -430,70 +432,71 @@ func NewLoginModel(
 		tutorialManager = tutorial.NewManager()
 	}
 	return Model{
-		screen:              ScreenLogin,
-		playerID:            uuid.Nil,
-		username:            "",
-		playerRepo:          playerRepo,
-		systemRepo:          systemRepo,
-		sshKeyRepo:          sshKeyRepo,
-		shipRepo:            shipRepo,
-		marketRepo:          marketRepo,
-		mailRepo:            mailRepo,
-		socialRepo:          socialRepo,
-		achievementRepo:     achievementRepo,
-		width:               80,
-		height:              24,
-		loginModel:          newLoginModel(),
-		mainMenu:            newMainMenuModel(),
-		trading:             newTradingModel(),
-		cargo:               newCargoModel(),
-		shipyard:            newShipyardModel(),
-		outfitter:           newOutfitterModel(),
-		shipManagement:      newShipManagementModel(),
-		combat:              newCombatModel(),
-		missions:            newMissionsModel(),
-		pilotRecord:         newPilotRecordModel(),
-		achievementsUI:      newAchievementsModel(),
-		achievementManager:  achievements.NewManager(),
-		pendingAchievements: []*models.Achievement{},
-		encounterModel:      newEncounterModel(),
-		newsModel:           newNewsModel(),
-		newsManager:         newsManager,
-		leaderboardsModel:   newLeaderboardsModel(),
-		leaderboardManager:  leaderboards.NewManager(),
-		playersModel:        newPlayersModel(),
-		presenceManager:     presenceManager,
-		chatModel:           newChatModel(),
-		chatManager:         chatManager,
-		mailManager:         mail.NewManager(socialRepo),
-		factionsModel:       newFactionsModel(),
-		factionManager:      factions.NewManager(),
-		territoryManager:    territoryManager,
-		tradeModel:          newTradeModel(),
-		tradeManager:        trade.NewManager(),
-		pvpModel:            newPvPModel(),
-		pvpManager:          pvpManager,
-		helpModel:           newHelpModel(),
-		encounterManager:    encounters.NewManager(),
-		outfitterEnhanced:   newOutfitterEnhancedModel(),
-		outfittingManager:   outfitting.NewManager(),
-		settingsModel:       newSettingsModel(),
-		settingsManager:     settings.NewManager(".config/terminal-velocity"),
-		adminModel:          newAdminModel(),
-		adminManager:        admin.NewManager(playerRepo),
-		tutorialModel:       newTutorialModel(),
-		tutorialManager:     tutorialManager,
-		questsModel:         newQuestsModel(),
-		questManager:        quests.NewManager(),
-		missionManager:      missions.NewManager(),
-		registration:        newRegistrationModel(false, nil),
-		spaceView:           newSpaceViewModel(),
-		landing:             newLandingModel(),
-		tradingEnhanced:     newTradingEnhancedModel(),
-		shipyardEnhanced:    newShipyardEnhancedModel(),
+		screen:               ScreenLogin,
+		playerID:             uuid.Nil,
+		username:             "",
+		playerRepo:           playerRepo,
+		systemRepo:           systemRepo,
+		sshKeyRepo:           sshKeyRepo,
+		shipRepo:             shipRepo,
+		marketRepo:           marketRepo,
+		mailRepo:             mailRepo,
+		socialRepo:           socialRepo,
+		achievementRepo:      achievementRepo,
+		width:                80,
+		height:               24,
+		loginModel:           newLoginModel(),
+		mainMenu:             newMainMenuModel(),
+		trading:              newTradingModel(),
+		cargo:                newCargoModel(),
+		shipyard:             newShipyardModel(),
+		outfitter:            newOutfitterModel(),
+		shipManagement:       newShipManagementModel(),
+		combat:               newCombatModel(),
+		missions:             newMissionsModel(),
+		pilotRecord:          newPilotRecordModel(),
+		achievementsUI:       newAchievementsModel(),
+		achievementManager:   achievements.NewManager(),
+		pendingAchievements:  []*models.Achievement{},
+		encounterModel:       newEncounterModel(),
+		newsModel:            newNewsModel(),
+		newsTicker:           newNewsTickerState(),
+		newsManager:          newsManager,
+		leaderboardsModel:    newLeaderboardsModel(),
+		leaderboardManager:   leaderboards.NewManager(),
+		playersModel:         newPlayersModel(),
+		presenceManager:      presenceManager,
+		chatModel:            newChatModel(),
+		chatManager:          chatManager,
+		mailManager:          mail.NewManager(socialRepo),
+		factionsModel:        newFactionsModel(),
+		factionManager:       factions.NewManager(),
+		territoryManager:     territoryManager,
+		tradeModel:           newTradeModel(),
+		tradeManager:         trade.NewManager(),
+		pvpModel:             newPvPModel(),
+		pvpManager:           pvpManager,
+		helpModel:            newHelpModel(),
+		encounterManager:     encounters.NewManager(),
+		outfitterEnhanced:    newOutfitterEnhancedModel(),
+		outfittingManager:    outfitting.NewManager(),
+		settingsModel:        newSettingsModel(),
+		settingsManager:      settings.NewManager(".config/terminal-velocity"),
+		adminModel:           newAdminModel(),
+		adminManager:         admin.NewManager(playerRepo),
+		tutorialModel:        newTutorialModel(),
+		tutorialManager:      tutorialManager,
+		questsModel:          newQuestsModel(),
+		questManager:         quests.NewManager(),
+		missionManager:       missions.NewManager(),
+		registration:         newRegistrationModel(false, nil),
+		spaceView:            newSpaceViewModel(),
+		landing:              newLandingModel(),
+		tradingEnhanced:      newTradingEnhancedModel(),
+		shipyardEnhanced:     newShipyardEnhancedModel(),
 		missionBoardEnhanced: newMissionBoardEnhancedModel(),
-		combatEnhanced:      newCombatEnhancedModel(),
-		questBoardEnhanced:  newQuestBoardEnhancedModel(),
+		combatEnhanced:       newCombatEnhancedModel(),
+		questBoardEnhanced:   newQuestBoardEnhancedModel(),
 	}
 }
 
@@ -696,6 +699,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.missions.manager.GenerateMissions(context.Background(), msg.planet.ID, govID, 3)
 			}
 		}
+		return m, nil
+	}
+
+	// Drop news-ticker ticks that arrive on any screen other than the
+	// main menu. Resetting `active` here lets the ticker restart on
+	// the next main-menu entry (see ensureNewsTickerTick). Without
+	// this guard, a tick scheduled right before the user navigated
+	// away would be silently re-routed to that screen's updater and
+	// the ticker would never restart when they came back.
+	if _, ok := msg.(newsTickerMsg); ok && m.screen != ScreenMainMenu {
+		m = m.stopNewsTicker()
 		return m, nil
 	}
 

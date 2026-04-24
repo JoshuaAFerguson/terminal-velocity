@@ -67,7 +67,39 @@ func newMainMenuModel() mainMenuModel {
 }
 
 func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Self-start the ticker when re-entering the main menu. The
+	// top-level Update routes off-screen newsTickerMsg into
+	// stopNewsTicker, which clears the active flag; the next
+	// non-tick message here kicks it back on. The kicker runs in
+	// parallel with whatever the user's message would normally
+	// produce, so we batch the two commands.
+	var kickerCmd tea.Cmd
+	if _, isTick := msg.(newsTickerMsg); !isTick {
+		var updated Model
+		updated, kickerCmd = m.ensureNewsTickerTick()
+		m = updated
+	}
+
+	model, cmd := m.updateMainMenuDispatch(msg)
+	switch {
+	case kickerCmd == nil:
+		return model, cmd
+	case cmd == nil:
+		return model, kickerCmd
+	default:
+		return model, tea.Batch(cmd, kickerCmd)
+	}
+}
+
+func (m Model) updateMainMenuDispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case newsTickerMsg:
+		// Ticker advances only while the main menu is on-screen. When
+		// the user navigates away, the next tea.Tick is still scheduled
+		// in-flight but will arrive at a different screen's updater,
+		// which drops it silently — so the loop self-terminates.
+		newModel, cmd := m.updateNewsTicker()
+		return newModel, cmd
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q":
@@ -276,6 +308,19 @@ func (m Model) viewMainMenu() string {
 	sb.WriteString(BoxCrossLeft)
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxCross + "\n")
+
+	// Optional newsreel strip — suppressed if the news manager has no
+	// content, so the main menu doesn't show an empty row on a fresh
+	// server. The ticker content is measured in raw cells then padded
+	// by PadRight so ANSI color codes from tickerPrefix/Body don't
+	// shift the right border.
+	ticker := m.renderNewsTicker(width - 4)
+	if ticker != "" {
+		writeFramedLine(&sb, " "+PadRight(ticker, width-3))
+		sb.WriteString(BoxCrossLeft)
+		sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+		sb.WriteString(BoxCross + "\n")
+	}
 
 	// Help text
 	writeFramedLine(&sb, Center("↑/↓ or j/k: Navigate   Enter: Select   q: Quit", width-2))

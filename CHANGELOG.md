@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-23 - P5H scrolling newsreel ticker on main menu)
+- **Main menu now carries a one-line scrolling newsreel** pulled from
+  the existing `news.Manager`. Critical articles get a `[BREAKING] `
+  prefix and front-of-feed placement; high-priority get `[!] `;
+  everything else runs in input order. The feed is rebuilt every ~6s
+  (40 × 150ms ticks) so new articles surface without re-querying the
+  manager on every frame.
+  - Scroll advances one rune per 150ms tick via `tea.Tick`; the window
+    is a circular slice of the joined feed, so the end wraps around to
+    the start through a `◆` separator with no visible seam.
+  - Self-starting: top-level `Update` drops any `newsTickerMsg` that
+    arrives off the main menu and clears a `ticker.active` flag, so
+    the tick loop self-terminates when the user navigates away.
+    `ensureNewsTickerTick` re-kicks on any non-tick message the main
+    menu receives — covering the ~40 places that set
+    `m.screen = ScreenMainMenu` without having to instrument each of
+    them. `tea.Batch` runs the kicker alongside the user's action.
+  - `renderNewsTicker` returns `""` when the news manager is empty so
+    the main menu simply omits the ticker row (including its divider)
+    on a fresh server rather than showing a stub.
+  - Two pure helpers — `buildTickerFeed` (priority ordering + prefix
+    logic + trailing separator) and `windowTickerFeed` (circular rune
+    slice with normalized negative/oversized offsets) — tested with
+    19 subcases plus a scroll-advancement invariant and a printable
+    preview harness.
+  - Local `tickerPrefixStyle` / `tickerBodyStyle` follow the same
+    no-MarginTop pattern the leaderboard tab bar established, so
+    `.Render(window)` doesn't inject a leading newline into the
+    ticker row.
+
 ### Changed (2026-04-23 - P5G leaderboard category tabs polish)
 - **Leaderboard screen switched from inline bracket-tag "Categories:"
   strip to a two-line underline tab bar** with icons, digit shortcuts
