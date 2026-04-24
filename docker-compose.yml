@@ -98,6 +98,7 @@ services:
       --writable
       --port 7681
       --max-clients 100
+      --base-path /play
       ssh
       -o StrictHostKeyChecking=no
       -o UserKnownHostsFile=/dev/null
@@ -105,6 +106,30 @@ services:
       -o ServerAliveInterval=30
       -p 2222
       guest@server
+    networks:
+      - terminal-velocity-net
+
+  # Landing page + reverse proxy. nginx serves a static HTML landing
+  # at /, proxies /play/ to the webterm container (with WebSocket
+  # upgrade headers), and proxies /stats to the game server's
+  # /health endpoint for live player counts on the landing page.
+  #
+  # Cloudflare tunnel should target http://landing:80 for the public
+  # hostname (instead of the webterm directly), so visitors get the
+  # marketing page first and choose to launch the terminal.
+  landing:
+    build:
+      context: ./docker/landing
+      dockerfile: Dockerfile
+    container_name: terminal-velocity-landing
+    restart: unless-stopped
+    profiles:
+      - public
+    depends_on:
+      server:
+        condition: service_healthy
+      webterm:
+        condition: service_started
     networks:
       - terminal-velocity-net
 
