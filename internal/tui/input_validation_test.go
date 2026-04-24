@@ -24,23 +24,26 @@ func TestRegistrationInputLengthLimits(t *testing.T) {
 		expectedLen int
 		maxLen      int
 	}{
+		// Step numbering matches the registration wizard after the
+		// P5D-era fix that prepended a username step; email is now
+		// step 2, password step 3, confirm step 4.
 		{
 			name:        "Email length limit (RFC 5321 max)",
-			step:        1, // Email step
+			step:        2,
 			input:       strings.Repeat("a", 300),
 			expectedLen: 254,
 			maxLen:      254,
 		},
 		{
 			name:        "Password length limit",
-			step:        2, // Password step
+			step:        3,
 			input:       strings.Repeat("b", 200),
 			expectedLen: 128,
 			maxLen:      128,
 		},
 		{
 			name:        "Confirm password length limit",
-			step:        3, // Confirm password step
+			step:        4,
 			input:       strings.Repeat("c", 200),
 			expectedLen: 128,
 			maxLen:      128,
@@ -61,11 +64,11 @@ func TestRegistrationInputLengthLimits(t *testing.T) {
 
 			var actual string
 			switch tt.step {
-			case 1:
-				actual = m.registration.email
 			case 2:
-				actual = m.registration.password
+				actual = m.registration.email
 			case 3:
+				actual = m.registration.password
+			case 4:
 				actual = m.registration.confirmPass
 			}
 
@@ -120,7 +123,7 @@ func TestRegistrationControlCharacterFiltering(t *testing.T) {
 			m := Model{
 				registration: newRegistrationModel(false, nil),
 			}
-			m.registration.step = 1 // Email step
+			m.registration.step = 2 // Email step (post-username-step-insertion)
 
 			// Simulate typing each character
 			for _, char := range tt.input {

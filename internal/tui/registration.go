@@ -32,8 +32,17 @@ import (
 
 // registrationModel contains the state for the registration wizard.
 // It manages the multi-step flow, input values, and creation state.
+//
+// Username lives on the wizard itself (not on the top-level Model)
+// because registration should be self-contained — the earlier
+// behavior of reading Model.username (the SSH-layer username) was
+// a trap: web-terminal users all connect with the hardcoded SSH
+// login `guest`, and direct-SSH users get whatever they typed on
+// the command line, neither of which should become their in-game
+// username without explicit confirmation.
 type registrationModel struct {
-	step         int    // Current step: 0=welcome, 1=email, 2=password, 3=confirm, 4=creating, 5=success
+	step         int    // Current step: 0=welcome, 1=username, 2=email, 3=password, 4=confirm, 5=creating, 6=success
+	username     string // Username input value (chosen explicitly, not inherited from SSH)
 	email        string // Email input value
 	password     string // Password input value (displayed as bullets)
 	confirmPass  string // Password confirmation input value
@@ -113,12 +122,17 @@ func (m Model) updateRegistration(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case registrationCompleteMsg:
 		if msg.success {
 			// Registration successful - go back to login screen
-			m.registration.step = 5 // Success screen
+			m.registration.step = 6 // Success screen
 			// Wait a moment then go to login
 			return m, func() tea.Msg {
 				return switchToLoginMsg{}
 			}
 		} else {
+			// Failure keeps the wizard on step 4 (confirm) so the
+			// user doesn't see a blank success screen. Roll back
+			// one step so they can retry without re-entering
+			// everything — the error text tells them what broke.
+			m.registration.step = 4
 			m.registration.error = fmt.Sprintf("Registration failed: %v", msg.err)
 			return m, nil
 		}
@@ -137,21 +151,34 @@ func (m Model) updateRegistration(msg tea.Msg) (tea.Model, tea.Cmd) {
 // Each step performs validation before proceeding:
 //
 // Step 0 (Welcome): No validation, just advances
-// Step 1 (Email): Validates email format (required or optional per config)
-// Step 2 (Password): Validates password complexity requirements
-// Step 3 (Confirm): Validates passwords match, then creates account
-// Step 4 (Creating): Waiting for async account creation
-// Step 5 (Success): Quits to return to login
+// Step 1 (Username): Validates username format + uniqueness via repo
+// Step 2 (Email): Validates email format (required or optional per config)
+// Step 3 (Password): Validates password complexity requirements
+// Step 4 (Confirm): Validates passwords match, then creates account
+// Step 5 (Creating): Waiting for async account creation
+// Step 6 (Success): Quits to return to login
 func (m Model) handleRegistrationStep() (Model, tea.Cmd) {
 	reg := &m.registration
 
 	switch reg.step {
 	case 0: // Welcome screen
-		// Advance to email entry
+		// Advance to username entry.
 		reg.step = 1
 		reg.error = ""
 
-	case 1: // Email input
+	case 1: // Username input
+		// Format validation (length, allowed chars). Uniqueness
+		// check against the repo can't happen synchronously here
+		// without blocking the UI — we defer it to createAccount,
+		// which reports "username taken" as a registration error.
+		if err := validation.ValidateUsername(reg.username); err != nil {
+			reg.error = err.Error()
+			return m, nil
+		}
+		reg.error = ""
+		reg.step = 2
+
+	case 2: // Email input
 		// Validate email (required or optional based on config)
 		var emailErr error
 		if reg.requireEmail {
@@ -167,18 +194,18 @@ func (m Model) handleRegistrationStep() (Model, tea.Cmd) {
 		reg.error = ""
 
 		// SSH key authentication has been removed - always go to password
-		reg.step = 2
+		reg.step = 3
 
-	case 2: // Password input
+	case 3: // Password input
 		// Validate password complexity (min 8 chars, uppercase, lowercase, number)
 		if err := validation.ValidatePassword(reg.password); err != nil {
 			reg.error = err.Error()
 			return m, nil
 		}
 		reg.error = ""
-		reg.step = 3
+		reg.step = 4
 
-	case 3: // Confirm password
+	case 4: // Confirm password
 		// Ensure passwords match
 		if reg.password != reg.confirmPass {
 			reg.error = "Passwords do not match"
@@ -186,13 +213,13 @@ func (m Model) handleRegistrationStep() (Model, tea.Cmd) {
 			return m, nil
 		}
 		reg.error = ""
-		reg.step = 4
+		reg.step = 5
 		return m, m.createAccount() // Start async account creation
 
-	case 4: // Creating account (waiting)
+	case 5: // Creating account (waiting)
 		// Do nothing, wait for registrationCompleteMsg
 
-	case 5: // Success
+	case 6: // Success
 		// Account created, quit to return to login
 		return m, tea.Quit
 	}
@@ -201,21 +228,25 @@ func (m Model) handleRegistrationStep() (Model, tea.Cmd) {
 }
 
 // handleRegistrationBackspace deletes the last character from the current input field.
-// Works on steps 1 (email), 2 (password), and 3 (confirm password).
+// Works on steps 1 (username), 2 (email), 3 (password), and 4 (confirm password).
 // Clears any error message when editing.
 func (m Model) handleRegistrationBackspace() (Model, tea.Cmd) {
 	reg := &m.registration
 
 	switch reg.step {
-	case 1: // Email field
+	case 1: // Username field
+		if len(reg.username) > 0 {
+			reg.username = reg.username[:len(reg.username)-1]
+		}
+	case 2: // Email field
 		if len(reg.email) > 0 {
 			reg.email = reg.email[:len(reg.email)-1]
 		}
-	case 2: // Password field
+	case 3: // Password field
 		if len(reg.password) > 0 {
 			reg.password = reg.password[:len(reg.password)-1]
 		}
-	case 3: // Confirm password field
+	case 4: // Confirm password field
 		if len(reg.confirmPass) > 0 {
 			reg.confirmPass = reg.confirmPass[:len(reg.confirmPass)-1]
 		}
@@ -252,7 +283,18 @@ func (m Model) handleRegistrationInput(input string) (Model, tea.Cmd) {
 	}
 
 	switch reg.step {
-	case 1: // Email input
+	case 1: // Username input
+		// ValidateUsername enforces max length downstream; we cap
+		// at MaxUsernameLength here as a defense-in-depth against
+		// pathological pastes that would otherwise bloat memory
+		// before the validator runs.
+		if len(reg.username) < validation.MaxUsernameLength {
+			reg.username += input
+			// Strip ANSI escape codes to prevent injection attacks
+			reg.username = validation.StripANSI(reg.username)
+			reg.error = ""
+		}
+	case 2: // Email input
 		// Limit email length to prevent memory exhaustion (RFC 5321 max is 254)
 		if len(reg.email) < 254 {
 			reg.email += input
@@ -260,7 +302,7 @@ func (m Model) handleRegistrationInput(input string) (Model, tea.Cmd) {
 			reg.email = validation.StripANSI(reg.email)
 			reg.error = ""
 		}
-	case 2: // Password input
+	case 3: // Password input
 		// Limit password length to prevent memory exhaustion (reasonable max is 128)
 		if len(reg.password) < 128 {
 			reg.password += input
@@ -268,7 +310,7 @@ func (m Model) handleRegistrationInput(input string) (Model, tea.Cmd) {
 			reg.password = validation.StripANSI(reg.password)
 			reg.error = ""
 		}
-	case 3: // Confirm password input
+	case 4: // Confirm password input
 		// Limit confirm password length to match password max
 		if len(reg.confirmPass) < 128 {
 			reg.confirmPass += input
@@ -299,16 +341,20 @@ func (m Model) createAccount() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
+		// Username comes from the wizard, not m.username — see the
+		// comment on registrationModel for why that matters.
+		username := m.registration.username
+
 		var err error
 		if len(m.registration.sshKeyData) > 0 {
 			// Create account with SSH key (deprecated path)
-			_, err = m.playerRepo.CreateWithSSHKey(ctx, m.username, m.registration.email)
+			_, err = m.playerRepo.CreateWithSSHKey(ctx, username, m.registration.email)
 			if err != nil {
 				return registrationCompleteMsg{success: false, err: err}
 			}
 
 			// Add the SSH key to the new account
-			player, err := m.playerRepo.GetByUsername(ctx, m.username)
+			player, err := m.playerRepo.GetByUsername(ctx, username)
 			if err != nil {
 				return registrationCompleteMsg{success: false, err: err}
 			}
@@ -319,7 +365,7 @@ func (m Model) createAccount() tea.Cmd {
 			}
 		} else {
 			// Create account with password (current path)
-			_, err = m.playerRepo.CreateWithEmail(ctx, m.username, m.registration.password, m.registration.email)
+			_, err = m.playerRepo.CreateWithEmail(ctx, username, m.registration.password, m.registration.email)
 			if err != nil {
 				return registrationCompleteMsg{success: false, err: err}
 			}
@@ -360,18 +406,20 @@ func (m Model) viewRegistration() string {
 
 	switch reg.step {
 	case 0: // Welcome
-		authMethod := "password"
-		if len(reg.sshKeyData) > 0 {
-			authMethod = "SSH key"
-		}
-
 		s += "Welcome to Terminal Velocity!\n\n"
-		s += fmt.Sprintf("Username: %s\n", statsStyle.Render(m.username))
-		s += fmt.Sprintf("Auth Method: %s\n\n", authMethod)
-		s += "Let's set up your account.\n\n"
+		s += "Let's set up your account. You'll choose a username,\n"
+		s += "provide an email, and set a password.\n\n"
 		s += helpStyle.Render("Press Enter to continue  •  ESC to cancel")
 
-	case 1: // Email
+	case 1: // Username
+		s += "Choose your username:\n"
+		s += "Requirements:\n"
+		s += fmt.Sprintf("  • %d-%d characters\n", validation.MinUsernameLength, validation.MaxUsernameLength)
+		s += "  • Letters, numbers, underscores, hyphens\n\n"
+		s += "> " + reg.username + "█\n\n"
+		s += helpStyle.Render("Type your username  •  Enter to continue  •  ESC to cancel")
+
+	case 2: // Email
 		if reg.requireEmail {
 			s += "Email address (required):\n"
 		} else {
@@ -380,7 +428,7 @@ func (m Model) viewRegistration() string {
 		s += "> " + reg.email + "█\n\n"
 		s += helpStyle.Render("Type your email  •  Enter to continue  •  ESC to cancel")
 
-	case 2: // Password
+	case 3: // Password
 		s += "Create a secure password:\n"
 		s += "Requirements:\n"
 		s += "  • At least 8 characters\n"
@@ -408,16 +456,16 @@ func (m Model) viewRegistration() string {
 
 		s += helpStyle.Render("Type your password  •  Enter to continue  •  ESC to cancel")
 
-	case 3: // Confirm password
+	case 4: // Confirm password
 		s += "Confirm your password:\n"
 		s += "> " + strings.Repeat("•", len(reg.confirmPass)) + "█\n\n"
 		s += helpStyle.Render("Retype your password  •  Enter to continue  •  ESC to cancel")
 
-	case 4: // Creating
+	case 5: // Creating
 		s += "Creating your account...\n\n"
 		s += "Please wait..."
 
-	case 5: // Success
+	case 6: // Success
 		s += "✓ Account created successfully!\n\n"
 		s += "Returning to login screen..."
 	}
