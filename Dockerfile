@@ -21,19 +21,32 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build args that buildx sets automatically. Defaulted so a plain
-# `docker build` without --platform also works.
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+# Build args. buildx sets TARGETOS/TARGETARCH automatically; plain
+# `docker build` leaves them empty, in which case Go's native defaults
+# (from `go env GOOS GOARCH`) apply — which is what we want on an
+# arm64 host. Don't default them to amd64: that produced an `exec
+# format error` on Orange Pi 5 deployments when TARGETARCH wasn't
+# populated by buildx.
+ARG TARGETOS
+ARG TARGETARCH
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+# Build the application. Bash-style ${VAR:+value} substitution only
+# emits the GOOS=/GOARCH= prefix when the arg is non-empty, so Go
+# falls back to its native target on a plain `docker build` while
+# still respecting buildx's cross-compile args.
+RUN CGO_ENABLED=0 \
+    ${TARGETOS:+GOOS=${TARGETOS}} \
+    ${TARGETARCH:+GOARCH=${TARGETARCH}} \
+    go build \
     -ldflags="-w -s -X main.version=${VERSION:-dev} -X main.commit=${COMMIT:-unknown} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -o terminal-velocity \
     cmd/server/main.go
 
 # Build genmap tool
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+RUN CGO_ENABLED=0 \
+    ${TARGETOS:+GOOS=${TARGETOS}} \
+    ${TARGETARCH:+GOARCH=${TARGETARCH}} \
+    go build \
     -ldflags="-w -s" \
     -o genmap \
     cmd/genmap/main.go
