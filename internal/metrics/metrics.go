@@ -25,33 +25,33 @@ type MetricsCollector struct {
 	connectionDurations []time.Duration
 
 	// Player metrics
-	activePlayers       atomic.Int64
-	totalLogins         atomic.Int64
-	totalRegistrations  atomic.Int64
+	activePlayers      atomic.Int64
+	totalLogins        atomic.Int64
+	totalRegistrations atomic.Int64
 
 	// Game activity metrics
-	tradesCompleted     atomic.Int64
-	combatEncounters    atomic.Int64
-	missionsCompleted   atomic.Int64
-	questsCompleted     atomic.Int64
-	jumpsExecuted       atomic.Int64
-	cargoTransferred    atomic.Int64
+	tradesCompleted   atomic.Int64
+	combatEncounters  atomic.Int64
+	missionsCompleted atomic.Int64
+	questsCompleted   atomic.Int64
+	jumpsExecuted     atomic.Int64
+	cargoTransferred  atomic.Int64
 
 	// Economy metrics
-	totalCreditsInGame  atomic.Int64
-	totalMarketVolume   atomic.Int64
-	tradeVolume24h      atomic.Int64
+	totalCreditsInGame atomic.Int64
+	totalMarketVolume  atomic.Int64
+	tradeVolume24h     atomic.Int64
 
 	// System metrics
-	databaseQueries     atomic.Int64
-	databaseErrors      atomic.Int64
-	cacheHits           atomic.Int64
-	cacheMisses         atomic.Int64
+	databaseQueries atomic.Int64
+	databaseErrors  atomic.Int64
+	cacheHits       atomic.Int64
+	cacheMisses     atomic.Int64
 
 	// Performance metrics
-	averageTickTime     time.Duration
-	peakPlayers         int64
-	peakTime            time.Time
+	averageTickTime time.Duration
+	peakPlayers     int64
+	peakTime        time.Time
 
 	// Custom counters
 	customCounters map[string]*atomic.Int64
@@ -223,10 +223,10 @@ func (m *MetricsCollector) SetGauge(name string, value int64) {
 // Snapshot returns a complete snapshot of all metrics
 type MetricsSnapshot struct {
 	// Connection metrics
-	TotalConnections    int64
-	ActiveConnections   int64
-	FailedConnections   int64
-	AvgConnectionTime   time.Duration
+	TotalConnections  int64
+	ActiveConnections int64
+	FailedConnections int64
+	AvgConnectionTime time.Duration
 
 	// Player metrics
 	ActivePlayers      int64
@@ -297,33 +297,33 @@ func (m *MetricsCollector) Snapshot() *MetricsSnapshot {
 	}
 
 	return &MetricsSnapshot{
-		TotalConnections:    m.totalConnections.Load(),
-		ActiveConnections:   m.activeConnections.Load(),
-		FailedConnections:   m.failedConnections.Load(),
-		AvgConnectionTime:   avgConnTime,
-		ActivePlayers:       m.activePlayers.Load(),
-		TotalLogins:         m.totalLogins.Load(),
-		TotalRegistrations:  m.totalRegistrations.Load(),
-		TradesCompleted:     m.tradesCompleted.Load(),
-		CombatEncounters:    m.combatEncounters.Load(),
-		MissionsCompleted:   m.missionsCompleted.Load(),
-		QuestsCompleted:     m.questsCompleted.Load(),
-		JumpsExecuted:       m.jumpsExecuted.Load(),
-		CargoTransferred:    m.cargoTransferred.Load(),
-		TotalCreditsInGame:  m.totalCreditsInGame.Load(),
-		TotalMarketVolume:   m.totalMarketVolume.Load(),
-		TradeVolume24h:      m.tradeVolume24h.Load(),
-		DatabaseQueries:     m.databaseQueries.Load(),
-		DatabaseErrors:      m.databaseErrors.Load(),
-		CacheHits:           m.cacheHits.Load(),
-		CacheMisses:         m.cacheMisses.Load(),
-		CacheHitRate:        hitRate,
-		AvgTickTime:         m.averageTickTime,
-		PeakPlayers:         m.peakPlayers,
-		PeakTime:            m.peakTime,
-		Uptime:              time.Since(m.startTime),
-		CustomCounters:      customCounters,
-		CustomGauges:        customGauges,
+		TotalConnections:   m.totalConnections.Load(),
+		ActiveConnections:  m.activeConnections.Load(),
+		FailedConnections:  m.failedConnections.Load(),
+		AvgConnectionTime:  avgConnTime,
+		ActivePlayers:      m.activePlayers.Load(),
+		TotalLogins:        m.totalLogins.Load(),
+		TotalRegistrations: m.totalRegistrations.Load(),
+		TradesCompleted:    m.tradesCompleted.Load(),
+		CombatEncounters:   m.combatEncounters.Load(),
+		MissionsCompleted:  m.missionsCompleted.Load(),
+		QuestsCompleted:    m.questsCompleted.Load(),
+		JumpsExecuted:      m.jumpsExecuted.Load(),
+		CargoTransferred:   m.cargoTransferred.Load(),
+		TotalCreditsInGame: m.totalCreditsInGame.Load(),
+		TotalMarketVolume:  m.totalMarketVolume.Load(),
+		TradeVolume24h:     m.tradeVolume24h.Load(),
+		DatabaseQueries:    m.databaseQueries.Load(),
+		DatabaseErrors:     m.databaseErrors.Load(),
+		CacheHits:          m.cacheHits.Load(),
+		CacheMisses:        m.cacheMisses.Load(),
+		CacheHitRate:       hitRate,
+		AvgTickTime:        m.averageTickTime,
+		PeakPlayers:        m.peakPlayers,
+		PeakTime:           m.peakTime,
+		Uptime:             time.Since(m.startTime),
+		CustomCounters:     customCounters,
+		CustomGauges:       customGauges,
 	}
 }
 

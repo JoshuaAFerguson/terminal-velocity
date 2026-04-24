@@ -18,7 +18,7 @@ import (
 type LatencyHistogram struct {
 	mu      sync.RWMutex
 	buckets map[string][]time.Duration // Operation name -> durations
-	limits  int                         // Max samples per bucket
+	limits  int                        // Max samples per bucket
 }
 
 // NewLatencyHistogram creates a new histogram
@@ -217,10 +217,10 @@ type EnhancedMetrics struct {
 	Errors *ErrorCounter
 
 	// Activity rates (per minute)
-	TradeRate    *RateCounter
-	CombatRate   *RateCounter
-	LoginRate    *RateCounter
-	CommandRate  *RateCounter
+	TradeRate   *RateCounter
+	CombatRate  *RateCounter
+	LoginRate   *RateCounter
+	CommandRate *RateCounter
 
 	// Resource usage
 	ActiveSessions   atomic.Int64
@@ -230,9 +230,9 @@ type EnhancedMetrics struct {
 
 // RateCounter tracks events per time window
 type RateCounter struct {
-	mu      sync.RWMutex
-	events  []time.Time
-	window  time.Duration
+	mu     sync.RWMutex
+	events []time.Time
+	window time.Duration
 }
 
 // NewRateCounter creates a new rate counter

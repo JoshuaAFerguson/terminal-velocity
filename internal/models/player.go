@@ -77,8 +77,8 @@ type Player struct {
 
 	// Progression - Mining
 	TotalMiningOps int              `json:"total_mining_ops"`
-	TotalYield     int64            `json:"total_yield"`       // Total resources mined
-	ResourcesMined map[string]int64 `json:"resources_mined"`   // Resources mined by type
+	TotalYield     int64            `json:"total_yield"`     // Total resources mined
+	ResourcesMined map[string]int64 `json:"resources_mined"` // Resources mined by type
 
 	// Progression - Manufacturing/Crafting
 	CraftingSkill int `json:"crafting_skill"` // Crafting skill level (0-100)
@@ -88,8 +88,8 @@ type Player struct {
 	ResearchPoints int `json:"research_points"` // Available research points for technology unlocks
 
 	// Progression - Overall
-	Level      int   `json:"level"`       // Overall player level (1-100)
-	Experience int64 `json:"experience"`  // Experience points for leveling
+	Level      int   `json:"level"`      // Overall player level (1-100)
+	Experience int64 `json:"experience"` // Experience points for leveling
 
 	// Reputation with NPC factions (-100 to +100)
 	Reputation map[string]int `json:"reputation"`
@@ -185,14 +185,14 @@ func NewPlayer(username, passwordHash string) *Player {
 		ResearchPoints: 100, // Starting research points
 
 		// Overall progression
-		Level:      1,  // Start at level 1
-		Experience: 0,  // No experience yet
+		Level:      1, // Start at level 1
+		Experience: 0, // No experience yet
 
 		Reputation: make(map[string]int),
 
 		// Legal status
-		LegalStatus: "citizen",  // Start as citizen
-		Bounty:      0,           // No bounty
+		LegalStatus: "citizen", // Start as citizen
+		Bounty:      0,         // No bounty
 
 		IsOnline:   false,
 		IsCriminal: false,

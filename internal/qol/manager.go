@@ -25,11 +25,11 @@ type Manager struct {
 	mu sync.RWMutex
 
 	// QoL data
-	waypoints      map[uuid.UUID]*WaypointSet     // player_id -> waypoints
-	autoTraders    map[uuid.UUID]*AutoTrader      // player_id -> auto-trader
-	tradeRoutes    map[uuid.UUID]*TradeRoute      // route_id -> trade route
-	quickCommands  map[uuid.UUID]map[string]string // player_id -> command shortcuts
-	notifications  map[uuid.UUID]*NotificationPrefs // player_id -> preferences
+	waypoints     map[uuid.UUID]*WaypointSet       // player_id -> waypoints
+	autoTraders   map[uuid.UUID]*AutoTrader        // player_id -> auto-trader
+	tradeRoutes   map[uuid.UUID]*TradeRoute        // route_id -> trade route
+	quickCommands map[uuid.UUID]map[string]string  // player_id -> command shortcuts
+	notifications map[uuid.UUID]*NotificationPrefs // player_id -> preferences
 
 	// Configuration
 	config QoLConfig
@@ -39,9 +39,9 @@ type Manager struct {
 	systemRepo *database.SystemRepository
 
 	// Callbacks
-	onWaypointReached func(playerID uuid.UUID, waypoint *Waypoint)
+	onWaypointReached   func(playerID uuid.UUID, waypoint *Waypoint)
 	onAutoTradeComplete func(playerID uuid.UUID, profit int64)
-	onNotification func(playerID uuid.UUID, notification *Notification)
+	onNotification      func(playerID uuid.UUID, notification *Notification)
 
 	// Background workers
 	stopChan chan struct{}
@@ -51,9 +51,9 @@ type Manager struct {
 // QoLConfig defines QoL system parameters
 type QoLConfig struct {
 	// Waypoint settings
-	MaxWaypoints         int           // Max waypoints per player
-	WaypointAutoNav      bool          // Enable auto-navigation
-	WaypointNotifyRange  float64       // Distance to notify approaching waypoint
+	MaxWaypoints        int     // Max waypoints per player
+	WaypointAutoNav     bool    // Enable auto-navigation
+	WaypointNotifyRange float64 // Distance to notify approaching waypoint
 
 	// Auto-trading settings
 	AutoTradeEnabled     bool          // Enable auto-trading
@@ -62,18 +62,18 @@ type QoLConfig struct {
 	AutoTradeMaxJumps    int           // Max jumps for route
 
 	// Notification settings
-	EnableNotifications  bool          // Global notification toggle
-	NotificationSound    bool          // Sound notifications
-	NotificationHistory  int           // How many to keep
+	EnableNotifications bool // Global notification toggle
+	NotificationSound   bool // Sound notifications
+	NotificationHistory int  // How many to keep
 
 	// Quick command settings
-	MaxQuickCommands     int           // Max shortcuts per player
-	CommandAliasLimit    int           // Max characters in alias
+	MaxQuickCommands  int // Max shortcuts per player
+	CommandAliasLimit int // Max characters in alias
 
 	// Auto-save settings
-	AutoSaveInterval     time.Duration // How often to auto-save
-	AutoSaveOnJump       bool          // Save before each jump
-	AutoSaveOnTrade      bool          // Save after trades
+	AutoSaveInterval time.Duration // How often to auto-save
+	AutoSaveOnJump   bool          // Save before each jump
+	AutoSaveOnTrade  bool          // Save after trades
 }
 
 // DefaultQoLConfig returns sensible defaults
@@ -157,56 +157,56 @@ type Waypoint struct {
 	SystemName  string
 	PlanetID    *uuid.UUID // Optional: specific planet
 	PlanetName  string
-	Color       string     // For display
-	Icon        string     // Icon character
+	Color       string // For display
+	Icon        string // Icon character
 	CreatedAt   time.Time
 	Visited     bool
 }
 
 // AutoTrader represents an automated trading configuration
 type AutoTrader struct {
-	PlayerID     uuid.UUID
-	Enabled      bool
-	Routes       []uuid.UUID // Trade route IDs
-	MinProfit    int64       // Minimum profit to execute
-	LastRun      time.Time
-	TotalProfit  int64
+	PlayerID       uuid.UUID
+	Enabled        bool
+	Routes         []uuid.UUID // Trade route IDs
+	MinProfit      int64       // Minimum profit to execute
+	LastRun        time.Time
+	TotalProfit    int64
 	TradesExecuted int
 }
 
 // TradeRoute represents a profitable trade route
 type TradeRoute struct {
-	ID            uuid.UUID
-	PlayerID      uuid.UUID
-	Name          string
-	FromSystemID  uuid.UUID
-	ToSystemID    uuid.UUID
-	FromSystem    string
-	ToSystem      string
-	Commodity     string
-	BuyPrice      int64
-	SellPrice     int64
-	Profit        int64
-	Distance      float64
-	LastUpdated   time.Time
-	Active        bool
+	ID           uuid.UUID
+	PlayerID     uuid.UUID
+	Name         string
+	FromSystemID uuid.UUID
+	ToSystemID   uuid.UUID
+	FromSystem   string
+	ToSystem     string
+	Commodity    string
+	BuyPrice     int64
+	SellPrice    int64
+	Profit       int64
+	Distance     float64
+	LastUpdated  time.Time
+	Active       bool
 }
 
 // NotificationPrefs represents player notification preferences
 type NotificationPrefs struct {
-	PlayerID       uuid.UUID
-	EnabledTypes   map[string]bool // notification_type -> enabled
-	History        []*Notification
-	MaxHistory     int
+	PlayerID     uuid.UUID
+	EnabledTypes map[string]bool // notification_type -> enabled
+	History      []*Notification
+	MaxHistory   int
 }
 
 // Notification represents a player notification
 type Notification struct {
 	ID        uuid.UUID
-	Type      string    // "waypoint", "trade", "combat", "system"
+	Type      string // "waypoint", "trade", "combat", "system"
 	Title     string
 	Message   string
-	Priority  string    // "low", "normal", "high", "critical"
+	Priority  string // "low", "normal", "high", "critical"
 	Timestamp time.Time
 	Read      bool
 }

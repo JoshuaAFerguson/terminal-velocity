@@ -24,7 +24,7 @@ var log = logger.WithComponent("Loadouts")
 
 // Manager handles loadout sharing and comparison
 type Manager struct {
-	mu         sync.RWMutex
+	mu          sync.RWMutex
 	loadoutRepo *database.LoadoutRepository
 
 	// Cache of recently accessed loadouts
@@ -300,8 +300,8 @@ func (m *Manager) CompareLoadouts(ctx context.Context, loadoutID1, loadoutID2, v
 	}
 
 	comparison := &models.LoadoutComparison{
-		Loadout1: loadout1,
-		Loadout2: loadout2,
+		Loadout1:    loadout1,
+		Loadout2:    loadout2,
 		Differences: m.findDifferences(loadout1, loadout2),
 	}
 
@@ -337,13 +337,13 @@ func (m *Manager) ApplyLoadout(ctx context.Context, loadoutID, playerID uuid.UUI
 // calculateLoadoutStats calculates statistics for a loadout
 func (m *Manager) calculateLoadoutStats(shipType *models.ShipType, weapons, outfits []string) *models.LoadoutStats {
 	stats := &models.LoadoutStats{
-		TotalDPS:     0,
-		TotalArmor:   0,
-		TotalShield:  0,
-		TotalSpeed:   0,
-		TotalCargo:   0,
-		EnergyUsage:  0,
-		MassUsage:    0,
+		TotalDPS:    0,
+		TotalArmor:  0,
+		TotalShield: 0,
+		TotalSpeed:  0,
+		TotalCargo:  0,
+		EnergyUsage: 0,
+		MassUsage:   0,
 	}
 
 	// Base stats from ship type

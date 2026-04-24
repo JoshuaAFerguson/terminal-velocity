@@ -244,4 +244,3 @@ func formatDurationYears(d time.Duration) string {
 		return fmt.Sprintf("%dh", hours)
 	}
 }
-

@@ -15,10 +15,10 @@ import (
 )
 
 type questBoardEnhancedModel struct {
-	selectedQuest int
-	activeQuests  []questEntry
+	selectedQuest   int
+	activeQuests    []questEntry
 	availableQuests []questEntry
-	viewMode      string // "active", "details", "available"
+	viewMode        string // "active", "details", "available"
 }
 
 type questEntry struct {
@@ -44,11 +44,11 @@ func newQuestBoardEnhancedModel() questBoardEnhancedModel {
 	// Sample active quests
 	activeQuests := []questEntry{
 		{
-			id:        "quest_pirate_menace",
-			title:     "The Pirate Menace",
-			questType: "MAIN",
-			chapter:   "Chapter 1",
-			progress:  40,
+			id:          "quest_pirate_menace",
+			title:       "The Pirate Menace",
+			questType:   "MAIN",
+			chapter:     "Chapter 1",
+			progress:    40,
 			description: "A mysterious increase in pirate activity has been reported across human space. United Earth Intelligence suspects a larger organization is coordinating these attacks. Your mission is to investigate and neutralize the threat.",
 			objectives: []questObjective{
 				{description: "Speak with Admiral Chen at Earth Station", completed: true},
@@ -67,11 +67,11 @@ func newQuestBoardEnhancedModel() questBoardEnhancedModel {
 			isActive: true,
 		},
 		{
-			id:        "quest_traders_gambit",
-			title:     "Trader's Gambit",
-			questType: "SIDE",
-			chapter:   "",
-			progress:  60,
+			id:          "quest_traders_gambit",
+			title:       "Trader's Gambit",
+			questType:   "SIDE",
+			chapter:     "",
+			progress:    60,
 			description: "A merchant guild contact has offered you a lucrative trading opportunity. Deliver specialized goods to Mars Colony before the deadline to earn a substantial profit and guild reputation.",
 			objectives: []questObjective{
 				{description: "Accept contract from Merchant Guild", completed: true},
@@ -92,25 +92,25 @@ func newQuestBoardEnhancedModel() questBoardEnhancedModel {
 	// Sample available quests
 	availableQuests := []questEntry{
 		{
-			id:        "quest_lost_cargo",
-			title:     "Lost Cargo",
-			questType: "SIDE",
+			id:          "quest_lost_cargo",
+			title:       "Lost Cargo",
+			questType:   "SIDE",
 			description: "A trader's ship was destroyed by pirates. Recover the cargo from the wreckage.",
-			isActive: false,
+			isActive:    false,
 		},
 		{
-			id:        "quest_pirate_hunters",
-			title:     "Pirate Hunters United",
-			questType: "FACTION",
+			id:          "quest_pirate_hunters",
+			title:       "Pirate Hunters United",
+			questType:   "FACTION",
 			description: "Join the Pirate Hunters faction in their campaign against organized crime.",
-			isActive: false,
+			isActive:    false,
 		},
 		{
-			id:        "quest_outer_reaches",
-			title:     "The Outer Reaches",
-			questType: "EXPLORATION",
+			id:          "quest_outer_reaches",
+			title:       "The Outer Reaches",
+			questType:   "EXPLORATION",
 			description: "Explore uncharted systems beyond known space and report your findings.",
-			isActive: false,
+			isActive:    false,
 		},
 	}
 

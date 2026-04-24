@@ -110,11 +110,11 @@ func NewAIState(level AILevel) *AIState {
 //   - Ace: Perfect decision making, adaptive tactics
 //
 // Decision Flow:
-//   1. Update morale based on damage taken
-//   2. Check retreat conditions (low hull, low morale)
-//   3. Select or update target (every 3 seconds)
-//   4. Choose weapons and engage target
-//   5. Maintain formation position (if applicable)
+//  1. Update morale based on damage taken
+//  2. Check retreat conditions (low hull, low morale)
+//  3. Select or update target (every 3 seconds)
+//  4. Choose weapons and engage target
+//  5. Maintain formation position (if applicable)
 //
 // Returns:
 //

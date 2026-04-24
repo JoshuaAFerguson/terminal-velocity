@@ -28,10 +28,10 @@ type Limiter struct {
 	connectionWindow time.Duration
 
 	// Authentication rate limiting (per IP)
-	authAttempts     map[string]*authTracker
-	maxAuthAttempts  int
-	authWindow       time.Duration
-	authLockoutTime  time.Duration
+	authAttempts    map[string]*authTracker
+	maxAuthAttempts int
+	authWindow      time.Duration
+	authLockoutTime time.Duration
 
 	// IP banning
 	bannedIPs        map[string]*banInfo
@@ -60,9 +60,9 @@ type authTracker struct {
 
 // banInfo stores information about a banned IP
 type banInfo struct {
-	reason     string
-	bannedAt   time.Time
-	expiresAt  time.Time
+	reason      string
+	bannedAt    time.Time
+	expiresAt   time.Time
 	isPermanent bool
 }
 
@@ -392,12 +392,12 @@ func (l *Limiter) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"tracked_ips":        len(l.connections),
-		"total_connections":  totalConnections,
-		"locked_ips":         lockedIPs,
-		"banned_ips":         totalBanned,
-		"permanent_bans":     permanentBans,
-		"auth_trackers":      len(l.authAttempts),
+		"tracked_ips":       len(l.connections),
+		"total_connections": totalConnections,
+		"locked_ips":        lockedIPs,
+		"banned_ips":        totalBanned,
+		"permanent_bans":    permanentBans,
+		"auth_trackers":     len(l.authAttempts),
 	}
 }
 

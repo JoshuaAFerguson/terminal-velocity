@@ -37,27 +37,27 @@ func NewCalculator(systemRepo *database.SystemRepository, marketRepo *database.M
 
 // TradeRoute represents a profitable trade route
 type TradeRoute struct {
-	FromSystem   *models.StarSystem
-	ToSystem     *models.StarSystem
-	Commodity    string
-	BuyPrice     float64
-	SellPrice    float64
+	FromSystem    *models.StarSystem
+	ToSystem      *models.StarSystem
+	Commodity     string
+	BuyPrice      float64
+	SellPrice     float64
 	ProfitPerUnit float64
-	Distance     int
-	JumpPath     []uuid.UUID
+	Distance      int
+	JumpPath      []uuid.UUID
 	ProfitPerJump float64
-	TotalProfit  int64 // For max cargo
-	ROI          float64 // Return on investment percentage
+	TotalProfit   int64   // For max cargo
+	ROI           float64 // Return on investment percentage
 }
 
 // RouteOptions configures route finding
 type RouteOptions struct {
-	MaxJumps      int     // Maximum jumps to consider (0 = unlimited)
-	MinProfit     float64 // Minimum profit per unit
-	CargoCapacity int     // Ship's cargo capacity
-	CurrentSystem uuid.UUID
-	IncludeIllegal bool   // Include illegal goods
-	MaxDistance   int     // Maximum total distance
+	MaxJumps       int     // Maximum jumps to consider (0 = unlimited)
+	MinProfit      float64 // Minimum profit per unit
+	CargoCapacity  int     // Ship's cargo capacity
+	CurrentSystem  uuid.UUID
+	IncludeIllegal bool // Include illegal goods
+	MaxDistance    int  // Maximum total distance
 }
 
 // DefaultRouteOptions returns sensible defaults
@@ -354,11 +354,11 @@ func (c *Calculator) findShortestPath(systems []*models.StarSystem, fromID, toID
 
 // NavigationPath represents a planned route through space
 type NavigationPath struct {
-	Systems      []*models.StarSystem
-	TotalJumps   int
+	Systems       []*models.StarSystem
+	TotalJumps    int
 	TotalDistance int
-	FuelRequired int
-	Waypoints    []string // System names
+	FuelRequired  int
+	Waypoints     []string // System names
 }
 
 // PlanRoute creates a navigation plan between two systems

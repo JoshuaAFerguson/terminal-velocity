@@ -22,12 +22,12 @@ import (
 
 // TwoFactorConfig holds 2FA configuration for a player
 type TwoFactorConfig struct {
-	PlayerID     uuid.UUID
-	Enabled      bool
-	Secret       string
-	BackupCodes  []string
-	CreatedAt    time.Time
-	LastUsed     *time.Time
+	PlayerID    uuid.UUID
+	Enabled     bool
+	Secret      string
+	BackupCodes []string
+	CreatedAt   time.Time
+	LastUsed    *time.Time
 }
 
 // TwoFactorManager manages two-factor authentication

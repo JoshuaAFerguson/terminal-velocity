@@ -55,15 +55,15 @@ type ItemPickerModel struct {
 	allItems []*models.PlayerItem // Unfiltered items for search
 
 	// State
-	cursor       int
-	selected     map[uuid.UUID]bool // For multi-select mode
-	searchQuery  string
-	searchMode   bool
-	error        string
-	loading      bool
+	cursor      int
+	selected    map[uuid.UUID]bool // For multi-select mode
+	searchQuery string
+	searchMode  bool
+	error       string
+	loading     bool
 
 	// Scroll support
-	scrollOffset int
+	scrollOffset   int
 	viewportHeight int // Number of items visible at once
 }
 

@@ -377,10 +377,10 @@ func (m *Manager) NotifyPvPChallenge(ctx context.Context, receiverID, senderID u
 // NotifyTerritoryAttack sends a territory attack notification
 func (m *Manager) NotifyTerritoryAttack(ctx context.Context, factionLeaderID, attackerFactionID uuid.UUID, attackerFactionName, systemName string) error {
 	notification := &models.Notification{
-		PlayerID: factionLeaderID,
-		Type:     models.NotificationTypeTerritoryAttack,
-		Title:    "Territory Under Attack",
-		Message:  fmt.Sprintf("%s is attacking your territory in %s", attackerFactionName, systemName),
+		PlayerID:  factionLeaderID,
+		Type:      models.NotificationTypeTerritoryAttack,
+		Title:     "Territory Under Attack",
+		Message:   fmt.Sprintf("%s is attacking your territory in %s", attackerFactionName, systemName),
 		ExpiresAt: time.Now().Add(24 * time.Hour), // 24 hours
 		ActionData: map[string]interface{}{
 			"attacker_faction": attackerFactionName,
@@ -502,17 +502,17 @@ func (m *Manager) GetNotificationStats(ctx context.Context, playerID uuid.UUID) 
 	}
 
 	return map[string]int{
-		"total":                         len(allNotifications),
-		"unread":                        unreadCount,
-		"expired":                       expiredCount,
-		"friend_requests":               byType[models.NotificationTypeFriendRequest],
-		"mail":                          byType[models.NotificationTypeMail],
-		"trade_offers":                  byType[models.NotificationTypeTradeOffer],
-		"pvp_challenges":                byType[models.NotificationTypePvPChallenge],
-		"territory_attacks":             byType[models.NotificationTypeTerritoryAttack],
-		"faction_invites":               byType[models.NotificationTypeFactionInvite],
-		"system_messages":               byType[models.NotificationTypeSystemMessage],
-		"achievements":                  byType[models.NotificationTypeAchievement],
-		"events":                        byType[models.NotificationTypeEvent],
+		"total":             len(allNotifications),
+		"unread":            unreadCount,
+		"expired":           expiredCount,
+		"friend_requests":   byType[models.NotificationTypeFriendRequest],
+		"mail":              byType[models.NotificationTypeMail],
+		"trade_offers":      byType[models.NotificationTypeTradeOffer],
+		"pvp_challenges":    byType[models.NotificationTypePvPChallenge],
+		"territory_attacks": byType[models.NotificationTypeTerritoryAttack],
+		"faction_invites":   byType[models.NotificationTypeFactionInvite],
+		"system_messages":   byType[models.NotificationTypeSystemMessage],
+		"achievements":      byType[models.NotificationTypeAchievement],
+		"events":            byType[models.NotificationTypeEvent],
 	}, nil
 }

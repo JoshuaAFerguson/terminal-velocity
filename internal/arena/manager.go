@@ -28,8 +28,8 @@ type Manager struct {
 	arenas      map[uuid.UUID]*Arena
 	matches     map[uuid.UUID]*Match
 	tournaments map[uuid.UUID]*Tournament
-	spectators  map[uuid.UUID][]uuid.UUID // match_id -> spectator player IDs
-	rankings    map[string]*PlayerRanking  // player_id -> ranking
+	spectators  map[uuid.UUID][]uuid.UUID   // match_id -> spectator player IDs
+	rankings    map[string]*PlayerRanking   // player_id -> ranking
 	matchQueue  map[MatchType][]*QueueEntry // matchmaking queue by match type
 
 	// Configuration
@@ -39,8 +39,8 @@ type Manager struct {
 	playerRepo *database.PlayerRepository
 
 	// Callbacks
-	onMatchStart    func(match *Match)
-	onMatchEnd      func(match *Match)
+	onMatchStart      func(match *Match)
+	onMatchEnd        func(match *Match)
 	onTournamentStart func(tournament *Tournament)
 	onTournamentEnd   func(tournament *Tournament)
 	onSpectatorJoin   func(matchID, spectatorID uuid.UUID)
@@ -53,29 +53,29 @@ type Manager struct {
 // ArenaConfig defines arena system parameters
 type ArenaConfig struct {
 	// Arena settings
-	ArenaCount              int           // Number of available arenas
-	MatchQueueTimeout       time.Duration // Max time in matchmaking queue
-	RankingDecayRate        float64       // Daily ranking decay
+	ArenaCount        int           // Number of available arenas
+	MatchQueueTimeout time.Duration // Max time in matchmaking queue
+	RankingDecayRate  float64       // Daily ranking decay
 
 	// Match settings
-	MatchDuration           time.Duration // Maximum match duration
-	RoundDuration           time.Duration // Duration per round
-	RespawnTime             time.Duration // Time before respawn in match
-	SpectatorDelay          time.Duration // Spectator view delay
-	MaxSpectatorsPerMatch   int           // Max spectators per match
+	MatchDuration         time.Duration // Maximum match duration
+	RoundDuration         time.Duration // Duration per round
+	RespawnTime           time.Duration // Time before respawn in match
+	SpectatorDelay        time.Duration // Spectator view delay
+	MaxSpectatorsPerMatch int           // Max spectators per match
 
 	// Tournament settings
-	MinTournamentPlayers    int           // Minimum players to start
-	MaxTournamentPlayers    int           // Maximum tournament size
-	TournamentEntryFee      int64         // Entry fee in credits
-	TournamentPrizePool     float64       // % of entry fees as prizes
-	TournamentBracketType   string        // "single_elimination", "double_elimination"
+	MinTournamentPlayers  int     // Minimum players to start
+	MaxTournamentPlayers  int     // Maximum tournament size
+	TournamentEntryFee    int64   // Entry fee in credits
+	TournamentPrizePool   float64 // % of entry fees as prizes
+	TournamentBracketType string  // "single_elimination", "double_elimination"
 
 	// Ranking settings
-	StartingELO             int           // Starting ELO rating
-	ELOKFactor              int           // ELO calculation K-factor
-	WinStreakBonus          int           // Bonus per win streak
-	RankTiers               []string      // Rank tier names
+	StartingELO    int      // Starting ELO rating
+	ELOKFactor     int      // ELO calculation K-factor
+	WinStreakBonus int      // Bonus per win streak
+	RankTiers      []string // Rank tier names
 }
 
 // DefaultArenaConfig returns sensible defaults
@@ -162,67 +162,67 @@ type Arena struct {
 	ID          uuid.UUID
 	Name        string
 	Description string
-	MapType     string // "asteroid_field", "nebula", "space_station", "debris_field"
-	Size        string // "small", "medium", "large"
+	MapType     string   // "asteroid_field", "nebula", "space_station", "debris_field"
+	Size        string   // "small", "medium", "large"
 	Features    []string // "cover", "hazards", "power_ups", "objectives"
-	Capacity    int    // Max players in match
-	Status      string // "available", "occupied", "maintenance"
+	Capacity    int      // Max players in match
+	Status      string   // "available", "occupied", "maintenance"
 }
 
 // Match represents an active PvP match
 type Match struct {
-	ID            uuid.UUID
-	ArenaID       uuid.UUID
-	Type          MatchType
-	Players       []uuid.UUID
-	Teams         map[string][]uuid.UUID // "red" -> player IDs, "blue" -> player IDs
-	Scores        map[uuid.UUID]int      // player_id -> score
-	StartTime     time.Time
-	EndTime       time.Time
-	Status        string // "waiting", "in_progress", "completed", "cancelled"
-	Winner        uuid.UUID
-	MatchData     *MatchData
-	TournamentID  *uuid.UUID // If part of tournament
+	ID           uuid.UUID
+	ArenaID      uuid.UUID
+	Type         MatchType
+	Players      []uuid.UUID
+	Teams        map[string][]uuid.UUID // "red" -> player IDs, "blue" -> player IDs
+	Scores       map[uuid.UUID]int      // player_id -> score
+	StartTime    time.Time
+	EndTime      time.Time
+	Status       string // "waiting", "in_progress", "completed", "cancelled"
+	Winner       uuid.UUID
+	MatchData    *MatchData
+	TournamentID *uuid.UUID // If part of tournament
 }
 
 // MatchType defines the type of PvP match
 type MatchType string
 
 const (
-	MatchTypeDuel          MatchType = "duel"           // 1v1
+	MatchTypeDuel           MatchType = "duel"            // 1v1
 	MatchTypeTeamDeathmatch MatchType = "team_deathmatch" // Team vs Team
-	MatchTypeFreeForAll    MatchType = "free_for_all"   // Everyone vs Everyone
-	MatchTypeCaptureFlag   MatchType = "capture_flag"   // CTF mode
-	MatchTypeKingOfHill    MatchType = "king_of_hill"   // Control point
-	MatchTypeElimination   MatchType = "elimination"    // Last standing wins
+	MatchTypeFreeForAll     MatchType = "free_for_all"    // Everyone vs Everyone
+	MatchTypeCaptureFlag    MatchType = "capture_flag"    // CTF mode
+	MatchTypeKingOfHill     MatchType = "king_of_hill"    // Control point
+	MatchTypeElimination    MatchType = "elimination"     // Last standing wins
 )
 
 // MatchData contains detailed match information
 type MatchData struct {
-	Kills         map[uuid.UUID]int
-	Deaths        map[uuid.UUID]int
-	Assists       map[uuid.UUID]int
-	DamageDealt   map[uuid.UUID]float64
-	DamageTaken   map[uuid.UUID]float64
-	Objectives    map[uuid.UUID]int // Flags captured, points controlled, etc.
+	Kills       map[uuid.UUID]int
+	Deaths      map[uuid.UUID]int
+	Assists     map[uuid.UUID]int
+	DamageDealt map[uuid.UUID]float64
+	DamageTaken map[uuid.UUID]float64
+	Objectives  map[uuid.UUID]int // Flags captured, points controlled, etc.
 }
 
 // Tournament represents a competitive tournament
 type Tournament struct {
-	ID            uuid.UUID
-	Name          string
-	Type          TournamentType
-	EntryFee      int64
-	PrizePool     int64
-	MaxPlayers    int
-	Participants  []uuid.UUID
-	Bracket       *TournamentBracket
-	CurrentRound  int
-	StartTime     time.Time
-	EndTime       time.Time
-	Status        string // "registration", "in_progress", "completed"
-	Winners       []uuid.UUID // 1st, 2nd, 3rd place
-	BracketData   map[string]interface{} // Additional bracket metadata (e.g., bye advancers)
+	ID           uuid.UUID
+	Name         string
+	Type         TournamentType
+	EntryFee     int64
+	PrizePool    int64
+	MaxPlayers   int
+	Participants []uuid.UUID
+	Bracket      *TournamentBracket
+	CurrentRound int
+	StartTime    time.Time
+	EndTime      time.Time
+	Status       string                 // "registration", "in_progress", "completed"
+	Winners      []uuid.UUID            // 1st, 2nd, 3rd place
+	BracketData  map[string]interface{} // Additional bracket metadata (e.g., bye advancers)
 }
 
 // TournamentType defines tournament format
@@ -237,8 +237,8 @@ const (
 
 // TournamentBracket represents the tournament structure
 type TournamentBracket struct {
-	Rounds   []*TournamentRound
-	Matches  map[uuid.UUID]*Match
+	Rounds  []*TournamentRound
+	Matches map[uuid.UUID]*Match
 }
 
 // TournamentRound represents a round in the bracket
@@ -250,16 +250,16 @@ type TournamentRound struct {
 
 // PlayerRanking tracks a player's competitive ranking
 type PlayerRanking struct {
-	PlayerID      uuid.UUID
-	ELO           int
-	Tier          string
-	Division      int       // 1-5 within tier
-	Wins          int
-	Losses        int
-	WinStreak     int
-	HighestELO    int
+	PlayerID       uuid.UUID
+	ELO            int
+	Tier           string
+	Division       int // 1-5 within tier
+	Wins           int
+	Losses         int
+	WinStreak      int
+	HighestELO     int
 	TournamentsWon int
-	LastMatchTime time.Time
+	LastMatchTime  time.Time
 }
 
 // QueueEntry represents a player in the matchmaking queue
@@ -1193,9 +1193,9 @@ func (m *Manager) GetStats() ArenaStats {
 	defer m.mu.RUnlock()
 
 	stats := ArenaStats{
-		AvailableArenas: 0,
-		ActiveMatches:   0,
-		TotalSpectators: 0,
+		AvailableArenas:   0,
+		ActiveMatches:     0,
+		TotalSpectators:   0,
 		ActiveTournaments: 0,
 	}
 

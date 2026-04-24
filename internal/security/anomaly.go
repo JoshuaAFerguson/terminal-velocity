@@ -16,18 +16,18 @@ import (
 
 // LoginHistory tracks login patterns for anomaly detection
 type LoginHistory struct {
-	PlayerID      uuid.UUID
-	Timestamps    []time.Time
-	IPAddresses   map[string]time.Time // IP -> last seen
-	UserAgents    map[string]time.Time // User agent -> last seen
-	TypicalHours  map[int]int          // Hour of day -> count
-	Countries     map[string]time.Time // Country code -> last seen (future: with GeoIP)
+	PlayerID     uuid.UUID
+	Timestamps   []time.Time
+	IPAddresses  map[string]time.Time // IP -> last seen
+	UserAgents   map[string]time.Time // User agent -> last seen
+	TypicalHours map[int]int          // Hour of day -> count
+	Countries    map[string]time.Time // Country code -> last seen (future: with GeoIP)
 }
 
 // AnomalyDetector detects suspicious login patterns
 type AnomalyDetector struct {
-	mu       sync.RWMutex
-	history  map[uuid.UUID]*LoginHistory // playerID -> history
+	mu         sync.RWMutex
+	history    map[uuid.UUID]*LoginHistory // playerID -> history
 	maxHistory int
 }
 

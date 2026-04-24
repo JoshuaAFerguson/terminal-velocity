@@ -48,41 +48,41 @@ type Manager struct {
 // FleetConfig defines fleet system parameters
 type FleetConfig struct {
 	// Fleet limits
-	MaxShipsPerPlayer    int // Maximum ships a player can own
-	MaxEscorts           int // Maximum active escorts
-	MaxStoredShips       int // Ships that can be stored at planets
+	MaxShipsPerPlayer int // Maximum ships a player can own
+	MaxEscorts        int // Maximum active escorts
+	MaxStoredShips    int // Ships that can be stored at planets
 
 	// Escort settings
-	EscortHireCost       int64         // Cost to hire an escort
-	EscortMaintenanceCost int64        // Cost per day to maintain escort
-	EscortLoyaltyDecay   float64       // Loyalty decay per day (0.0-1.0)
-	MinLoyaltyThreshold  float64       // Minimum loyalty before desertion (0.0-1.0)
+	EscortHireCost        int64   // Cost to hire an escort
+	EscortMaintenanceCost int64   // Cost per day to maintain escort
+	EscortLoyaltyDecay    float64 // Loyalty decay per day (0.0-1.0)
+	MinLoyaltyThreshold   float64 // Minimum loyalty before desertion (0.0-1.0)
 
 	// Formation settings
-	FormationDistance    float64 // Distance escorts maintain from flagship
-	FormationTightness   float64 // How tightly escorts follow (0.0-1.0)
+	FormationDistance  float64 // Distance escorts maintain from flagship
+	FormationTightness float64 // How tightly escorts follow (0.0-1.0)
 
 	// AI settings
-	EscortResponseTime   time.Duration // How quickly escorts react to commands
-	EscortTargetSwitch   float64       // Chance to switch targets (0.0-1.0)
-	AutoDefendPlayer     bool          // Escorts auto-defend player
+	EscortResponseTime time.Duration // How quickly escorts react to commands
+	EscortTargetSwitch float64       // Chance to switch targets (0.0-1.0)
+	AutoDefendPlayer   bool          // Escorts auto-defend player
 }
 
 // DefaultFleetConfig returns sensible defaults
 func DefaultFleetConfig() FleetConfig {
 	return FleetConfig{
-		MaxShipsPerPlayer:    5,
-		MaxEscorts:           2,
-		MaxStoredShips:       10,
-		EscortHireCost:       50000,
+		MaxShipsPerPlayer:     5,
+		MaxEscorts:            2,
+		MaxStoredShips:        10,
+		EscortHireCost:        50000,
 		EscortMaintenanceCost: 5000,
-		EscortLoyaltyDecay:   0.05,  // 5% per day
-		MinLoyaltyThreshold:  0.30,  // 30% loyalty minimum
-		FormationDistance:    100.0,
-		FormationTightness:   0.75,
-		EscortResponseTime:   2 * time.Second,
-		EscortTargetSwitch:   0.20,  // 20% chance
-		AutoDefendPlayer:     true,
+		EscortLoyaltyDecay:    0.05, // 5% per day
+		MinLoyaltyThreshold:   0.30, // 30% loyalty minimum
+		FormationDistance:     100.0,
+		FormationTightness:    0.75,
+		EscortResponseTime:    2 * time.Second,
+		EscortTargetSwitch:    0.20, // 20% chance
+		AutoDefendPlayer:      true,
 	}
 }
 
@@ -127,37 +127,37 @@ func (m *Manager) SetFleetCommandCallback(callback func(fleet *Fleet, command st
 
 // Fleet represents a player's complete fleet
 type Fleet struct {
-	PlayerID     uuid.UUID
-	FlagshipID   uuid.UUID // Currently active ship
-	OwnedShips   []*models.Ship
-	StoredShips  []*StoredShip
-	Escorts      []*Escort
-	Formation    FormationType
-	AutoDefend   bool
+	PlayerID        uuid.UUID
+	FlagshipID      uuid.UUID // Currently active ship
+	OwnedShips      []*models.Ship
+	StoredShips     []*StoredShip
+	Escorts         []*Escort
+	Formation       FormationType
+	AutoDefend      bool
 	LastMaintenance time.Time
 }
 
 // StoredShip represents a ship stored at a planet
 type StoredShip struct {
-	Ship      *models.Ship
+	Ship       *models.Ship
 	LocationID uuid.UUID // Planet ID where stored
 	Location   string    // Planet name
 	StoredAt   time.Time
-	StorageFee int64     // Fee paid for storage
+	StorageFee int64 // Fee paid for storage
 }
 
 // Escort represents an AI-controlled wingman ship
 type Escort struct {
-	ID          uuid.UUID
-	Ship        *models.Ship
-	OwnerID     uuid.UUID
-	Pilot       string    // NPC pilot name
-	Loyalty     float64   // 0.0 - 1.0
-	HiredAt     time.Time
-	Level       int       // Skill level 1-10
-	Behavior    EscortBehavior
+	ID            uuid.UUID
+	Ship          *models.Ship
+	OwnerID       uuid.UUID
+	Pilot         string  // NPC pilot name
+	Loyalty       float64 // 0.0 - 1.0
+	HiredAt       time.Time
+	Level         int // Skill level 1-10
+	Behavior      EscortBehavior
 	CurrentTarget uuid.UUID
-	Status      string    // "active", "defending", "attacking", "idle"
+	Status        string // "active", "defending", "attacking", "idle"
 }
 
 // EscortBehavior defines how an escort acts
@@ -194,12 +194,12 @@ func (m *Manager) GetOrCreateFleet(playerID uuid.UUID) *Fleet {
 	}
 
 	fleet := &Fleet{
-		PlayerID:     playerID,
-		OwnedShips:   []*models.Ship{},
-		StoredShips:  []*StoredShip{},
-		Escorts:      []*Escort{},
-		Formation:    FormationLine,
-		AutoDefend:   m.config.AutoDefendPlayer,
+		PlayerID:        playerID,
+		OwnedShips:      []*models.Ship{},
+		StoredShips:     []*StoredShip{},
+		Escorts:         []*Escort{},
+		Formation:       FormationLine,
+		AutoDefend:      m.config.AutoDefendPlayer,
 		LastMaintenance: time.Now(),
 	}
 

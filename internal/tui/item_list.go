@@ -23,9 +23,9 @@ import (
 type ItemListGrouping int
 
 const (
-	GroupByNone ItemListGrouping = iota
-	GroupByType                  // Group by weapon/outfit/special/quest
-	GroupByLocation              // Group by ship/station/mail/etc
+	GroupByNone     ItemListGrouping = iota
+	GroupByType                      // Group by weapon/outfit/special/quest
+	GroupByLocation                  // Group by ship/station/mail/etc
 )
 
 // ItemListSorting determines how items are sorted
@@ -51,10 +51,10 @@ type ItemListModel struct {
 	items    []*models.PlayerItem
 
 	// State
-	cursor       int
-	error        string
-	loading      bool
-	scrollOffset int
+	cursor         int
+	error          string
+	loading        bool
+	scrollOffset   int
 	viewportHeight int
 
 	// Filtering (read-only but can filter what's shown)

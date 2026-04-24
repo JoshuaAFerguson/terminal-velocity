@@ -18,9 +18,9 @@ import (
 // TestScreenTransitions verifies basic screen navigation paths
 func TestScreenTransitions(t *testing.T) {
 	tests := []struct {
-		name         string
-		initialScreen Screen
-		keyPress     string
+		name           string
+		initialScreen  Screen
+		keyPress       string
 		expectedScreen Screen
 	}{
 		// Space View navigation
@@ -269,9 +269,9 @@ func TestChatToggle(t *testing.T) {
 // TestDataInitialization verifies all screens initialize with sample data
 func TestDataInitialization(t *testing.T) {
 	tests := []struct {
-		name     string
+		name      string
 		checkFunc func(Model) bool
-		errorMsg string
+		errorMsg  string
 	}{
 		{
 			"Trading has commodities",

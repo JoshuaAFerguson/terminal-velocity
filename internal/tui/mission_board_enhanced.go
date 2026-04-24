@@ -22,19 +22,19 @@ type missionBoardEnhancedModel struct {
 }
 
 type missionListing struct {
-	title        string
-	missionType  string // "DELIVERY", "BOUNTY", "ESCORT", "COMBAT"
-	reward       int64
-	deadline     string // "3 days", "None", etc.
-	difficulty   int    // 0-10 for progress bar
-	cargo        int    // tons required
-	ships        int    // for escort missions
-	description  string
-	employer     string
-	destination  string
-	timeLimit    string
-	reputation   string
-	isUrgent     bool
+	title       string
+	missionType string // "DELIVERY", "BOUNTY", "ESCORT", "COMBAT"
+	reward      int64
+	deadline    string // "3 days", "None", etc.
+	difficulty  int    // 0-10 for progress bar
+	cargo       int    // tons required
+	ships       int    // for escort missions
+	description string
+	employer    string
+	destination string
+	timeLimit   string
+	reputation  string
+	isUrgent    bool
 }
 
 func newMissionBoardEnhancedModel() missionBoardEnhancedModel {

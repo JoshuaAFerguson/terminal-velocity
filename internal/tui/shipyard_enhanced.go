@@ -24,19 +24,19 @@ type shipyardEnhancedModel struct {
 }
 
 type shipListing struct {
-	name         string
-	class        string
-	price        int64
-	hull         int
-	shields      int
-	speed        int
-	accel        int
-	maneuver     int
-	cargo        int
-	fuel         int
-	weaponSlots  int
-	outfitSlots  int
-	description  string
+	name        string
+	class       string
+	price       int64
+	hull        int
+	shields     int
+	speed       int
+	accel       int
+	maneuver    int
+	cargo       int
+	fuel        int
+	weaponSlots int
+	outfitSlots int
+	description string
 }
 
 func newShipyardEnhancedModel() shipyardEnhancedModel {

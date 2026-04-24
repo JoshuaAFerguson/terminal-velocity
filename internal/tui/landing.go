@@ -360,7 +360,7 @@ func (m Model) repairShipCmd() tea.Cmd {
 		}
 
 		// Get ship type to determine max hull/shields
-		maxHull := 100 // Default fallback
+		maxHull := 100    // Default fallback
 		maxShields := 100 // Default fallback
 		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
 		if shipType != nil {

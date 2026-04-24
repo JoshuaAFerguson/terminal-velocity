@@ -37,11 +37,11 @@ const asciiLogo = `
 `
 
 type loginModel struct {
-	focusedField  int // 0: username, 1: password, 2: login button, 3: register button
-	username      string
-	password      string
-	showPassword  bool
-	error         string
+	focusedField     int // 0: username, 1: password, 2: login button, 3: register button
+	username         string
+	password         string
+	showPassword     bool
+	error            string
 	isAuthenticating bool
 }
 

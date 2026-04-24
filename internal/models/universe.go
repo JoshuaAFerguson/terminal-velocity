@@ -35,8 +35,8 @@ type Planet struct {
 	SystemID    uuid.UUID `json:"system_id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
-	X           float64   `json:"x"` // X coordinate within system
-	Y           float64   `json:"y"` // Y coordinate within system
+	X           float64   `json:"x"`        // X coordinate within system
+	Y           float64   `json:"y"`        // Y coordinate within system
 	Services    []string  `json:"services"` // shipyard, outfitter, missions, trading, bar
 	Population  int64     `json:"population"`
 	TechLevel   int       `json:"tech_level"`

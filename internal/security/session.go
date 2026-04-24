@@ -52,8 +52,8 @@ type Session struct {
 // SessionManager manages active sessions
 type SessionManager struct {
 	mu       sync.RWMutex
-	sessions map[uuid.UUID]*Session          // sessionID -> Session
-	players  map[uuid.UUID][]uuid.UUID       // playerID -> []sessionIDs
+	sessions map[uuid.UUID]*Session    // sessionID -> Session
+	players  map[uuid.UUID][]uuid.UUID // playerID -> []sessionIDs
 	config   *SessionConfig
 	stopChan chan struct{}
 	wg       sync.WaitGroup
@@ -341,11 +341,11 @@ func (sm *SessionManager) GetStats() map[string]interface{} {
 	defer sm.mu.RUnlock()
 
 	return map[string]interface{}{
-		"total_sessions":  len(sm.sessions),
-		"unique_players":  len(sm.players),
-		"idle_timeout":    sm.config.IdleTimeout.String(),
-		"max_duration":    sm.config.MaxSessionDuration.String(),
-		"max_concurrent":  sm.config.MaxConcurrent,
+		"total_sessions": len(sm.sessions),
+		"unique_players": len(sm.players),
+		"idle_timeout":   sm.config.IdleTimeout.String(),
+		"max_duration":   sm.config.MaxSessionDuration.String(),
+		"max_concurrent": sm.config.MaxConcurrent,
 	}
 }
 

@@ -52,11 +52,11 @@ type Manager struct {
 // Config contains launch preparation configuration
 type Config struct {
 	// Test data generation
-	MaxTestPlayers     int
-	MaxTestSystems     int
-	MaxTestFactions    int
-	TestDataPrefix     string
-	CleanupTestData    bool
+	MaxTestPlayers  int
+	MaxTestSystems  int
+	MaxTestFactions int
+	TestDataPrefix  string
+	CleanupTestData bool
 
 	// Performance monitoring
 	MetricsInterval    time.Duration
@@ -93,42 +93,42 @@ type TestDataState struct {
 
 // PerformanceMetrics tracks real-time performance
 type PerformanceMetrics struct {
-	Timestamp      time.Time
-	CPUUsage       float64
-	MemoryUsage    int64
-	MemoryAlloc    uint64
-	MemoryTotal    uint64
-	Goroutines     int
-	DBConnections  int32
-	DBIdleConns    int32
-	AvgQueryTime   time.Duration
-	SlowQueries    int
-	ErrorRate      float64
-	mu             sync.RWMutex
+	Timestamp     time.Time
+	CPUUsage      float64
+	MemoryUsage   int64
+	MemoryAlloc   uint64
+	MemoryTotal   uint64
+	Goroutines    int
+	DBConnections int32
+	DBIdleConns   int32
+	AvgQueryTime  time.Duration
+	SlowQueries   int
+	ErrorRate     float64
+	mu            sync.RWMutex
 }
 
 // HealthCheck represents a system health check
 type HealthCheck struct {
-	Name        string
-	Type        string // "database", "memory", "disk", "network", "service"
-	Status      string // "healthy", "warning", "critical"
-	LastCheck   time.Time
-	Message     string
+	Name         string
+	Type         string // "database", "memory", "disk", "network", "service"
+	Status       string // "healthy", "warning", "critical"
+	LastCheck    time.Time
+	Message      string
 	ResponseTime time.Duration
-	Details     map[string]interface{}
+	Details      map[string]interface{}
 }
 
 // LoadTest represents a load testing session
 type LoadTest struct {
-	ID              uuid.UUID
-	Name            string
-	StartTime       time.Time
-	EndTime         time.Time
-	Duration        time.Duration
+	ID               uuid.UUID
+	Name             string
+	StartTime        time.Time
+	EndTime          time.Time
+	Duration         time.Duration
 	SimulatedPlayers int
-	Status          string // "running", "completed", "failed"
-	Results         *LoadTestResults
-	mu              sync.RWMutex
+	Status           string // "running", "completed", "failed"
+	Results          *LoadTestResults
+	mu               sync.RWMutex
 }
 
 // LoadTestResults contains load test metrics

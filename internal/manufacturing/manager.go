@@ -26,11 +26,11 @@ type Manager struct {
 	mu sync.RWMutex
 
 	// Manufacturing data
-	blueprints    map[uuid.UUID]*Blueprint
-	craftingJobs  map[uuid.UUID]*CraftingJob
-	stations      map[uuid.UUID]*PlayerStation
-	technologies  map[uuid.UUID]*Technology
-	playerTech    map[uuid.UUID]map[string]int // playerID -> techID -> level
+	blueprints   map[uuid.UUID]*Blueprint
+	craftingJobs map[uuid.UUID]*CraftingJob
+	stations     map[uuid.UUID]*PlayerStation
+	technologies map[uuid.UUID]*Technology
+	playerTech   map[uuid.UUID]map[string]int // playerID -> techID -> level
 
 	// Configuration
 	config ManufacturingConfig
@@ -40,10 +40,10 @@ type Manager struct {
 	shipRepo   *database.ShipRepository
 
 	// Callbacks
-	onCraftingComplete  func(job *CraftingJob)
-	onTechResearched    func(playerID uuid.UUID, tech *Technology)
-	onStationBuilt      func(station *PlayerStation)
-	onStationUpgraded   func(station *PlayerStation)
+	onCraftingComplete func(job *CraftingJob)
+	onTechResearched   func(playerID uuid.UUID, tech *Technology)
+	onStationBuilt     func(station *PlayerStation)
+	onStationUpgraded  func(station *PlayerStation)
 
 	// Background workers
 	stopChan chan struct{}
@@ -53,41 +53,41 @@ type Manager struct {
 // ManufacturingConfig defines manufacturing parameters
 type ManufacturingConfig struct {
 	// Crafting settings
-	CraftingSpeedModifier    float64       // Global crafting speed multiplier
-	CraftingCostModifier     float64       // Global cost multiplier
-	MaxConcurrentJobs        int           // Max crafting jobs per player
-	CraftingSkillBonusRate   float64       // Skill bonus per level
+	CraftingSpeedModifier  float64 // Global crafting speed multiplier
+	CraftingCostModifier   float64 // Global cost multiplier
+	MaxConcurrentJobs      int     // Max crafting jobs per player
+	CraftingSkillBonusRate float64 // Skill bonus per level
 
 	// Tech research settings
-	ResearchPointsPerDay     int           // Daily research points
-	MaxResearchQueue         int           // Max queued research
-	TechCostScaling          float64       // Cost increase per level
-	TechPrerequisiteStrict   bool          // Require all prerequisites
+	ResearchPointsPerDay   int     // Daily research points
+	MaxResearchQueue       int     // Max queued research
+	TechCostScaling        float64 // Cost increase per level
+	TechPrerequisiteStrict bool    // Require all prerequisites
 
 	// Station settings
-	StationBuildCost         int64         // Base cost to build station
-	StationUpgradeCost       int64         // Base upgrade cost
-	MaxStationsPerPlayer     int           // Max stations per player
-	StationProductionBonus   float64       // Production bonus from station
-	StationStorageCapacity   int           // Base storage capacity
+	StationBuildCost       int64   // Base cost to build station
+	StationUpgradeCost     int64   // Base upgrade cost
+	MaxStationsPerPlayer   int     // Max stations per player
+	StationProductionBonus float64 // Production bonus from station
+	StationStorageCapacity int     // Base storage capacity
 }
 
 // DefaultManufacturingConfig returns sensible defaults
 func DefaultManufacturingConfig() ManufacturingConfig {
 	return ManufacturingConfig{
-		CraftingSpeedModifier:    1.0,
-		CraftingCostModifier:     1.0,
-		MaxConcurrentJobs:        3,
-		CraftingSkillBonusRate:   0.05,  // 5% per level
-		ResearchPointsPerDay:     100,
-		MaxResearchQueue:         5,
-		TechCostScaling:          1.5,   // 50% increase per level
-		TechPrerequisiteStrict:   true,
-		StationBuildCost:         1000000,
-		StationUpgradeCost:       500000,
-		MaxStationsPerPlayer:     3,
-		StationProductionBonus:   0.25,  // 25% bonus
-		StationStorageCapacity:   10000,
+		CraftingSpeedModifier:  1.0,
+		CraftingCostModifier:   1.0,
+		MaxConcurrentJobs:      3,
+		CraftingSkillBonusRate: 0.05, // 5% per level
+		ResearchPointsPerDay:   100,
+		MaxResearchQueue:       5,
+		TechCostScaling:        1.5, // 50% increase per level
+		TechPrerequisiteStrict: true,
+		StationBuildCost:       1000000,
+		StationUpgradeCost:     500000,
+		MaxStationsPerPlayer:   3,
+		StationProductionBonus: 0.25, // 25% bonus
+		StationStorageCapacity: 10000,
 	}
 }
 
@@ -159,31 +159,31 @@ type Blueprint struct {
 
 // CraftingJob represents an active crafting operation
 type CraftingJob struct {
-	ID           uuid.UUID
-	PlayerID     uuid.UUID
-	BlueprintID  uuid.UUID
-	Blueprint    *Blueprint
-	StartTime    time.Time
+	ID             uuid.UUID
+	PlayerID       uuid.UUID
+	BlueprintID    uuid.UUID
+	Blueprint      *Blueprint
+	StartTime      time.Time
 	CompletionTime time.Time
-	Status       string    // "in_progress", "complete", "failed"
-	Quantity     int
-	StationID    *uuid.UUID // Optional: crafting at a station
+	Status         string // "in_progress", "complete", "failed"
+	Quantity       int
+	StationID      *uuid.UUID // Optional: crafting at a station
 }
 
 // PlayerStation represents a player-owned manufacturing station
 type PlayerStation struct {
-	ID            uuid.UUID
-	OwnerID       uuid.UUID
-	Name          string
-	SystemID      uuid.UUID
-	SystemName    string
-	Level         int       // Station upgrade level 1-10
-	BuildTime     time.Time
-	Facilities    []StationFacility
-	Storage       map[string]int // resource -> quantity
+	ID              uuid.UUID
+	OwnerID         uuid.UUID
+	Name            string
+	SystemID        uuid.UUID
+	SystemName      string
+	Level           int // Station upgrade level 1-10
+	BuildTime       time.Time
+	Facilities      []StationFacility
+	Storage         map[string]int // resource -> quantity
 	StorageCapacity int
-	ProductionBonus float64  // Bonus to crafting speed
-	Status        string    // "active", "upgrading", "damaged"
+	ProductionBonus float64 // Bonus to crafting speed
+	Status          string  // "active", "upgrading", "damaged"
 }
 
 // StationFacility represents a facility within a station
@@ -205,10 +205,10 @@ type Technology struct {
 	Description   string
 	Category      TechCategory
 	MaxLevel      int
-	ResearchCost  int       // Base research points needed
-	CreditCost    int64     // Credits required
-	Prerequisites []string  // Required tech IDs
-	Unlocks       []string  // What this tech unlocks
+	ResearchCost  int                // Base research points needed
+	CreditCost    int64              // Credits required
+	Prerequisites []string           // Required tech IDs
+	Unlocks       []string           // What this tech unlocks
 	Benefits      map[string]float64 // Bonuses provided
 }
 
@@ -216,13 +216,13 @@ type Technology struct {
 type TechCategory string
 
 const (
-	TechCategoryWeapons    TechCategory = "weapons"
-	TechCategoryDefense    TechCategory = "defense"
-	TechCategoryEngines    TechCategory = "engines"
-	TechCategoryEnergy     TechCategory = "energy"
+	TechCategoryWeapons       TechCategory = "weapons"
+	TechCategoryDefense       TechCategory = "defense"
+	TechCategoryEngines       TechCategory = "engines"
+	TechCategoryEnergy        TechCategory = "energy"
 	TechCategoryManufacturing TechCategory = "manufacturing"
-	TechCategoryCloaking   TechCategory = "cloaking"
-	TechCategoryJumpDrive  TechCategory = "jump_drive"
+	TechCategoryCloaking      TechCategory = "cloaking"
+	TechCategoryJumpDrive     TechCategory = "jump_drive"
 )
 
 // ============================================================================
@@ -908,64 +908,64 @@ func (m *Manager) initializeTechnologies() {
 	// Example technologies
 	technologies := []*Technology{
 		{
-			ID:           "weapons_1",
-			Name:         "Basic Weapons",
-			Description:  "Unlock basic weapon crafting",
-			Category:     TechCategoryWeapons,
-			MaxLevel:     3,
-			ResearchCost: 100,
-			CreditCost:   10000,
+			ID:            "weapons_1",
+			Name:          "Basic Weapons",
+			Description:   "Unlock basic weapon crafting",
+			Category:      TechCategoryWeapons,
+			MaxLevel:      3,
+			ResearchCost:  100,
+			CreditCost:    10000,
 			Prerequisites: []string{},
-			Unlocks:      []string{"basic_laser", "basic_missile"},
-			Benefits:     map[string]float64{"weapon_damage": 0.10},
+			Unlocks:       []string{"basic_laser", "basic_missile"},
+			Benefits:      map[string]float64{"weapon_damage": 0.10},
 		},
 		{
-			ID:           "weapons_2",
-			Name:         "Advanced Weapons",
-			Description:  "Unlock advanced weapon systems",
-			Category:     TechCategoryWeapons,
-			MaxLevel:     3,
-			ResearchCost: 200,
-			CreditCost:   25000,
+			ID:            "weapons_2",
+			Name:          "Advanced Weapons",
+			Description:   "Unlock advanced weapon systems",
+			Category:      TechCategoryWeapons,
+			MaxLevel:      3,
+			ResearchCost:  200,
+			CreditCost:    25000,
 			Prerequisites: []string{"weapons_1"},
-			Unlocks:      []string{"plasma_cannon", "railgun"},
-			Benefits:     map[string]float64{"weapon_damage": 0.20},
+			Unlocks:       []string{"plasma_cannon", "railgun"},
+			Benefits:      map[string]float64{"weapon_damage": 0.20},
 		},
 		{
-			ID:           "engines_1",
-			Name:         "Engine Technology",
-			Description:  "Improve ship engines",
-			Category:     TechCategoryEngines,
-			MaxLevel:     5,
-			ResearchCost: 150,
-			CreditCost:   15000,
+			ID:            "engines_1",
+			Name:          "Engine Technology",
+			Description:   "Improve ship engines",
+			Category:      TechCategoryEngines,
+			MaxLevel:      5,
+			ResearchCost:  150,
+			CreditCost:    15000,
 			Prerequisites: []string{},
-			Unlocks:      []string{"improved_thruster"},
-			Benefits:     map[string]float64{"engine_efficiency": 0.15},
+			Unlocks:       []string{"improved_thruster"},
+			Benefits:      map[string]float64{"engine_efficiency": 0.15},
 		},
 		{
-			ID:           "engines_2",
-			Name:         "Advanced Propulsion",
-			Description:  "High-performance engines",
-			Category:     TechCategoryEngines,
-			MaxLevel:     5,
-			ResearchCost: 300,
-			CreditCost:   40000,
+			ID:            "engines_2",
+			Name:          "Advanced Propulsion",
+			Description:   "High-performance engines",
+			Category:      TechCategoryEngines,
+			MaxLevel:      5,
+			ResearchCost:  300,
+			CreditCost:    40000,
 			Prerequisites: []string{"engines_1"},
-			Unlocks:      []string{"advanced_thruster"},
-			Benefits:     map[string]float64{"engine_efficiency": 0.25, "max_speed": 0.20},
+			Unlocks:       []string{"advanced_thruster"},
+			Benefits:      map[string]float64{"engine_efficiency": 0.25, "max_speed": 0.20},
 		},
 		{
-			ID:           "manufacturing_1",
-			Name:         "Industrial Processes",
-			Description:  "Improve manufacturing efficiency",
-			Category:     TechCategoryManufacturing,
-			MaxLevel:     5,
-			ResearchCost: 200,
-			CreditCost:   20000,
+			ID:            "manufacturing_1",
+			Name:          "Industrial Processes",
+			Description:   "Improve manufacturing efficiency",
+			Category:      TechCategoryManufacturing,
+			MaxLevel:      5,
+			ResearchCost:  200,
+			CreditCost:    20000,
 			Prerequisites: []string{},
-			Unlocks:      []string{},
-			Benefits:     map[string]float64{"crafting_speed": 0.20},
+			Unlocks:       []string{},
+			Benefits:      map[string]float64{"crafting_speed": 0.20},
 		},
 	}
 

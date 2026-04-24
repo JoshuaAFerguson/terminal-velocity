@@ -30,10 +30,10 @@ func marketplacePollTick() tea.Cmd {
 
 // Marketplace screen modes
 const (
-	marketplaceModeMenu      = "menu"
-	marketplaceModeAuctions  = "auctions"
-	marketplaceModeContracts = "contracts"
-	marketplaceModeBounties  = "bounties"
+	marketplaceModeMenu           = "menu"
+	marketplaceModeAuctions       = "auctions"
+	marketplaceModeContracts      = "contracts"
+	marketplaceModeBounties       = "bounties"
 	marketplaceModeCreateAuction  = "create_auction"
 	marketplaceModeCreateContract = "create_contract"
 	marketplaceModePostBounty     = "post_bounty"
@@ -43,18 +43,18 @@ const (
 )
 
 type marketplaceState struct {
-	mode           string
-	menuIndex      int
-	selectedIndex  int
-	viewOffset     int
+	mode          string
+	menuIndex     int
+	selectedIndex int
+	viewOffset    int
 
 	// Auction data
-	auctions       []*marketplace.Auction
+	auctions        []*marketplace.Auction
 	selectedAuction *marketplace.Auction
-	bidAmount      int64
+	bidAmount       int64
 
 	// Contract data
-	contracts      []*marketplace.Contract
+	contracts        []*marketplace.Contract
 	selectedContract *marketplace.Contract
 
 	// Bounty data
@@ -62,17 +62,17 @@ type marketplaceState struct {
 	selectedBounty *marketplace.Bounty
 
 	// Creation forms
-	createForm     map[string]string
-	formField      int
+	createForm map[string]string
+	formField  int
 
 	// Item picker for auction creation
-	itemPicker      *ItemPickerModel
-	showItemPicker  bool
-	selectedItemID  uuid.UUID // Selected item for auction
+	itemPicker     *ItemPickerModel
+	showItemPicker bool
+	selectedItemID uuid.UUID // Selected item for auction
 
-	loading        bool
-	error          string
-	message        string
+	loading bool
+	error   string
+	message string
 }
 
 func newMarketplaceState() marketplaceState {
@@ -1643,6 +1643,6 @@ func (m *Model) viewMarketplacePostBounty() string {
 }
 
 var (
-	creditStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // Green
-	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9")) // Red
+	creditStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // Green
+	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))  // Red
 )

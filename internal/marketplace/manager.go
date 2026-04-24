@@ -54,24 +54,24 @@ type Manager struct {
 // MarketplaceConfig defines marketplace parameters
 type MarketplaceConfig struct {
 	// Auction settings
-	MinAuctionDuration    time.Duration // Minimum auction duration
-	MaxAuctionDuration    time.Duration // Maximum auction duration
-	AuctionFeePercent     float64       // Fee taken from final sale (0.0 - 1.0)
-	MinimumBidIncrement   float64       // Minimum bid increment percentage
-	BuyoutPremium         float64       // Premium for instant buyout (e.g., 1.5 = 150% of starting bid)
+	MinAuctionDuration  time.Duration // Minimum auction duration
+	MaxAuctionDuration  time.Duration // Maximum auction duration
+	AuctionFeePercent   float64       // Fee taken from final sale (0.0 - 1.0)
+	MinimumBidIncrement float64       // Minimum bid increment percentage
+	BuyoutPremium       float64       // Premium for instant buyout (e.g., 1.5 = 150% of starting bid)
 
 	// Contract settings
-	ContractPostCost      int64         // Cost to post a contract
-	ContractExpiryTime    time.Duration // How long until contracts expire
-	MaxActiveContracts    int           // Max contracts per player
-	ContractFailurePenalty float64      // Credits penalty for failing contract (0.0 - 1.0)
+	ContractPostCost       int64         // Cost to post a contract
+	ContractExpiryTime     time.Duration // How long until contracts expire
+	MaxActiveContracts     int           // Max contracts per player
+	ContractFailurePenalty float64       // Credits penalty for failing contract (0.0 - 1.0)
 
 	// Bounty settings
-	MinBountyAmount       int64         // Minimum bounty amount
-	BountyPostFee         float64       // Fee to post bounty (0.0 - 1.0 of bounty amount)
-	BountyExpiryTime      time.Duration // How long until bounties expire
-	MaxBountiesPerPlayer  int           // Max bounties one player can have on their head
-	BountyClaimWindow     time.Duration // Window to claim bounty after kill
+	MinBountyAmount      int64         // Minimum bounty amount
+	BountyPostFee        float64       // Fee to post bounty (0.0 - 1.0 of bounty amount)
+	BountyExpiryTime     time.Duration // How long until bounties expire
+	MaxBountiesPerPlayer int           // Max bounties one player can have on their head
+	BountyClaimWindow    time.Duration // Window to claim bounty after kill
 }
 
 // DefaultMarketplaceConfig returns sensible defaults
@@ -142,13 +142,13 @@ func (m *Manager) saveAuction(a *Auction) {
 // NewManager creates a new marketplace manager
 func NewManager(playerRepo *database.PlayerRepository, shipRepo *database.ShipRepository) *Manager {
 	return &Manager{
-		auctions:  make(map[uuid.UUID]*Auction),
-		contracts: make(map[uuid.UUID]*Contract),
-		bounties:  make(map[uuid.UUID]*Bounty),
-		config:    DefaultMarketplaceConfig(),
+		auctions:   make(map[uuid.UUID]*Auction),
+		contracts:  make(map[uuid.UUID]*Contract),
+		bounties:   make(map[uuid.UUID]*Bounty),
+		config:     DefaultMarketplaceConfig(),
 		playerRepo: playerRepo,
 		shipRepo:   shipRepo,
-		stopChan:  make(chan struct{}),
+		stopChan:   make(chan struct{}),
 	}
 }
 
@@ -197,23 +197,23 @@ const (
 
 // Auction represents an active auction listing
 type Auction struct {
-	ID          uuid.UUID
-	SellerID    uuid.UUID
-	SellerName  string
-	Type        AuctionType
-	ItemID      uuid.UUID // Ship ID, outfit ID, etc.
-	ItemName    string
-	Quantity    int       // For commodities/stackable items
-	Description string
-	StartingBid int64
-	BuyoutPrice int64     // Instant purchase price (optional)
-	CurrentBid  int64
-	HighBidder  uuid.UUID // Player who has current high bid
+	ID             uuid.UUID
+	SellerID       uuid.UUID
+	SellerName     string
+	Type           AuctionType
+	ItemID         uuid.UUID // Ship ID, outfit ID, etc.
+	ItemName       string
+	Quantity       int // For commodities/stackable items
+	Description    string
+	StartingBid    int64
+	BuyoutPrice    int64 // Instant purchase price (optional)
+	CurrentBid     int64
+	HighBidder     uuid.UUID // Player who has current high bid
 	HighBidderName string
-	StartTime   time.Time
-	EndTime     time.Time
-	Status      string    // "active", "sold", "expired", "cancelled"
-	BidHistory  []Bid
+	StartTime      time.Time
+	EndTime        time.Time
+	Status         string // "active", "sold", "expired", "cancelled"
+	BidHistory     []Bid
 }
 
 // Bid represents a bid on an auction
@@ -471,31 +471,31 @@ func (m *Manager) GetAuction(auctionID uuid.UUID) (*Auction, bool) {
 type ContractType string
 
 const (
-	ContractTypeCourier      ContractType = "courier"      // Deliver cargo
+	ContractTypeCourier       ContractType = "courier"       // Deliver cargo
 	ContractTypeAssassination ContractType = "assassination" // Kill a target
-	ContractTypeEscort       ContractType = "escort"       // Escort a ship
-	ContractTypeBountyHunt   ContractType = "bounty_hunt"  // Hunt a bounty target
+	ContractTypeEscort        ContractType = "escort"        // Escort a ship
+	ContractTypeBountyHunt    ContractType = "bounty_hunt"   // Hunt a bounty target
 )
 
 // Contract represents a player-posted contract
 type Contract struct {
-	ID          uuid.UUID
-	PosterID    uuid.UUID
-	PosterName  string
-	Type        ContractType
-	Title       string
-	Description string
-	Reward      int64
-	Deposit     int64 // Amount poster must deposit
-	TargetID    uuid.UUID // Target player/system/location
-	TargetName  string
-	ClaimedBy   uuid.UUID
-	ClaimedName string
-	PostTime    time.Time
-	ExpiryTime  time.Time
-	ClaimTime   time.Time
+	ID           uuid.UUID
+	PosterID     uuid.UUID
+	PosterName   string
+	Type         ContractType
+	Title        string
+	Description  string
+	Reward       int64
+	Deposit      int64     // Amount poster must deposit
+	TargetID     uuid.UUID // Target player/system/location
+	TargetName   string
+	ClaimedBy    uuid.UUID
+	ClaimedName  string
+	PostTime     time.Time
+	ExpiryTime   time.Time
+	ClaimTime    time.Time
 	CompleteTime time.Time
-	Status      string // "open", "claimed", "completed", "failed", "expired"
+	Status       string // "open", "claimed", "completed", "failed", "expired"
 }
 
 // CreateContract posts a new contract
@@ -955,9 +955,9 @@ func (m *Manager) GetStats() MarketplaceStats {
 
 // MarketplaceStats contains marketplace statistics
 type MarketplaceStats struct {
-	ActiveAuctions    int   `json:"active_auctions"`
-	OpenContracts     int   `json:"open_contracts"`
-	ClaimedContracts  int   `json:"claimed_contracts"`
-	ActiveBounties    int   `json:"active_bounties"`
-	TotalBountyPool   int64 `json:"total_bounty_pool"`
+	ActiveAuctions   int   `json:"active_auctions"`
+	OpenContracts    int   `json:"open_contracts"`
+	ClaimedContracts int   `json:"claimed_contracts"`
+	ActiveBounties   int   `json:"active_bounties"`
+	TotalBountyPool  int64 `json:"total_bounty_pool"`
 }

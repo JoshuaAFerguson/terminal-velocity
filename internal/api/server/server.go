@@ -873,7 +873,6 @@ func (s *GameServer) BuyCommodity(ctx context.Context, req *api.TradeRequest) (*
 	}, nil
 }
 
-
 // SellCommodity sells a commodity to the market
 func (s *GameServer) SellCommodity(ctx context.Context, req *api.TradeRequest) (*api.TradeResponse, error) {
 	if req.PlayerID == uuid.Nil || req.CommodityID == "" || req.Quantity <= 0 {
@@ -994,7 +993,6 @@ func (s *GameServer) SellCommodity(ctx context.Context, req *api.TradeRequest) (
 		NewState:       convertPlayerToAPI(player, ship),
 	}, nil
 }
-
 
 // BuyShip purchases a new ship
 func (s *GameServer) BuyShip(ctx context.Context, req *api.ShipPurchaseRequest) (*api.ShipPurchaseResponse, error) {
@@ -1151,7 +1149,6 @@ func (s *GameServer) BuyShip(ctx context.Context, req *api.ShipPurchaseRequest) 
 	}, nil
 }
 
-
 // SellShip sells a ship
 func (s *GameServer) SellShip(ctx context.Context, req *api.ShipSaleRequest) (*api.ShipSaleResponse, error) {
 	if req.PlayerID == uuid.Nil || req.ShipID == uuid.Nil {
@@ -1257,7 +1254,6 @@ func (s *GameServer) SellShip(ctx context.Context, req *api.ShipSaleRequest) (*a
 		NewState:  convertPlayerToAPI(player, currentShip),
 	}, nil
 }
-
 
 // BuyOutfit purchases ship equipment
 func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseRequest) (*api.OutfitPurchaseResponse, error) {
@@ -1398,7 +1394,6 @@ func (s *GameServer) BuyOutfit(ctx context.Context, req *api.OutfitPurchaseReque
 	}, nil
 }
 
-
 // SellOutfit sells ship equipment
 func (s *GameServer) SellOutfit(ctx context.Context, req *api.OutfitSaleRequest) (*api.OutfitSaleResponse, error) {
 	if req.PlayerID == uuid.Nil || req.OutfitID == "" || req.Quantity <= 0 {
@@ -1517,7 +1512,6 @@ func (s *GameServer) SellOutfit(ctx context.Context, req *api.OutfitSaleRequest)
 		UpdatedShip: convertShipToAPI(ship),
 	}, nil
 }
-
 
 // GetAvailableMissions retrieves missions available to player
 func (s *GameServer) GetAvailableMissions(ctx context.Context, playerID uuid.UUID) (*api.MissionList, error) {

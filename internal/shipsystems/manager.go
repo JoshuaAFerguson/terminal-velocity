@@ -27,10 +27,10 @@ type Manager struct {
 	mu sync.RWMutex
 
 	// Active systems
-	cloakedShips   map[uuid.UUID]*CloakStatus
-	jumpDrives     map[uuid.UUID]*JumpDriveStatus
-	wormholes      map[uuid.UUID]*Wormhole
-	activeJumps    map[uuid.UUID]*JumpOperation
+	cloakedShips map[uuid.UUID]*CloakStatus
+	jumpDrives   map[uuid.UUID]*JumpDriveStatus
+	wormholes    map[uuid.UUID]*Wormhole
+	activeJumps  map[uuid.UUID]*JumpOperation
 
 	// Configuration
 	config ShipSystemsConfig
@@ -40,9 +40,9 @@ type Manager struct {
 	shipRepo   *database.ShipRepository
 
 	// Callbacks
-	onCloakActivated   func(shipID uuid.UUID)
-	onCloakDeactivated func(shipID uuid.UUID)
-	onJumpComplete     func(shipID uuid.UUID, fromSystem, toSystem uuid.UUID)
+	onCloakActivated     func(shipID uuid.UUID)
+	onCloakDeactivated   func(shipID uuid.UUID)
+	onJumpComplete       func(shipID uuid.UUID, fromSystem, toSystem uuid.UUID)
 	onWormholeDiscovered func(wormhole *Wormhole)
 
 	// Background workers
@@ -53,11 +53,11 @@ type Manager struct {
 // ShipSystemsConfig defines advanced system parameters
 type ShipSystemsConfig struct {
 	// Cloaking settings
-	CloakEnergyDrainRate    float64       // Energy per second while cloaked
-	CloakActivationCost     float64       // Initial energy cost
-	CloakDetectionChance    float64       // Base chance to be detected
-	CloakCooldownDuration   time.Duration // Cooldown after deactivating
-	CloakMaxDuration        time.Duration // Maximum cloak duration
+	CloakEnergyDrainRate  float64       // Energy per second while cloaked
+	CloakActivationCost   float64       // Initial energy cost
+	CloakDetectionChance  float64       // Base chance to be detected
+	CloakCooldownDuration time.Duration // Cooldown after deactivating
+	CloakMaxDuration      time.Duration // Maximum cloak duration
 
 	// Jump drive settings
 	JumpDriveFuelCost       float64       // Fuel cost per light-year
@@ -74,9 +74,9 @@ type ShipSystemsConfig struct {
 	WormholeMaxLifetime     time.Duration // Maximum wormhole lifetime
 
 	// Advanced navigation
-	AutopilotEnabled        bool          // Enable autopilot system
-	AutopilotFuelEfficiency float64       // Fuel efficiency bonus (0.0-1.0)
-	GravityAssistBonus      float64       // Speed bonus near planets
+	AutopilotEnabled        bool    // Enable autopilot system
+	AutopilotFuelEfficiency float64 // Fuel efficiency bonus (0.0-1.0)
+	GravityAssistBonus      float64 // Speed bonus near planets
 }
 
 // DefaultShipSystemsConfig returns sensible defaults
@@ -84,7 +84,7 @@ func DefaultShipSystemsConfig() ShipSystemsConfig {
 	return ShipSystemsConfig{
 		CloakEnergyDrainRate:    5.0,
 		CloakActivationCost:     20.0,
-		CloakDetectionChance:    0.05,  // 5% base detection
+		CloakDetectionChance:    0.05, // 5% base detection
 		CloakCooldownDuration:   30 * time.Second,
 		CloakMaxDuration:        5 * time.Minute,
 		JumpDriveFuelCost:       10.0,
@@ -92,14 +92,14 @@ func DefaultShipSystemsConfig() ShipSystemsConfig {
 		JumpDriveRange:          100.0, // 100 light-years
 		JumpDriveAccuracy:       0.95,  // 95% accurate
 		JumpDriveCooldown:       60 * time.Second,
-		WormholeDiscoveryChance: 0.01,  // 1% chance
-		WormholeStabilityDecay:  0.10,  // 10% per day
-		WormholeMinStability:    0.30,  // 30% minimum
+		WormholeDiscoveryChance: 0.01, // 1% chance
+		WormholeStabilityDecay:  0.10, // 10% per day
+		WormholeMinStability:    0.30, // 30% minimum
 		WormholeTravelTime:      5 * time.Second,
 		WormholeMaxLifetime:     30 * 24 * time.Hour, // 30 days
 		AutopilotEnabled:        true,
-		AutopilotFuelEfficiency: 0.20,  // 20% fuel savings
-		GravityAssistBonus:      0.15,  // 15% speed boost
+		AutopilotFuelEfficiency: 0.20, // 20% fuel savings
+		GravityAssistBonus:      0.15, // 15% speed boost
 	}
 }
 
@@ -160,23 +160,23 @@ type CloakStatus struct {
 
 // JumpDriveStatus tracks a ship's jump drive state
 type JumpDriveStatus struct {
-	ShipID       uuid.UUID
-	Charged      bool
+	ShipID        uuid.UUID
+	Charged       bool
 	ChargingStart time.Time
-	Cooldown     time.Time
-	Range        float64 // Current max range
-	Accuracy     float64 // Current accuracy
+	Cooldown      time.Time
+	Range         float64 // Current max range
+	Accuracy      float64 // Current accuracy
 }
 
 // JumpOperation represents an in-progress jump
 type JumpOperation struct {
-	ShipID         uuid.UUID
-	FromSystemID   uuid.UUID
-	ToSystemID     uuid.UUID
-	Distance       float64
-	StartTime      time.Time
+	ShipID           uuid.UUID
+	FromSystemID     uuid.UUID
+	ToSystemID       uuid.UUID
+	Distance         float64
+	StartTime        time.Time
 	EstimatedArrival time.Time
-	Status         string // "charging", "jumping", "complete"
+	Status           string // "charging", "jumping", "complete"
 }
 
 // Wormhole represents a space-time anomaly
@@ -186,21 +186,21 @@ type Wormhole struct {
 	ToSystemID   uuid.UUID
 	FromName     string
 	ToName       string
-	Stability    float64   // 0.0-1.0
+	Stability    float64 // 0.0-1.0
 	DiscoveredAt time.Time
 	ExpiresAt    time.Time
 	Type         WormholeType
-	Status       string    // "stable", "unstable", "collapsed"
+	Status       string // "stable", "unstable", "collapsed"
 }
 
 // WormholeType defines wormhole characteristics
 type WormholeType string
 
 const (
-	WormholeStable    WormholeType = "stable"    // Reliable, long-lasting
-	WormholeUnstable  WormholeType = "unstable"  // Unpredictable exit
-	WormholeTemporal  WormholeType = "temporal"  // Time dilation effects
-	WormholeQuantum   WormholeType = "quantum"   // Multiple exits possible
+	WormholeStable   WormholeType = "stable"   // Reliable, long-lasting
+	WormholeUnstable WormholeType = "unstable" // Unpredictable exit
+	WormholeTemporal WormholeType = "temporal" // Time dilation effects
+	WormholeQuantum  WormholeType = "quantum"  // Multiple exits possible
 )
 
 // ============================================================================
@@ -372,11 +372,11 @@ func (m *Manager) ChargeJumpDrive(ctx context.Context, shipID uuid.UUID) error {
 
 	// Create or update status
 	status := &JumpDriveStatus{
-		ShipID:       shipID,
-		Charged:      false,
+		ShipID:        shipID,
+		Charged:       false,
 		ChargingStart: time.Now(),
-		Range:        m.config.JumpDriveRange,
-		Accuracy:     m.config.JumpDriveAccuracy,
+		Range:         m.config.JumpDriveRange,
+		Accuracy:      m.config.JumpDriveAccuracy,
 	}
 	m.jumpDrives[shipID] = status
 

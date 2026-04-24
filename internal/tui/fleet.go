@@ -21,11 +21,11 @@ import (
 
 // Fleet screen modes
 const (
-	fleetModeMenu      = "menu"
-	fleetModeShips     = "ships"
-	fleetModeStored    = "stored"
-	fleetModeEscorts   = "escorts"
-	fleetModeFormation = "formation"
+	fleetModeMenu       = "menu"
+	fleetModeShips      = "ships"
+	fleetModeStored     = "stored"
+	fleetModeEscorts    = "escorts"
+	fleetModeFormation  = "formation"
 	fleetModeHireEscort = "hire_escort"
 	fleetModeViewShip   = "view_ship"
 	fleetModeViewEscort = "view_escort"
@@ -38,8 +38,8 @@ type fleetState struct {
 	viewOffset    int
 
 	// Fleet data
-	currentFleet  *fleet.Fleet
-	selectedShip  uuid.UUID
+	currentFleet   *fleet.Fleet
+	selectedShip   uuid.UUID
 	selectedEscort uuid.UUID
 
 	// Forms
@@ -48,9 +48,9 @@ type fleetState struct {
 	inputMode      string // "name", "ship", "behavior", "confirm"
 	nameInput      string // Text input buffer for pilot name
 
-	loading       bool
-	error         string
-	message       string
+	loading bool
+	error   string
+	message string
 }
 
 func newFleetState() fleetState {

@@ -25,8 +25,8 @@ type Manager struct {
 	mu sync.RWMutex
 
 	// Faction content
-	factionMissions map[uuid.UUID]*FactionMission // mission_id -> mission
-	factionEvents   map[uuid.UUID]*FactionEvent   // event_id -> event
+	factionMissions map[uuid.UUID]*FactionMission  // mission_id -> mission
+	factionEvents   map[uuid.UUID]*FactionEvent    // event_id -> event
 	objectives      map[uuid.UUID]*SharedObjective // objective_id -> objective
 	contributions   map[string]*MemberContribution // "faction_mission_player" -> contribution
 	factionRanks    map[string]*FactionRank        // faction_id -> ranks
@@ -51,16 +51,16 @@ type Manager struct {
 // FactionContentConfig defines faction content parameters
 type FactionContentConfig struct {
 	// Mission settings
-	MaxActiveMissions      int           // Max active faction missions
-	MissionDuration        time.Duration // Default mission duration
-	MissionRewardMultiplier float64      // Reward multiplier for faction missions
-	ContributionTracking   bool          // Track individual contributions
+	MaxActiveMissions       int           // Max active faction missions
+	MissionDuration         time.Duration // Default mission duration
+	MissionRewardMultiplier float64       // Reward multiplier for faction missions
+	ContributionTracking    bool          // Track individual contributions
 
 	// Event settings
-	EventMinParticipants   int           // Minimum participants for event
-	EventDuration          time.Duration // Default event duration
-	EventRewardPool        int64         // Base reward pool
-	EventScaling           float64       // Reward scaling per participant
+	EventMinParticipants int           // Minimum participants for event
+	EventDuration        time.Duration // Default event duration
+	EventRewardPool      int64         // Base reward pool
+	EventScaling         float64       // Reward scaling per participant
 
 	// Objective settings
 	ObjectiveTimeout       time.Duration // Time to complete objectives
@@ -68,28 +68,28 @@ type FactionContentConfig struct {
 	ObjectiveRankThreshold int           // Rank required for objectives
 
 	// Rank settings
-	RankProgressionRate    float64       // Points needed per rank
-	RankDecayRate          float64       // Daily decay for inactive members
-	MaxRank                int           // Maximum faction rank
+	RankProgressionRate float64 // Points needed per rank
+	RankDecayRate       float64 // Daily decay for inactive members
+	MaxRank             int     // Maximum faction rank
 }
 
 // DefaultFactionContentConfig returns sensible defaults
 func DefaultFactionContentConfig() FactionContentConfig {
 	return FactionContentConfig{
-		MaxActiveMissions:      5,
-		MissionDuration:        48 * time.Hour,
+		MaxActiveMissions:       5,
+		MissionDuration:         48 * time.Hour,
 		MissionRewardMultiplier: 1.5,
-		ContributionTracking:   true,
-		EventMinParticipants:   5,
-		EventDuration:          7 * 24 * time.Hour,
-		EventRewardPool:        1000000,
-		EventScaling:           0.10,
-		ObjectiveTimeout:       24 * time.Hour,
-		SharedProgressBonus:    0.25,
-		ObjectiveRankThreshold: 2,
-		RankProgressionRate:    1.5,
-		RankDecayRate:          0.01,
-		MaxRank:                10,
+		ContributionTracking:    true,
+		EventMinParticipants:    5,
+		EventDuration:           7 * 24 * time.Hour,
+		EventRewardPool:         1000000,
+		EventScaling:            0.10,
+		ObjectiveTimeout:        24 * time.Hour,
+		SharedProgressBonus:     0.25,
+		ObjectiveRankThreshold:  2,
+		RankProgressionRate:     1.5,
+		RankDecayRate:           0.01,
+		MaxRank:                 10,
 	}
 }
 
@@ -161,57 +161,57 @@ type FactionMission struct {
 type MissionType string
 
 const (
-	MissionTypeCooperative   MissionType = "cooperative"   // Work together
-	MissionTypeCompetitive   MissionType = "competitive"   // Compete with other factions
-	MissionTypeDefensive     MissionType = "defensive"     // Defend territory
-	MissionTypeExpansion     MissionType = "expansion"     // Expand influence
-	MissionTypeResource      MissionType = "resource"      // Gather resources
-	MissionTypeElimination   MissionType = "elimination"   // Eliminate threats
+	MissionTypeCooperative MissionType = "cooperative" // Work together
+	MissionTypeCompetitive MissionType = "competitive" // Compete with other factions
+	MissionTypeDefensive   MissionType = "defensive"   // Defend territory
+	MissionTypeExpansion   MissionType = "expansion"   // Expand influence
+	MissionTypeResource    MissionType = "resource"    // Gather resources
+	MissionTypeElimination MissionType = "elimination" // Eliminate threats
 )
 
 // FactionEvent represents a large-scale faction event
 type FactionEvent struct {
-	ID            uuid.UUID
-	Name          string
-	Description   string
-	Type          EventType
-	FactionID     uuid.UUID // If faction-specific
-	Objectives    []*SharedObjective
-	RewardPool    int64
-	Leaderboard   map[uuid.UUID]int // player_id -> score
-	StartTime     time.Time
-	EndTime       time.Time
-	Status        string // "upcoming", "active", "completed"
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	Type            EventType
+	FactionID       uuid.UUID // If faction-specific
+	Objectives      []*SharedObjective
+	RewardPool      int64
+	Leaderboard     map[uuid.UUID]int // player_id -> score
+	StartTime       time.Time
+	EndTime         time.Time
+	Status          string // "upcoming", "active", "completed"
 	MinParticipants int
 	MaxParticipants int
-	Participants  []uuid.UUID
+	Participants    []uuid.UUID
 }
 
 // EventType defines types of faction events
 type EventType string
 
 const (
-	EventTypeBossRaid      EventType = "boss_raid"      // Fight powerful boss
-	EventTypeTerritoryWar  EventType = "territory_war"  // Control territory
-	EventTypeTradeConvoy   EventType = "trade_convoy"   // Protect convoy
-	EventTypeResourceRush  EventType = "resource_rush"  // Gather resources
-	EventTypeSiegeDefense  EventType = "siege_defense"  // Defend against siege
-	EventTypeExpedition    EventType = "expedition"     // Explore new areas
+	EventTypeBossRaid     EventType = "boss_raid"     // Fight powerful boss
+	EventTypeTerritoryWar EventType = "territory_war" // Control territory
+	EventTypeTradeConvoy  EventType = "trade_convoy"  // Protect convoy
+	EventTypeResourceRush EventType = "resource_rush" // Gather resources
+	EventTypeSiegeDefense EventType = "siege_defense" // Defend against siege
+	EventTypeExpedition   EventType = "expedition"    // Explore new areas
 )
 
 // SharedObjective represents a cooperative objective
 type SharedObjective struct {
-	ID          uuid.UUID
-	Name        string
-	Description string
-	Type        ObjectiveType
-	Target      int64   // Target amount
-	Current     int64   // Current progress
-	Progress    float64 // Percentage 0.0-1.0
+	ID           uuid.UUID
+	Name         string
+	Description  string
+	Type         ObjectiveType
+	Target       int64               // Target amount
+	Current      int64               // Current progress
+	Progress     float64             // Percentage 0.0-1.0
 	Contributors map[uuid.UUID]int64 // player_id -> contribution
-	Status      string  // "active", "completed", "failed"
-	CreatedAt   time.Time
-	Deadline    time.Time
+	Status       string              // "active", "completed", "failed"
+	CreatedAt    time.Time
+	Deadline     time.Time
 }
 
 // ObjectiveType defines types of shared objectives
@@ -228,23 +228,23 @@ const (
 
 // MemberContribution tracks individual contributions
 type MemberContribution struct {
-	FactionID   uuid.UUID
-	MissionID   uuid.UUID
-	PlayerID    uuid.UUID
-	PlayerName  string
+	FactionID    uuid.UUID
+	MissionID    uuid.UUID
+	PlayerID     uuid.UUID
+	PlayerName   string
 	Contribution int64
-	Rank        int
-	LastUpdated time.Time
+	Rank         int
+	LastUpdated  time.Time
 }
 
 // FactionRank represents a player's rank within faction
 type FactionRank struct {
 	FactionID   uuid.UUID
 	PlayerID    uuid.UUID
-	Rank        int       // 1-10
+	Rank        int // 1-10
 	Points      int64
 	Title       string
-	Permissions []string  // Permissions granted by rank
+	Permissions []string // Permissions granted by rank
 	AchievedAt  time.Time
 }
 

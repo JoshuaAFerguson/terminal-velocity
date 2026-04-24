@@ -16,11 +16,11 @@ import (
 
 // Manager is the central security manager
 type Manager struct {
-	sessions  *SessionManager
-	activity  *ActivityLogger
-	honeypot  *HoneypotDetector
-	anomaly   *AnomalyDetector
-	config    *Config
+	sessions *SessionManager
+	activity *ActivityLogger
+	honeypot *HoneypotDetector
+	anomaly  *AnomalyDetector
+	config   *Config
 }
 
 // Config holds security manager configuration
@@ -210,10 +210,10 @@ func (m *Manager) IsHoneypot(username string) bool {
 // GetStats returns comprehensive security statistics
 func (m *Manager) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"sessions":  m.sessions.GetStats(),
-		"activity":  m.activity.GetStats(),
-		"honeypot":  m.honeypot.GetStats(),
-		"anomaly":   m.anomaly.GetStats(),
+		"sessions": m.sessions.GetStats(),
+		"activity": m.activity.GetStats(),
+		"honeypot": m.honeypot.GetStats(),
+		"anomaly":  m.anomaly.GetStats(),
 	}
 }
 

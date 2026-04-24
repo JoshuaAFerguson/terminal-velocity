@@ -18,11 +18,11 @@ import (
 // Regression test for memory exhaustion bugs (30+ input validation fixes)
 func TestRegistrationInputLengthLimits(t *testing.T) {
 	tests := []struct {
-		name          string
-		step          int
-		input         string
-		expectedLen   int
-		maxLen        int
+		name        string
+		step        int
+		input       string
+		expectedLen int
+		maxLen      int
 	}{
 		{
 			name:        "Email length limit (RFC 5321 max)",
@@ -160,15 +160,15 @@ func TestChatInputSanitization(t *testing.T) {
 			shouldContain: true,
 		},
 		{
-			name:        "Message at length limit",
-			input:       strings.Repeat("a", 200),
-			expectedLen: 200,
+			name:          "Message at length limit",
+			input:         strings.Repeat("a", 200),
+			expectedLen:   200,
 			shouldContain: true,
 		},
 		{
-			name:        "Message exceeding length limit",
-			input:       strings.Repeat("b", 250),
-			expectedLen: 200, // Capped at limit
+			name:          "Message exceeding length limit",
+			input:         strings.Repeat("b", 250),
+			expectedLen:   200, // Capped at limit
 			shouldContain: true,
 		},
 	}

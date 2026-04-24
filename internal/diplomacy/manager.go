@@ -26,10 +26,10 @@ type Manager struct {
 	mu sync.RWMutex
 
 	// Diplomatic relations
-	alliances   map[uuid.UUID]*Alliance // alliance_id -> alliance
-	wars        map[uuid.UUID]*War      // war_id -> war
-	relations   map[string]*Relation    // "faction1_faction2" -> relation
-	treaties    map[uuid.UUID]*Treaty   // treaty_id -> treaty
+	alliances map[uuid.UUID]*Alliance // alliance_id -> alliance
+	wars      map[uuid.UUID]*War      // war_id -> war
+	relations map[string]*Relation    // "faction1_faction2" -> relation
+	treaties  map[uuid.UUID]*Treaty   // treaty_id -> treaty
 
 	// Configuration
 	config DiplomacyConfig
@@ -41,12 +41,12 @@ type Manager struct {
 	factionManager *factions.Manager
 
 	// Callbacks
-	onAllianceFormed   func(alliance *Alliance)
-	onAllianceBroken   func(alliance *Alliance)
-	onWarDeclared      func(war *War)
-	onWarEnded         func(war *War)
-	onTreatySigned     func(treaty *Treaty)
-	onTreatyViolated   func(treaty *Treaty)
+	onAllianceFormed func(alliance *Alliance)
+	onAllianceBroken func(alliance *Alliance)
+	onWarDeclared    func(war *War)
+	onWarEnded       func(war *War)
+	onTreatySigned   func(treaty *Treaty)
+	onTreatyViolated func(treaty *Treaty)
 
 	// Background workers
 	stopChan chan struct{}
@@ -56,16 +56,16 @@ type Manager struct {
 // DiplomacyConfig defines diplomacy system parameters
 type DiplomacyConfig struct {
 	// Alliance settings
-	MinFactionsForAlliance int           // Minimum factions to form alliance
-	MaxFactionsInAlliance  int           // Maximum factions in one alliance
-	AllianceFormationCost  int64         // Cost to form an alliance
-	AllianceMaintenanceCost int64        // Daily maintenance per faction
+	MinFactionsForAlliance  int   // Minimum factions to form alliance
+	MaxFactionsInAlliance   int   // Maximum factions in one alliance
+	AllianceFormationCost   int64 // Cost to form an alliance
+	AllianceMaintenanceCost int64 // Daily maintenance per faction
 
 	// War settings
-	WarDeclarationCost     int64         // Cost to declare war
-	MinWarDuration         time.Duration // Minimum war duration
-	TruceProposalCooldown  time.Duration // Cooldown between truce proposals
-	WarExhaustion          float64       // Daily war exhaustion increase
+	WarDeclarationCost    int64         // Cost to declare war
+	MinWarDuration        time.Duration // Minimum war duration
+	TruceProposalCooldown time.Duration // Cooldown between truce proposals
+	WarExhaustion         float64       // Daily war exhaustion increase
 
 	// Treaty settings
 	TreatyDuration         time.Duration // Default treaty duration
@@ -73,10 +73,10 @@ type DiplomacyConfig struct {
 	MaxActiveTreaties      int           // Max treaties per faction
 
 	// Relation settings
-	RelationDecayRate      float64       // Daily decay toward neutral
-	RelationChangeLimit    float64       // Max relation change per action
-	HostileThreshold       float64       // Below this = hostile
-	FriendlyThreshold      float64       // Above this = friendly
+	RelationDecayRate   float64 // Daily decay toward neutral
+	RelationChangeLimit float64 // Max relation change per action
+	HostileThreshold    float64 // Below this = hostile
+	FriendlyThreshold   float64 // Above this = friendly
 }
 
 // DefaultDiplomacyConfig returns sensible defaults
@@ -89,12 +89,12 @@ func DefaultDiplomacyConfig() DiplomacyConfig {
 		WarDeclarationCost:      50000,
 		MinWarDuration:          7 * 24 * time.Hour, // 7 days
 		TruceProposalCooldown:   24 * time.Hour,
-		WarExhaustion:           0.05, // 5% per day
+		WarExhaustion:           0.05,                // 5% per day
 		TreatyDuration:          30 * 24 * time.Hour, // 30 days
-		TreatyViolationPenalty:  0.50, // -50% relations
+		TreatyViolationPenalty:  0.50,                // -50% relations
 		MaxActiveTreaties:       10,
-		RelationDecayRate:       0.01, // 1% per day toward neutral
-		RelationChangeLimit:     0.10, // Max 10% change per action
+		RelationDecayRate:       0.01,  // 1% per day toward neutral
+		RelationChangeLimit:     0.10,  // Max 10% change per action
 		HostileThreshold:        -0.30, // Below -30% = hostile
 		FriendlyThreshold:       0.30,  // Above 30% = friendly
 	}
@@ -151,43 +151,43 @@ func (m *Manager) SetCallbacks(
 
 // Alliance represents a multi-faction alliance
 type Alliance struct {
-	ID          uuid.UUID
-	Name        string
-	Description string
+	ID              uuid.UUID
+	Name            string
+	Description     string
 	LeaderFactionID uuid.UUID
 	MemberFactions  []uuid.UUID
-	CreatedAt   time.Time
-	Status      string // "active", "dissolved"
-	Treasury    int64  // Shared alliance treasury
+	CreatedAt       time.Time
+	Status          string // "active", "dissolved"
+	Treasury        int64  // Shared alliance treasury
 	LastMaintenance time.Time
 }
 
 // War represents a conflict between factions/alliances
 type War struct {
-	ID           uuid.UUID
-	Name         string
+	ID                uuid.UUID
+	Name              string
 	AggressorFactions []uuid.UUID
 	DefenderFactions  []uuid.UUID
-	StartTime    time.Time
-	EndTime      time.Time
-	Status       string // "active", "truce_proposed", "ended"
-	WarScore     map[uuid.UUID]int // faction_id -> war score
-	Exhaustion   float64 // 0.0-1.0, increases over time
-	TruceProposedBy uuid.UUID
-	TruceProposedAt time.Time
+	StartTime         time.Time
+	EndTime           time.Time
+	Status            string            // "active", "truce_proposed", "ended"
+	WarScore          map[uuid.UUID]int // faction_id -> war score
+	Exhaustion        float64           // 0.0-1.0, increases over time
+	TruceProposedBy   uuid.UUID
+	TruceProposedAt   time.Time
 }
 
 // Treaty represents a diplomatic agreement
 type Treaty struct {
-	ID          uuid.UUID
-	Type        TreatyType
-	Faction1    uuid.UUID
-	Faction2    uuid.UUID
-	Terms       string // Description of treaty terms
-	SignedAt    time.Time
-	ExpiresAt   time.Time
-	Status      string // "active", "violated", "expired"
-	ViolatedBy  uuid.UUID
+	ID         uuid.UUID
+	Type       TreatyType
+	Faction1   uuid.UUID
+	Faction2   uuid.UUID
+	Terms      string // Description of treaty terms
+	SignedAt   time.Time
+	ExpiresAt  time.Time
+	Status     string // "active", "violated", "expired"
+	ViolatedBy uuid.UUID
 }
 
 // TreatyType defines types of treaties
@@ -202,11 +202,11 @@ const (
 
 // Relation tracks relationship between two factions
 type Relation struct {
-	Faction1    uuid.UUID
-	Faction2    uuid.UUID
-	Value       float64 // -1.0 (hostile) to +1.0 (friendly)
-	Status      string  // "hostile", "neutral", "friendly", "allied"
-	UpdatedAt   time.Time
+	Faction1  uuid.UUID
+	Faction2  uuid.UUID
+	Value     float64 // -1.0 (hostile) to +1.0 (friendly)
+	Status    string  // "hostile", "neutral", "friendly", "allied"
+	UpdatedAt time.Time
 }
 
 // ============================================================================

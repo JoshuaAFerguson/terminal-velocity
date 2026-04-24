@@ -44,9 +44,9 @@ type mailState struct {
 	composeField   int // 0=recipient, 1=subject, 2=body, 3=attachments
 
 	// Item attachment
-	itemPicker      *ItemPickerModel
-	showItemPicker  bool
-	attachedItems   []uuid.UUID
+	itemPicker     *ItemPickerModel
+	showItemPicker bool
+	attachedItems  []uuid.UUID
 }
 
 func (m *Model) updateMail(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -305,7 +305,7 @@ func (m *Model) updateMailCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if len([]rune(m.mail.bodyInput))+len([]rune(s)) <= 5000 {
 					m.mail.bodyInput += s
 				}
-			// case 3: attachments field - only 'a' key opens picker
+				// case 3: attachments field - only 'a' key opens picker
 			}
 		}
 	}

@@ -40,19 +40,19 @@ type Manager struct {
 // MiningConfig defines mining system parameters
 type MiningConfig struct {
 	// Mining parameters
-	BaseMiningYield        float64       // Base yield per mining cycle
-	MiningCycleDuration    time.Duration // How long each mining cycle takes
-	MiningLaserBonus       float64       // Bonus per mining laser level
-	CargoScannerBonus      float64       // Bonus from cargo scanner
-	AsteroidDepletionRate  float64       // How quickly asteroids deplete
+	BaseMiningYield         float64       // Base yield per mining cycle
+	MiningCycleDuration     time.Duration // How long each mining cycle takes
+	MiningLaserBonus        float64       // Bonus per mining laser level
+	CargoScannerBonus       float64       // Bonus from cargo scanner
+	AsteroidDepletionRate   float64       // How quickly asteroids deplete
 	MaxConcurrentOperations int           // Max mining ops per player
 
 	// Salvage parameters
-	BaseSalvageYield      float64       // Base salvage yield
-	SalvageCycleDuration  time.Duration // Salvage cycle time
-	SalvageScannerBonus   float64       // Bonus from salvage scanner
+	BaseSalvageYield       float64       // Base salvage yield
+	SalvageCycleDuration   time.Duration // Salvage cycle time
+	SalvageScannerBonus    float64       // Bonus from salvage scanner
 	DerelictRareItemChance float64       // Chance of rare items
-	DebrisFieldDensity    float64       // Average debris field density
+	DebrisFieldDensity     float64       // Average debris field density
 
 	// Resource spawn
 	AsteroidSpawnChance  float64 // Chance per system visit
@@ -66,19 +66,19 @@ func DefaultMiningConfig() MiningConfig {
 	return MiningConfig{
 		BaseMiningYield:         10.0,
 		MiningCycleDuration:     15 * time.Second,
-		MiningLaserBonus:        0.25,  // +25% per level
-		CargoScannerBonus:       0.15,  // +15% from scanner
-		AsteroidDepletionRate:   0.10,  // -10% per cycle
+		MiningLaserBonus:        0.25, // +25% per level
+		CargoScannerBonus:       0.15, // +15% from scanner
+		AsteroidDepletionRate:   0.10, // -10% per cycle
 		MaxConcurrentOperations: 1,
 		BaseSalvageYield:        8.0,
 		SalvageCycleDuration:    20 * time.Second,
-		SalvageScannerBonus:     0.20,  // +20% from scanner
-		DerelictRareItemChance:  0.05,  // 5% chance
-		DebrisFieldDensity:      0.50,  // 50% average
-		AsteroidSpawnChance:     0.30,  // 30% chance
-		DerelictSpawnChance:     0.10,  // 10% chance
-		DebrisFieldChance:       0.15,  // 15% chance
-		RareResourceModifier:    2.5,   // 2.5x value
+		SalvageScannerBonus:     0.20, // +20% from scanner
+		DerelictRareItemChance:  0.05, // 5% chance
+		DebrisFieldDensity:      0.50, // 50% average
+		AsteroidSpawnChance:     0.30, // 30% chance
+		DerelictSpawnChance:     0.10, // 10% chance
+		DebrisFieldChance:       0.15, // 15% chance
+		RareResourceModifier:    2.5,  // 2.5x value
 	}
 }
 
@@ -92,7 +92,7 @@ type MiningOperation struct {
 	StartTime    time.Time
 	CyclesLeft   int
 	CurrentYield float64
-	Status       string // "active", "completed", "cancelled"
+	Status       string         // "active", "completed", "cancelled"
 	Resources    map[string]int // Resource type -> quantity
 }
 
@@ -183,16 +183,16 @@ func (m *Manager) generateAsteroid(systemID uuid.UUID) MiningTarget {
 
 	// Common asteroids have basic resources
 	if rarity == "common" {
-		resources[string(ResourceIron)] = float64(rand.Intn(50) + 50)       // 50-100
-		resources[string(ResourceCopper)] = float64(rand.Intn(30) + 20)     // 20-50
+		resources[string(ResourceIron)] = float64(rand.Intn(50) + 50)   // 50-100
+		resources[string(ResourceCopper)] = float64(rand.Intn(30) + 20) // 20-50
 	} else if rarity == "uncommon" {
-		resources[string(ResourceTitanium)] = float64(rand.Intn(40) + 30)   // 30-70
-		resources[string(ResourceGold)] = float64(rand.Intn(20) + 10)       // 10-30
+		resources[string(ResourceTitanium)] = float64(rand.Intn(40) + 30) // 30-70
+		resources[string(ResourceGold)] = float64(rand.Intn(20) + 10)     // 10-30
 	} else {
 		// Rare asteroids
-		resources[string(ResourcePlatinum)] = float64(rand.Intn(30) + 20)   // 20-50
-		resources[string(ResourceCrystals)] = float64(rand.Intn(25) + 15)   // 15-40
-		resources[string(ResourceRareEarth)] = float64(rand.Intn(15) + 10)  // 10-25
+		resources[string(ResourcePlatinum)] = float64(rand.Intn(30) + 20)  // 20-50
+		resources[string(ResourceCrystals)] = float64(rand.Intn(25) + 15)  // 15-40
+		resources[string(ResourceRareEarth)] = float64(rand.Intn(15) + 10) // 10-25
 	}
 
 	return MiningTarget{
@@ -212,7 +212,7 @@ func (m *Manager) generateDerelict(systemID uuid.UUID) MiningTarget {
 	rarity := rarities[rand.Intn(len(rarities))]
 
 	resources := make(map[string]float64)
-	resources[string(ResourceScrap)] = float64(rand.Intn(100) + 50) // 50-150
+	resources[string(ResourceScrap)] = float64(rand.Intn(100) + 50)     // 50-150
 	resources[string(ResourceComponents)] = float64(rand.Intn(40) + 20) // 20-60
 
 	// Rare derelicts may have weapons/outfits
@@ -240,8 +240,8 @@ func (m *Manager) generateDerelict(systemID uuid.UUID) MiningTarget {
 // generateDebrisField creates a random debris field
 func (m *Manager) generateDebrisField(systemID uuid.UUID) MiningTarget {
 	resources := make(map[string]float64)
-	resources[string(ResourceScrap)] = float64(rand.Intn(200) + 100) // 100-300
-	resources[string(ResourceIron)] = float64(rand.Intn(50) + 25)     // 25-75
+	resources[string(ResourceScrap)] = float64(rand.Intn(200) + 100)    // 100-300
+	resources[string(ResourceIron)] = float64(rand.Intn(50) + 25)       // 25-75
 	resources[string(ResourceComponents)] = float64(rand.Intn(30) + 10) // 10-40
 
 	return MiningTarget{

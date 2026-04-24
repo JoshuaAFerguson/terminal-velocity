@@ -15,30 +15,30 @@ import (
 
 // SharedLoadout represents a shared ship configuration
 type SharedLoadout struct {
-	ID          uuid.UUID      `json:"id"`
-	PlayerID    uuid.UUID      `json:"player_id"`
-	ShipTypeID  string         `json:"ship_type_id"`
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Weapons     []string       `json:"weapons"`
-	Outfits     []string       `json:"outfits"`
-	Stats       *LoadoutStats  `json:"stats"`
-	IsPublic    bool           `json:"is_public"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	Views       int            `json:"views"`
-	Favorites   int            `json:"favorites"`
+	ID          uuid.UUID     `json:"id"`
+	PlayerID    uuid.UUID     `json:"player_id"`
+	ShipTypeID  string        `json:"ship_type_id"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
+	Weapons     []string      `json:"weapons"`
+	Outfits     []string      `json:"outfits"`
+	Stats       *LoadoutStats `json:"stats"`
+	IsPublic    bool          `json:"is_public"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+	Views       int           `json:"views"`
+	Favorites   int           `json:"favorites"`
 }
 
 // LoadoutStats contains calculated statistics for a loadout
 type LoadoutStats struct {
-	TotalDPS     int `json:"total_dps"`
-	TotalArmor   int `json:"total_armor"`
-	TotalShield  int `json:"total_shield"`
-	TotalSpeed   int `json:"total_speed"`
-	TotalCargo   int `json:"total_cargo"`
-	EnergyUsage  int `json:"energy_usage"`
-	MassUsage    int `json:"mass_usage"`
+	TotalDPS    int `json:"total_dps"`
+	TotalArmor  int `json:"total_armor"`
+	TotalShield int `json:"total_shield"`
+	TotalSpeed  int `json:"total_speed"`
+	TotalCargo  int `json:"total_cargo"`
+	EnergyUsage int `json:"energy_usage"`
+	MassUsage   int `json:"mass_usage"`
 }
 
 // LoadoutComparison represents a comparison between two loadouts

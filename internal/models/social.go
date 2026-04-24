@@ -25,11 +25,11 @@ type Friend struct {
 	CreatedAt time.Time `json:"created_at"`
 
 	// Populated fields (not in database)
-	FriendName   string `json:"friend_name,omitempty"`
-	IsOnline     bool   `json:"is_online,omitempty"`
-	CurrentShip  string `json:"current_ship,omitempty"`
-	Location     string `json:"location,omitempty"`
-	LastSeenAt   *time.Time `json:"last_seen_at,omitempty"`
+	FriendName  string     `json:"friend_name,omitempty"`
+	IsOnline    bool       `json:"is_online,omitempty"`
+	CurrentShip string     `json:"current_ship,omitempty"`
+	Location    string     `json:"location,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
 }
 
 // FriendRequest represents a pending friend request
@@ -83,8 +83,8 @@ type Mail struct {
 	Body       string     `json:"body"`
 
 	// Attachments
-	AttachedCredits int64           `json:"attached_credits"`
-	AttachedItems   []uuid.UUID     `json:"attached_items"`
+	AttachedCredits int64       `json:"attached_credits"`
+	AttachedItems   []uuid.UUID `json:"attached_items"`
 
 	// Status
 	IsRead    bool `json:"is_read"`
@@ -161,7 +161,7 @@ type PlayerProfile struct {
 	// Profile fields
 	Bio            string    `json:"bio"`
 	JoinDate       time.Time `json:"join_date"`
-	TotalPlaytime  int       `json:"total_playtime"` // in seconds
+	TotalPlaytime  int       `json:"total_playtime"`  // in seconds
 	ProfilePrivacy string    `json:"profile_privacy"` // public, friends, private
 
 	// Stats (from Player model)
@@ -183,9 +183,9 @@ type PlayerProfile struct {
 	// Social
 	FriendCount int  `json:"friend_count"`
 	IsOnline    bool `json:"is_online"`
-	IsFriend    bool `json:"is_friend"`    // From perspective of viewer
-	IsBlocked   bool `json:"is_blocked"`   // Viewer blocked this player
-	IsBlocking  bool `json:"is_blocking"`  // This player blocked viewer
+	IsFriend    bool `json:"is_friend"`   // From perspective of viewer
+	IsBlocked   bool `json:"is_blocked"`  // Viewer blocked this player
+	IsBlocking  bool `json:"is_blocking"` // This player blocked viewer
 
 	// Activity
 	LastSeen   *time.Time `json:"last_seen,omitempty"`

@@ -49,12 +49,12 @@ type CaptureConfig struct {
 	ShipSizeModifier   float64 // Modifier based on ship size difference
 
 	// Capture chances
-	BaseCaptureChance   float64 // Base chance to capture after boarding
-	DamageModifier      float64 // Modifier based on hull damage
-	CrewRatioModifier   float64 // Modifier based on crew vs defenders
-	LoyaltyResistance   float64 // Enemy crew loyalty resistance
-	EliteCrewBonus      float64 // Bonus for elite boarding crews
-	BribeEffectiveness  float64 // Effectiveness of bribing crew
+	BaseCaptureChance  float64 // Base chance to capture after boarding
+	DamageModifier     float64 // Modifier based on hull damage
+	CrewRatioModifier  float64 // Modifier based on crew vs defenders
+	LoyaltyResistance  float64 // Enemy crew loyalty resistance
+	EliteCrewBonus     float64 // Bonus for elite boarding crews
+	BribeEffectiveness float64 // Effectiveness of bribing crew
 
 	// Time limits
 	BoardingDuration time.Duration // How long a boarding attempt takes
@@ -64,19 +64,19 @@ type CaptureConfig struct {
 // DefaultCaptureConfig returns sensible default configuration
 func DefaultCaptureConfig() CaptureConfig {
 	return CaptureConfig{
-		DisableHullThreshold:   0.25,  // Must be below 25% hull
-		DisableShieldThreshold: 0.10,  // Must be below 10% shields
-		BaseBoardingChance:     0.40,  // 40% base chance
-		CrewBonus:              0.05,  // +5% per crew member
-		MarineBonus:            0.10,  // +10% per marine
-		DefenseBonus:           0.07,  // +7% per defender
-		ShipSizeModifier:       0.15,  // ±15% per size difference
-		BaseCaptureChance:      0.50,  // 50% base chance
-		DamageModifier:         0.20,  // +20% per 10% damage
-		CrewRatioModifier:      0.25,  // +25% per 2:1 crew ratio
-		LoyaltyResistance:      0.15,  // -15% from crew loyalty
-		EliteCrewBonus:         0.20,  // +20% for elite crews
-		BribeEffectiveness:     0.10,  // +10% if bribed
+		DisableHullThreshold:   0.25, // Must be below 25% hull
+		DisableShieldThreshold: 0.10, // Must be below 10% shields
+		BaseBoardingChance:     0.40, // 40% base chance
+		CrewBonus:              0.05, // +5% per crew member
+		MarineBonus:            0.10, // +10% per marine
+		DefenseBonus:           0.07, // +7% per defender
+		ShipSizeModifier:       0.15, // ±15% per size difference
+		BaseCaptureChance:      0.50, // 50% base chance
+		DamageModifier:         0.20, // +20% per 10% damage
+		CrewRatioModifier:      0.25, // +25% per 2:1 crew ratio
+		LoyaltyResistance:      0.15, // -15% from crew loyalty
+		EliteCrewBonus:         0.20, // +20% for elite crews
+		BribeEffectiveness:     0.10, // +10% if bribed
 		BoardingDuration:       30 * time.Second,
 		CooldownDuration:       60 * time.Second,
 	}
@@ -276,7 +276,7 @@ func (m *Manager) resolveBoarding(attempt *BoardingAttempt, attackerCrew, defend
 		// Failed boarding - heavier losses
 		outcome.AttackerLosses = int(float64(attackerCrew) * 0.30) // 30% losses
 		outcome.DefenderLosses = int(float64(defenderCrew) * 0.20) // 20% losses
-		outcome.ShipDamage = 50 // Additional damage from failed boarding
+		outcome.ShipDamage = 50                                    // Additional damage from failed boarding
 		outcome.Message = fmt.Sprintf("Boarding failed! Lost %d crew, defenders lost %d",
 			outcome.AttackerLosses, outcome.DefenderLosses)
 	}
@@ -448,9 +448,9 @@ func (m *Manager) GetActiveBoardingCount() int {
 
 // Statistics returns capture system statistics
 type CaptureStats struct {
-	ActiveBoardings int
-	TotalAttempts   int
-	SuccessfulBoards int
+	ActiveBoardings    int
+	TotalAttempts      int
+	SuccessfulBoards   int
 	SuccessfulCaptures int
 }
 

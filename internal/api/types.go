@@ -32,9 +32,9 @@ type AuthRequest struct {
 }
 
 type SSHAuthRequest struct {
-	Username              string
-	PublicKeyFingerprint  string
-	PublicKey             []byte
+	Username             string
+	PublicKeyFingerprint string
+	PublicKey            []byte
 }
 
 type AuthResponse struct {
@@ -131,24 +131,24 @@ type Coordinates struct {
 }
 
 type Ship struct {
-	ShipID         uuid.UUID
-	ShipType       string
-	CustomName     string
-	Hull           int32
-	MaxHull        int32
-	Shields        int32
-	MaxShields     int32
-	Fuel           int32
-	MaxFuel        int32
-	CargoSpace     int32
-	CargoUsed      int32
-	Weapons        []*Weapon
-	Outfits        []*Outfit
-	Speed          float64
-	Acceleration   float64
-	TurnRate       float64
-	PurchasePrice  int64
-	CurrentValue   int64
+	ShipID        uuid.UUID
+	ShipType      string
+	CustomName    string
+	Hull          int32
+	MaxHull       int32
+	Shields       int32
+	MaxShields    int32
+	Fuel          int32
+	MaxFuel       int32
+	CargoSpace    int32
+	CargoUsed     int32
+	Weapons       []*Weapon
+	Outfits       []*Outfit
+	Speed         float64
+	Acceleration  float64
+	TurnRate      float64
+	PurchasePrice int64
+	CurrentValue  int64
 }
 
 type Weapon struct {
@@ -195,19 +195,19 @@ const (
 )
 
 type PlayerStats struct {
-	Level               int32
-	Experience          int64
-	TotalCreditsEarned  int64
-	CombatRating        int32
-	TradeRating         int32
-	ExplorationRating   int32
-	ShipsDestroyed      int32
-	MissionsCompleted   int32
-	QuestsCompleted     int32
-	SystemsVisited      int32
-	JumpsMade           int32
-	AccountCreated      time.Time
-	PlaytimeSeconds     int64
+	Level              int32
+	Experience         int64
+	TotalCreditsEarned int64
+	CombatRating       int32
+	TradeRating        int32
+	ExplorationRating  int32
+	ShipsDestroyed     int32
+	MissionsCompleted  int32
+	QuestsCompleted    int32
+	SystemsVisited     int32
+	JumpsMade          int32
+	AccountCreated     time.Time
+	PlaytimeSeconds    int64
 }
 
 type ReputationInfo struct {
@@ -227,10 +227,10 @@ const (
 )
 
 type LocationUpdate struct {
-	PlayerID  uuid.UUID
-	SystemID  uuid.UUID
-	PlanetID  *uuid.UUID
-	Position  Coordinates
+	PlayerID uuid.UUID
+	SystemID uuid.UUID
+	PlanetID *uuid.UUID
+	Position Coordinates
 }
 
 type PlayerUpdate struct {
@@ -293,10 +293,10 @@ type JumpRequest struct {
 }
 
 type JumpResponse struct {
-	Success       bool
-	Message       string
-	NewState      *PlayerState
-	FuelConsumed  int32
+	Success      bool
+	Message      string
+	NewState     *PlayerState
+	FuelConsumed int32
 }
 
 type LandRequest struct {

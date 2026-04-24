@@ -29,9 +29,9 @@ type Ship struct {
 	Crew int `json:"crew"`
 
 	// Installed equipment (IDs of outfits)
-	Weapons    []string   `json:"weapons"`
+	Weapons    []string    `json:"weapons"`
 	WeaponAmmo map[int]int `json:"weapon_ammo,omitempty"` // Ammo by slot index
-	Outfits    []string   `json:"outfits"`
+	Outfits    []string    `json:"outfits"`
 }
 
 // ShipType defines a class of ship

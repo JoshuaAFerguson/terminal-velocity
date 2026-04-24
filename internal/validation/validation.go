@@ -25,15 +25,15 @@ var (
 
 // Password complexity requirements
 const (
-	MinPasswordLength     = 8
-	MinPasswordUpper      = 1
-	MinPasswordLower      = 1
-	MinPasswordDigit      = 1
-	MinPasswordSpecial    = 0 // Optional for now
-	MaxPasswordLength     = 128
-	MinUsernameLength     = 3
-	MaxUsernameLength     = 20
-	MaxEmailLength        = 254
+	MinPasswordLength  = 8
+	MinPasswordUpper   = 1
+	MinPasswordLower   = 1
+	MinPasswordDigit   = 1
+	MinPasswordSpecial = 0 // Optional for now
+	MaxPasswordLength  = 128
+	MinUsernameLength  = 3
+	MaxUsernameLength  = 20
+	MaxEmailLength     = 254
 )
 
 // ValidationError represents a validation error
@@ -469,12 +469,12 @@ func IsTerminalInjection(input string) bool {
 
 	// Check for other control sequences
 	controlSequences := []string{
-		"\x00", // NULL
-		"\x07", // BEL (bell)
-		"\x08", // Backspace
-		"\x0c", // Form feed
+		"\x00",  // NULL
+		"\x07",  // BEL (bell)
+		"\x08",  // Backspace
+		"\x0c",  // Form feed
 		"\x1b]", // OSC (Operating System Command)
-		"\x9b", // CSI (Control Sequence Introducer)
+		"\x9b",  // CSI (Control Sequence Introducer)
 	}
 
 	for _, seq := range controlSequences {

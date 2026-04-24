@@ -380,8 +380,8 @@ func (m *Manager) GetMailStats(ctx context.Context, playerID uuid.UUID) (map[str
 	}
 
 	return map[string]int{
-		"total":             len(allMail),
-		"unread":            unreadCount,
+		"total":            len(allMail),
+		"unread":           unreadCount,
 		"with_attachments": withAttachments,
 	}, nil
 }

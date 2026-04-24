@@ -20,11 +20,11 @@ type ActivityType string
 
 const (
 	// Authentication events
-	ActivityLoginSuccess    ActivityType = "login_success"
-	ActivityLoginFailure    ActivityType = "login_failure"
-	ActivityLogout          ActivityType = "logout"
-	ActivitySessionExpired  ActivityType = "session_expired"
-	ActivitySessionKicked   ActivityType = "session_kicked"
+	ActivityLoginSuccess   ActivityType = "login_success"
+	ActivityLoginFailure   ActivityType = "login_failure"
+	ActivityLogout         ActivityType = "logout"
+	ActivitySessionExpired ActivityType = "session_expired"
+	ActivitySessionKicked  ActivityType = "session_kicked"
 
 	// Account management events
 	ActivityPasswordChanged   ActivityType = "password_changed"
@@ -33,11 +33,11 @@ const (
 	ActivityTwoFactorDisabled ActivityType = "2fa_disabled"
 
 	// Security events
-	ActivitySuspiciousLogin    ActivityType = "suspicious_login"
-	ActivityNewIPLogin         ActivityType = "new_ip_login"
-	ActivityNewLocationLogin   ActivityType = "new_location_login"
-	ActivityAccountLocked      ActivityType = "account_locked"
-	ActivityAccountUnlocked    ActivityType = "account_unlocked"
+	ActivitySuspiciousLogin        ActivityType = "suspicious_login"
+	ActivityNewIPLogin             ActivityType = "new_ip_login"
+	ActivityNewLocationLogin       ActivityType = "new_location_login"
+	ActivityAccountLocked          ActivityType = "account_locked"
+	ActivityAccountUnlocked        ActivityType = "account_unlocked"
 	ActivityPasswordResetRequested ActivityType = "password_reset_requested"
 	ActivityPasswordResetCompleted ActivityType = "password_reset_completed"
 
@@ -46,41 +46,41 @@ const (
 	ActivityPermissionChanged ActivityType = "permission_changed"
 
 	// Game events (optional - for suspicious activity)
-	ActivityRapidActions      ActivityType = "rapid_actions"
-	ActivityAnomalousTrading  ActivityType = "anomalous_trading"
+	ActivityRapidActions     ActivityType = "rapid_actions"
+	ActivityAnomalousTrading ActivityType = "anomalous_trading"
 )
 
 // Activity Event represents a logged security event
 type ActivityEvent struct {
-	ID          uuid.UUID                `json:"id"`
-	PlayerID    uuid.UUID                `json:"player_id"`
-	Username    string                   `json:"username"`
-	EventType   ActivityType             `json:"event_type"`
-	IPAddress   string                   `json:"ip_address"`
-	UserAgent   string                   `json:"user_agent,omitempty"`
-	Timestamp   time.Time                `json:"timestamp"`
-	Success     bool                     `json:"success"`
-	Details     map[string]interface{}   `json:"details,omitempty"`
-	RiskLevel   RiskLevel                `json:"risk_level"`
+	ID        uuid.UUID              `json:"id"`
+	PlayerID  uuid.UUID              `json:"player_id"`
+	Username  string                 `json:"username"`
+	EventType ActivityType           `json:"event_type"`
+	IPAddress string                 `json:"ip_address"`
+	UserAgent string                 `json:"user_agent,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+	Success   bool                   `json:"success"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+	RiskLevel RiskLevel              `json:"risk_level"`
 }
 
 // RiskLevel represents the risk level of an activity
 type RiskLevel string
 
 const (
-	RiskNone     RiskLevel = "none"      // Normal activity
-	RiskLow      RiskLevel = "low"       // Slightly unusual
-	RiskMedium   RiskLevel = "medium"    // Moderately suspicious
-	RiskHigh     RiskLevel = "high"      // Very suspicious
-	RiskCritical RiskLevel = "critical"  // Immediate attention needed
+	RiskNone     RiskLevel = "none"     // Normal activity
+	RiskLow      RiskLevel = "low"      // Slightly unusual
+	RiskMedium   RiskLevel = "medium"   // Moderately suspicious
+	RiskHigh     RiskLevel = "high"     // Very suspicious
+	RiskCritical RiskLevel = "critical" // Immediate attention needed
 )
 
 // ActivityLogger logs account activities
 type ActivityLogger struct {
-	mu         sync.RWMutex
-	events     []*ActivityEvent
-	maxEvents  int
-	playerIPs  map[uuid.UUID]map[string]time.Time // playerID -> IP -> last seen
+	mu        sync.RWMutex
+	events    []*ActivityEvent
+	maxEvents int
+	playerIPs map[uuid.UUID]map[string]time.Time // playerID -> IP -> last seen
 }
 
 // NewActivityLogger creates a new activity logger

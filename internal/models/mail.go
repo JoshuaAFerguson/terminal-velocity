@@ -23,9 +23,9 @@ type MailStats struct {
 
 // Common mail errors
 var (
-	ErrMailNotFound    = errors.New("mail not found")
-	ErrUnauthorized    = errors.New("unauthorized access")
+	ErrMailNotFound     = errors.New("mail not found")
+	ErrUnauthorized     = errors.New("unauthorized access")
 	ErrInvalidRecipient = errors.New("invalid recipient")
-	ErrSubjectRequired = errors.New("subject is required")
-	ErrBodyRequired    = errors.New("body is required")
+	ErrSubjectRequired  = errors.New("subject is required")
+	ErrBodyRequired     = errors.New("body is required")
 )
