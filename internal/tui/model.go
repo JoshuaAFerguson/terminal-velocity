@@ -17,6 +17,7 @@ import (
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/encounters"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/factions"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/factionwar"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/friends"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/leaderboards"
@@ -84,6 +85,7 @@ const (
 	ScreenMarketplace
 	ScreenNotifications
 	ScreenPilotRecord
+	ScreenFactionWars
 )
 
 // Model is the main TUI model
@@ -138,6 +140,7 @@ type Model struct {
 	encounterModel       encounterModel
 	newsModel            newsModel
 	newsTicker           newsTickerState
+	factionWarsModel     factionWarsModel
 	leaderboardsModel    leaderboardsModel
 	playersModel         playersModel
 	chatModel            chatModel
@@ -202,6 +205,11 @@ type Model struct {
 	// Territory system
 	territoryManager *territory.Manager
 
+	// Faction war system (P5C). Set from the server so every
+	// session sees the same active-war list; nil-tolerant for
+	// standalone/test model construction.
+	factionWarManager *factionwar.Manager
+
 	// Trade system
 	tradeManager *trade.Manager
 
@@ -261,6 +269,7 @@ func NewModel(
 	pvpManager *pvp.Manager,
 	territoryManager *territory.Manager,
 	tutorialManager *tutorial.Manager,
+	factionWarManager *factionwar.Manager,
 ) Model {
 	// All server-wide feeds fall back to standalone managers so tests
 	// injecting nil still run. Production call sites always pass a
@@ -284,6 +293,9 @@ func NewModel(
 	if tutorialManager == nil {
 		tutorialManager = tutorial.NewManager()
 	}
+	// factionWarManager can stay nil — the TUI treats nil as "no
+	// wars known" and renders a placeholder screen, so offline
+	// tests don't need to spin up a manager.
 	return Model{
 		screen:               ScreenMainMenu,
 		playerID:             playerID,
@@ -412,6 +424,7 @@ func NewLoginModel(
 	pvpManager *pvp.Manager,
 	territoryManager *territory.Manager,
 	tutorialManager *tutorial.Manager,
+	factionWarManager *factionwar.Manager,
 ) Model {
 	if newsManager == nil {
 		newsManager = news.NewManager()
@@ -431,6 +444,9 @@ func NewLoginModel(
 	if tutorialManager == nil {
 		tutorialManager = tutorial.NewManager()
 	}
+	// factionWarManager can stay nil — the TUI treats nil as "no
+	// wars known" and renders a placeholder screen, so offline
+	// tests don't need to spin up a manager.
 	return Model{
 		screen:               ScreenLogin,
 		playerID:             uuid.Nil,
@@ -472,6 +488,8 @@ func NewLoginModel(
 		factionsModel:        newFactionsModel(),
 		factionManager:       factions.NewManager(),
 		territoryManager:     territoryManager,
+		factionWarManager:    factionWarManager,
+		factionWarsModel:     newFactionWarsModel(),
 		tradeModel:           newTradeModel(),
 		tradeManager:         trade.NewManager(),
 		pvpModel:             newPvPModel(),
@@ -797,6 +815,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateNotifications(msg)
 	case ScreenPilotRecord:
 		return m.updatePilotRecord(msg)
+	case ScreenFactionWars:
+		return m.updateFactionWars(msg)
 	default:
 		return m, nil
 	}
@@ -906,6 +926,8 @@ func (m Model) viewScreen() string {
 		return m.viewNotifications()
 	case ScreenPilotRecord:
 		return m.viewPilotRecord()
+	case ScreenFactionWars:
+		return m.viewFactionWars()
 	default:
 		return "Unknown screen"
 	}

@@ -50,6 +50,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Players", screen: ScreenPlayers},
 			{label: "Chat", screen: ScreenChat},
 			{label: "Factions", screen: ScreenFactions},
+			{label: "Faction Wars", screen: ScreenFactionWars},
 			{label: "Trade", screen: ScreenTrade},
 			{label: "Marketplace", screen: ScreenMarketplace},
 			{label: "Mail", screen: ScreenMail},

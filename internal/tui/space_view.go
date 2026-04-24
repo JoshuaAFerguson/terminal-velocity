@@ -372,6 +372,13 @@ func (m Model) viewSpaceView() string {
 	header := DrawHeader("TERMINAL VELOCITY v1.0", systemName, credits, shieldPercent, width)
 	sb.WriteString(header + "\n")
 
+	// War-zone banner — shown only if the current system is covered
+	// by an active faction war. Empty string when the galaxy is at
+	// peace, so the layout doesn't shift.
+	if banner := m.warZoneBanner(); banner != "" {
+		sb.WriteString(banner + "\n")
+	}
+
 	// Main content area
 	contentHeight := height - 6 // Header + footer + chat
 	if m.spaceView.chatExpanded {

@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5C-2 faction war TUI + space-view banner)
+- **New `Faction Wars` screen** (main menu → Faction Wars, or
+  `ScreenFactionWars` in the enum). Two-pane layout: left column is
+  the war list with cursor navigation; right column is a detail
+  panel showing belligerents, status, declaration/resolution
+  timestamps, duration, winner (when resolved), casus belli, and a
+  two-column war-zone list.
+  - `H` key toggles between "active only" and full-history views.
+    Cursor re-clamps on toggle so cursor-out-of-range can't happen.
+  - Status glyphs: `⚔` active, `✓` resolved, `⏸` ceasefire.
+  - `formatWarDuration` picks compact unit pairs: `<1m`, `5m`,
+    `3h 20m`, `3d 4h`. Keeps detail-panel line widths stable across
+    the full war lifespan.
+  - `shortName` truncates to 20 cells + ellipsis so the list column
+    fits without wrapping even on long faction names.
+  - Narrow-terminal fallback: when detail panel would be <30 cells
+    wide, stacks list over detail vertically instead of side-by-side.
+- **Space-view war-zone banner.** A red `⚠  WAR ZONE: UEF vs
+  Crimson` strip renders at the top of the space view (right below
+  the header) when the player's current system is covered by any
+  active war. Multiple overlapping wars are summarized with
+  `+N more`. Empty string → suppressed row on peaceful systems so
+  the layout doesn't shift when wars resolve.
+- **Wiring**: `factionWarManager *factionwar.Manager` threaded
+  through `NewModel` + `NewLoginModel` (nil-tolerant for tests),
+  and a new screen-name `faction_wars` added to the tutorial
+  router.
+- **16 subtests** cover: status markers + labels (incl. unknown
+  fallback), duration formatter at day/hour/minute boundaries,
+  short-name truncation, two-column layout (empty / narrow /
+  wide / odd-count), side-by-side panel height matching, detail
+  panel active vs. resolved rendering, cursor marker placement,
+  and nil-safety for the war-zone banner. `TestRenderWarDetailPreview`
+  dumps full active + resolved frames for eyeball review.
+
 ### Added (2026-04-24 - P5C-1 faction war backend)
 - **New `internal/factionwar` package** implementing the faction war
   mechanics from `docs/FACTION_RELATIONS.md` §"Faction War Mechanics".

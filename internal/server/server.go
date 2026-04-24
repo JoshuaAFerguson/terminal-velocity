@@ -679,6 +679,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 		s.pvpManager,
 		s.territoryManager,
 		s.tutorialManager,
+		s.factionWarManager,
 	)
 
 	// Create BubbleTea program with SSH channel as input/output
@@ -710,7 +711,7 @@ func (s *Server) startGameSession(username string, perms *ssh.Permissions, chann
 func (s *Server) startAnonymousSession(channel ssh.Channel, requests <-chan *ssh.Request, initialSize ptySize) {
 	log.Debug("startAnonymousSession called (initial size %dx%d)", initialSize.cols, initialSize.rows)
 
-	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager, s.presenceManager, s.pvpManager, s.territoryManager, s.tutorialManager)
+	model := tui.NewLoginModel(s.playerRepo, s.systemRepo, s.sshKeyRepo, s.shipRepo, s.marketRepo, s.mailRepo, s.socialRepo, s.achievementRepo, s.newsManager, s.chatManager, s.presenceManager, s.pvpManager, s.territoryManager, s.tutorialManager, s.factionWarManager)
 
 	p := tea.NewProgram(
 		model,

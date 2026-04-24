@@ -340,6 +340,8 @@ func (m Model) getScreenName() string {
 		return "chat"
 	case ScreenFactions:
 		return "factions"
+	case ScreenFactionWars:
+		return "faction_wars"
 	case ScreenTrade:
 		return "trade"
 	case ScreenPvP:
