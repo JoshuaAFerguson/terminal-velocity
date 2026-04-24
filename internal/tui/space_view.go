@@ -33,9 +33,9 @@ func spaceViewPollTick() tea.Cmd {
 
 type spaceViewModel struct {
 	// Space objects visible in current system
-	planets  []*models.Planet
-	ships    []spaceObject
-	player   playerPosition
+	planets []*models.Planet
+	ships   []spaceObject
+	player  playerPosition
 
 	// Target selection
 	targetIndex int
@@ -92,7 +92,7 @@ func convertShipsToSpaceObjects(ships []*models.Ship, playerPos playerPosition) 
 			y:        y,
 			distance: distance,
 			hostile:  hostile,
-			objType:  "player", // All nearby ships are players in this context
+			objType:  "player",     // All nearby ships are players in this context
 			playerID: ship.OwnerID, // Store player ID for DM chat
 		})
 	}
@@ -379,7 +379,7 @@ func (m Model) viewSpaceView() string {
 	}
 
 	// Left side: Space viewport + target/cargo panels
-	viewportWidth := width - 17 // Leave room for right sidebar
+	viewportWidth := width - 17         // Leave room for right sidebar
 	viewportHeight := contentHeight - 8 // Leave room for bottom panels
 
 	// Draw space viewport
@@ -585,8 +585,8 @@ func (m Model) drawRightSidebar(width, height int) string {
 	// Status panel
 	var statusContent strings.Builder
 	// Get max values from ShipType
-	maxHull := 100  // Default
-	maxFuel := 100  // Default
+	maxHull := 100 // Default
+	maxFuel := 100 // Default
 	if m.currentShip != nil {
 		shipType := models.GetShipTypeByID(m.currentShip.TypeID)
 		if shipType != nil {
@@ -869,6 +869,9 @@ func (m Model) updateSpaceView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f", "F":
 			// Fire / Enter combat
 			if m.spaceView.hasTarget {
+				// Snapshot fleet escorts at the moment combat
+				// begins — see combat_escorts.go for rationale.
+				m.initializeCombatEscorts()
 				m.screen = ScreenCombatEnhanced
 				return m, nil
 			} else {

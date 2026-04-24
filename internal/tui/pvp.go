@@ -95,6 +95,7 @@ func (m Model) updatePvP(msg tea.Msg) (tea.Model, tea.Cmd) {
 					ch.DefenderName,
 					"Corvette",
 				)
+				m.initializeCombatEscorts()
 				m.screen = ScreenCombatEnhanced
 				return m, nil
 			}
@@ -176,6 +177,7 @@ func (m Model) updatePvPList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					challenge.ChallengerName,
 					"Corvette", // Default ship type for now
 				)
+				m.initializeCombatEscorts()
 
 				// Transition to combat screen
 				m.screen = ScreenCombatEnhanced

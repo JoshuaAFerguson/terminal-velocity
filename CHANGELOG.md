@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5B-1 fleet escorts participate in combat)
+- **Escorts now appear in enhanced combat and boost player damage.**
+  Before this slice, `fleet.Manager` knew how to hire/dismiss/command
+  escorts but nothing in `combat_enhanced` ever called any of it —
+  escorts were invisible once a fight started.
+  - On entry to `ScreenCombatEnhanced` (both PvP accept/challenger
+    paths and the PvE `f` keybind in space_view), the model
+    snapshots the player's active escorts into a lightweight
+    `combatEscort` slice. Snapshotting (rather than reading the
+    manager on every render) means mid-combat fleet edits can't
+    corrupt the displayed strip.
+  - `fireWeaponCmd` runs base damage through `applyEscortBonus`:
+    +10% per Aggressive escort, +5% per Defensive, 0% for
+    Passive/Support, capped at 1.5×. The log line surfaces the
+    bonus amount: `"HIT for 55 damage (+5 fleet bonus)!"`.
+  - A new escort strip renders below the enemy status panel when
+    the player has ≥1 escort. Shows pilot, ship type, behavior code
+    (`AGG`/`DEF`/`PAS`/`SUP`), level, and a footer with the active
+    damage bonus + support-escort count.
+  - Scope-limited: escorts don't take damage, can't be targeted by
+    the enemy, and don't take turns. Those deferred to P5B-2.
+  - Pure helpers (`computeEscortDamageBonus`, `applyEscortBonus`,
+    `countSupportEscorts`, `escortBehaviorLabel`, `renderEscortStrip`)
+    covered by 24 subtests including cap enforcement, passive/
+    support exclusion, rounding truncation (35×1.15 → 40 not 41),
+    and an eyeball-preview harness.
+
 ### Added (2026-04-23 - P5H scrolling newsreel ticker on main menu)
 - **Main menu now carries a one-line scrolling newsreel** pulled from
   the existing `news.Manager`. Critical articles get a `[BREAKING] `

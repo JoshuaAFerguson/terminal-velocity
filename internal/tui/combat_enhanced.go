@@ -1,7 +1,7 @@
 // File: internal/tui/combat_enhanced.go
 // Project: Terminal Velocity
 // Description: Enhanced active combat screen with tactical display and turn-based combat
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-14
 
@@ -29,8 +29,8 @@ type combatEnhancedModel struct {
 	enemyShip  combatShip
 
 	// Combat tracking
-	distance     int     // kilometers
-	closingSpeed int     // km/s (negative = moving away)
+	distance     int // kilometers
+	closingSpeed int // km/s (negative = moving away)
 	turnNumber   int
 	combatLog    []string
 
@@ -39,28 +39,33 @@ type combatEnhancedModel struct {
 	actionMode     string // "select", "confirm"
 
 	// Loot system
-	lootDrop       *combat.LootDrop
-	showingLoot    bool
-	enemyShipType  *models.ShipType // Store for loot generation
+	lootDrop        *combat.LootDrop
+	showingLoot     bool
+	enemyShipType   *models.ShipType // Store for loot generation
 	enemyWasHostile bool
-	enemyHadBounty bool
-	enemyBounty    int64
+	enemyHadBounty  bool
+	enemyBounty     int64
 
 	// PvP combat tracking
-	isPvPCombat   bool
+	isPvPCombat    bool
 	pvpChallengeID *uuid.UUID
+
+	// Fleet escort participation (P5B-1). Snapshotted from fleet
+	// manager on combat entry; escorts don't mutate during combat
+	// in this slice — they contribute a damage multiplier only.
+	playerEscorts []combatEscort
 }
 
 type combatShip struct {
-	name     string
-	shipType string
-	hull     int // percentage
-	maxHull  int
-	shields  int // percentage
+	name       string
+	shipType   string
+	hull       int // percentage
+	maxHull    int
+	shields    int // percentage
 	maxShields int
-	energy   int // percentage
-	weapons  []combatWeapon
-	attitude string // "hostile", "neutral", "friendly"
+	energy     int // percentage
+	weapons    []combatWeapon
+	attitude   string // "hostile", "neutral", "friendly"
 }
 
 type combatWeapon struct {
@@ -89,26 +94,26 @@ func newCombatEnhancedModel() combatEnhancedModel {
 		isPlayerTurn: true,
 		combatPhase:  "ongoing",
 		playerShip: combatShip{
-			name:     "Your Ship",
-			shipType: "Corvette",
-			hull:     100,
-			maxHull:  100,
-			shields:  60,
+			name:       "Your Ship",
+			shipType:   "Corvette",
+			hull:       100,
+			maxHull:    100,
+			shields:    60,
 			maxShields: 100,
-			energy:   80,
-			weapons:  playerWeapons,
-			attitude: "neutral",
+			energy:     80,
+			weapons:    playerWeapons,
+			attitude:   "neutral",
 		},
 		enemyShip: combatShip{
-			name:     "Pirate Viper",
-			shipType: "Viper",
-			hull:     40,
-			maxHull:  100,
-			shields:  25,
+			name:       "Pirate Viper",
+			shipType:   "Viper",
+			hull:       40,
+			maxHull:    100,
+			shields:    25,
 			maxShields: 100,
-			energy:   60,
-			weapons:  enemyWeapons,
-			attitude: "hostile",
+			energy:     60,
+			weapons:    enemyWeapons,
+			attitude:   "hostile",
 		},
 		distance:     1850,
 		closingSpeed: 120,
@@ -317,6 +322,20 @@ func (m Model) viewCombatEnhanced() string {
 	sb.WriteString(strings.Repeat(" ", width-2))
 	sb.WriteString(BoxVertical + "\n")
 
+	// Fleet escort strip — rendered only when the player has active
+	// escorts. Each line is wrapped in the outer box borders via
+	// BoxVertical so the width stays aligned with the other panels.
+	if escortPanel := renderEscortStrip(m.combatEnhanced.playerEscorts, width-4); escortPanel != "" {
+		for _, line := range strings.Split(strings.TrimRight(escortPanel, "\n"), "\n") {
+			sb.WriteString(BoxVertical + " ")
+			sb.WriteString(PadRight(line, width-4))
+			sb.WriteString(" " + BoxVertical + "\n")
+		}
+		sb.WriteString(BoxVertical)
+		sb.WriteString(strings.Repeat(" ", width-2))
+		sb.WriteString(BoxVertical + "\n")
+	}
+
 	// Combat log panel
 	logWidth := 68
 	var logContent strings.Builder
@@ -442,20 +461,20 @@ func (m Model) fireWeaponCmd(weaponIndex int) tea.Cmd {
 		// Check ammo for missile weapons
 		if weapon.maxAmmo > 0 && weapon.ammo <= 0 {
 			return combatActionMsg{
-				actionType:  "fire",
-				weaponSlot:  weaponIndex,
-				logMessage:  fmt.Sprintf("No ammo remaining for %s", weapon.name),
-				err:         fmt.Errorf("no ammo"),
+				actionType: "fire",
+				weaponSlot: weaponIndex,
+				logMessage: fmt.Sprintf("No ammo remaining for %s", weapon.name),
+				err:        fmt.Errorf("no ammo"),
 			}
 		}
 
 		// Check energy
 		if m.combatEnhanced.playerShip.energy < weapon.energyCost {
 			return combatActionMsg{
-				actionType:  "fire",
-				weaponSlot:  weaponIndex,
-				logMessage:  "Insufficient energy to fire weapon",
-				err:         fmt.Errorf("insufficient energy"),
+				actionType: "fire",
+				weaponSlot: weaponIndex,
+				logMessage: "Insufficient energy to fire weapon",
+				err:        fmt.Errorf("insufficient energy"),
 			}
 		}
 
@@ -465,8 +484,18 @@ func (m Model) fireWeaponCmd(weaponIndex int) tea.Cmd {
 		damage := 0
 		logMsg := ""
 		if hit {
-			damage = weapon.damage
-			logMsg = fmt.Sprintf("You fire %s - HIT for %d damage!", weapon.name, damage)
+			// Base weapon damage, scaled by any fleet escort
+			// bonus. Log line surfaces the bonus amount so the
+			// player sees the value their escorts are adding —
+			// keeps P5B-1 readable without a separate HUD number.
+			baseDamage := weapon.damage
+			damage = applyEscortBonus(baseDamage, m.combatEnhanced.playerEscorts)
+			if damage != baseDamage {
+				logMsg = fmt.Sprintf("You fire %s - HIT for %d damage (+%d fleet bonus)!",
+					weapon.name, damage, damage-baseDamage)
+			} else {
+				logMsg = fmt.Sprintf("You fire %s - HIT for %d damage!", weapon.name, damage)
+			}
 
 			// Apply damage to enemy (shields first, then hull)
 			if m.combatEnhanced.enemyShip.shields > 0 {
@@ -503,13 +532,13 @@ func (m Model) fireWeaponCmd(weaponIndex int) tea.Cmd {
 		victory := combatOver
 
 		return combatActionMsg{
-			actionType:  "fire",
-			weaponSlot:  weaponIndex,
-			hit:         hit,
-			damage:      damage,
-			logMessage:  logMsg,
-			combatOver:  combatOver,
-			victory:     victory,
+			actionType: "fire",
+			weaponSlot: weaponIndex,
+			hit:        hit,
+			damage:     damage,
+			logMessage: logMsg,
+			combatOver: combatOver,
+			victory:    victory,
 		}
 	}
 }
@@ -635,7 +664,7 @@ func (m Model) collectCombatLootCmd() tea.Cmd {
 				success: false,
 				message: fmt.Sprintf("Insufficient cargo space! Need %d tons, have %d tons available",
 					cargoNeeded, cargoAvailable),
-				err:     fmt.Errorf("insufficient cargo space"),
+				err: fmt.Errorf("insufficient cargo space"),
 			}
 		}
 
