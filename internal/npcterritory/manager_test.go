@@ -297,6 +297,177 @@ func TestManagerNilNewsBus(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// P5D-2 contribution tracking
+// ============================================================================
+
+func TestAddContributionAccumulates(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Sol", "uef", 10)
+	m.AddContribution("Sol", "uef", 15)
+	m.AddContribution("Sol", "crimson", 5)
+
+	if got := m.ContributionFor("Sol", "uef"); got != 25 {
+		t.Errorf("uef: got %d, want 25", got)
+	}
+	if got := m.ContributionFor("Sol", "crimson"); got != 5 {
+		t.Errorf("crimson: got %d, want 5", got)
+	}
+}
+
+func TestAddContributionIgnoresUnknownSystem(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Nowhere", "uef", 100)
+	// Unknown system → no-op. Verify via SystemContributions nil
+	// return (unknown system).
+	if snap := m.SystemContributions("Nowhere"); snap != nil {
+		t.Errorf("unknown system contributions: got %v, want nil", snap)
+	}
+}
+
+func TestAddContributionIgnoresUnknownFaction(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Sol", "ghost", 50)
+	// Known system but unknown faction → no contribution stored.
+	if got := m.ContributionFor("Sol", "ghost"); got != 0 {
+		t.Errorf("unknown faction: got %d, want 0", got)
+	}
+	// Sol's contributions map should be absent since we never
+	// stored anything (an empty map would still be a leak).
+	if snap := m.SystemContributions("Sol"); len(snap) != 0 {
+		t.Errorf("no-ops should not create an empty map, got %v", snap)
+	}
+}
+
+func TestAddContributionIgnoresZero(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Sol", "uef", 0)
+	if snap := m.SystemContributions("Sol"); len(snap) != 0 {
+		t.Errorf("zero-amount should not create entries, got %v", snap)
+	}
+}
+
+func TestAddContributionAllowsNegative(t *testing.T) {
+	// Negative amounts are valid: sabotage / rep penalty hooks use
+	// them. Running total must reflect the signed sum.
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Sol", "uef", 20)
+	m.AddContribution("Sol", "uef", -5)
+	if got := m.ContributionFor("Sol", "uef"); got != 15 {
+		t.Errorf("signed sum: got %d, want 15", got)
+	}
+}
+
+func TestAddContributionNilManagerSafe(t *testing.T) {
+	var m *Manager
+	m.AddContribution("Sol", "uef", 10) // must not panic
+}
+
+func TestContributionLeaderAcrossSystems(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	// uef leads in Sol; crimson leads in Wolf 359; uef aggregate
+	// wins because Sol contributions are larger.
+	m.AddContribution("Sol", "uef", 50)
+	m.AddContribution("Sol", "crimson", 10)
+	m.AddContribution("Wolf 359", "uef", 5)
+	m.AddContribution("Wolf 359", "crimson", 20)
+
+	leader, margin := m.ContributionLeader(
+		[]string{"Sol", "Wolf 359"}, "uef", "crimson",
+	)
+	if leader != "uef" {
+		t.Errorf("leader: got %q, want uef", leader)
+	}
+	// uef total = 55, crimson total = 30 → margin 25.
+	if margin != 25 {
+		t.Errorf("margin: got %d, want 25", margin)
+	}
+}
+
+func TestContributionLeaderTieReturnsEmpty(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Sol", "uef", 10)
+	m.AddContribution("Sol", "crimson", 10)
+	leader, margin := m.ContributionLeader([]string{"Sol"}, "uef", "crimson")
+	if leader != "" {
+		t.Errorf("tie should return empty leader, got %q", leader)
+	}
+	if margin != 0 {
+		t.Errorf("tie margin: got %d, want 0", margin)
+	}
+}
+
+func TestContributionLeaderNoDataReturnsEmpty(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	if leader, _ := m.ContributionLeader([]string{"Sol"}, "uef", "crimson"); leader != "" {
+		t.Errorf("empty contributions: leader %q, want empty", leader)
+	}
+}
+
+func TestContributionLeaderNilManagerSafe(t *testing.T) {
+	var m *Manager
+	leader, margin := m.ContributionLeader([]string{"Sol"}, "uef", "crimson")
+	if leader != "" || margin != 0 {
+		t.Errorf("nil manager: got (%q, %d), want empty", leader, margin)
+	}
+}
+
+func TestFlipClearsContributions(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Sol", "uef", 30)
+	m.AddContribution("Sol", "crimson", 20)
+
+	// Transfer flips ownership — contributions should reset for
+	// the flipped system so the new owner starts fresh.
+	_, err := m.TransferSystem("Sol", "crimson")
+	if err != nil {
+		t.Fatalf("TransferSystem: %v", err)
+	}
+	if got := m.ContributionFor("Sol", "uef"); got != 0 {
+		t.Errorf("post-flip uef contribution: got %d, want 0", got)
+	}
+	if got := m.ContributionFor("Sol", "crimson"); got != 0 {
+		t.Errorf("post-flip crimson contribution: got %d, want 0", got)
+	}
+}
+
+func TestResolveWarTerritoryClearsContributionsOnFlip(t *testing.T) {
+	// Same clearing behavior, but via the war-resolution path.
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Sol", "uef", 100)
+	m.ResolveWarTerritory([]string{"Sol"}, "uef", "crimson")
+	if got := m.ContributionFor("Sol", "uef"); got != 0 {
+		t.Errorf("post-war-resolve contribution: got %d, want 0", got)
+	}
+}
+
+func TestSystemContributionsSnapshot(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.AddContribution("Sol", "uef", 10)
+	m.AddContribution("Sol", "crimson", 5)
+
+	snap := m.SystemContributions("Sol")
+	if snap == nil || snap["uef"] != 10 || snap["crimson"] != 5 {
+		t.Errorf("snapshot: got %v, want uef:10 crimson:5", snap)
+	}
+	// Mutating the snapshot must not bleed into manager state.
+	snap["uef"] = 9999
+	if got := m.ContributionFor("Sol", "uef"); got != 10 {
+		t.Errorf("snapshot leaked mutation: got %d, want 10", got)
+	}
+}
+
 func TestConcurrentReadsDuringTransfer(t *testing.T) {
 	// Race test — run with -race to catch lock misuse.
 	m := NewManager(nil)

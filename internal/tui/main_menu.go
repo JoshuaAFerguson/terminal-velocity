@@ -51,6 +51,7 @@ func newMainMenuModel() mainMenuModel {
 			{label: "Chat", screen: ScreenChat},
 			{label: "Factions", screen: ScreenFactions},
 			{label: "Faction Wars", screen: ScreenFactionWars},
+			{label: "Territory Map", screen: ScreenTerritoryMap},
 			{label: "Trade", screen: ScreenTrade},
 			{label: "Marketplace", screen: ScreenMarketplace},
 			{label: "Mail", screen: ScreenMail},

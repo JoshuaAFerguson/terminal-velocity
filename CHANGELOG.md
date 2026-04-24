@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5D-2 contributions + territory map UI)
+- **Player contribution tracking on npcterritory.** Mission,
+  combat, and admin hooks can call
+  `AddContribution(system, factionID, amount)` to credit one side
+  in a contested system. Accumulation is per-system per-faction;
+  negative amounts are allowed (future use: sabotage debuffs).
+  Contributions reset automatically when a system flips owner —
+  the new owner starts fresh so players can't bank pre-war effort
+  across a defeat. Unknown systems/factions are silently ignored
+  (hot-path hook, not a validation surface).
+- **Contribution-aware war resolution.** `TickWars` now consults
+  a new `WinnerResolver` callback before falling back to the
+  coin-flip RNG. Server wires the resolver to
+  `npcTerritoryManager.ContributionLeader(zones, aggID, defID)`,
+  which aggregates contributions across the war-zone systems and
+  returns the leading faction (or "" on tie / no data). A war
+  with a dominant side now reliably ends in that side's favor —
+  the coin flip only runs on ambiguity, matching the spec's
+  "player choice matters" principle.
+- **Territory Map screen** (`ScreenTerritoryMap`, menu entry
+  below Faction Wars). Two-pane layout mirroring the faction-wars
+  screen's visual language: faction list on the left sorted
+  alphabetically by name with system counts; detail pane on the
+  right showing the selected faction's holdings in a
+  two-column layout. Arrow keys navigate; ESC returns to the
+  main menu. Nil-safe across missing manager / unseeded data.
+- **Query surface additions**:
+  - `ContributionFor(system, factionID)` — scalar read for UI.
+  - `ContributionLeader(systems, aggID, defID)` — aggregates the
+    war-zone totals into a single leader verdict.
+  - `SystemContributions(system)` — snapshot of per-faction
+    totals for one system. Snapshot is a deep copy so callers
+    can mutate freely without leaking changes back into manager
+    state.
+- **22 new tests across three packages.** npcterritory (14):
+  contribution accumulation / negative / zero-noop / nil-safe /
+  unknown system / unknown faction / leader aggregation / tie /
+  no-data / nil-manager / flip-clears-contributions (both
+  TransferSystem and ResolveWarTerritory paths) / snapshot deep-
+  copy invariant. factionwar (3): resolver overrides RNG when it
+  returns a leader / empty resolver defers to RNG / nil resolver
+  is safe. tui (5): territory groups sort alphabetical + system
+  list sorted within groups / nil manager returns nil /
+  renderTerritoryList cursor marker / renderTerritoryDetail
+  active vs. nil vs. empty-holdings branches /
+  `TestTerritoryMapPreview` dumps a full rendered view. Coverage:
+  npcterritory 92.9%, factionwar 94.1%.
+
 ### Added (2026-04-24 - P5D-1 NPC territory capture)
 - **NPC faction territory now shifts when wars resolve.** New
   `internal/npcterritory` package tracks which NPC faction

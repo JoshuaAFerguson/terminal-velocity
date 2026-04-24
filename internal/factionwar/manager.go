@@ -56,6 +56,14 @@ type NewsBus interface {
 // integration" which is the default for tests.
 type TerritoryHook func(zoneSystems []string, loserID, winnerID string)
 
+// WinnerResolver is the callback TickWars' auto-resolution path
+// queries to pick a winner based on player contributions before
+// falling back to the coin-flip RNG. Returns ("", 0) to indicate
+// "no clear leader" — the resolver defers to the RNG in that
+// case. Production wires *npcterritory.Manager.ContributionLeader
+// here; tests pass in-line closures with scripted scenarios.
+type WinnerResolver func(zoneSystems []string, aggressorID, defenderID string) (leaderID string, margin int64)
+
 // Manager holds all faction-war state. All mutating methods take
 // the write lock; queries take the read lock. Thread-safe for
 // concurrent use by SSH session goroutines.
@@ -95,6 +103,12 @@ type Manager struct {
 	// integration is wired (tests default; production sets via
 	// SetTerritoryHook at startup).
 	territoryHook TerritoryHook
+
+	// P5D-2: contribution-driven winner resolver. TickWars calls
+	// this first when auto-resolving expired wars; only falls back
+	// to the RNG coin flip when the resolver returns "" (no
+	// leader / tie / no contributions).
+	winnerResolver WinnerResolver
 }
 
 // NewManager constructs a Manager with optional news integration.
@@ -139,6 +153,16 @@ func (m *Manager) SetTerritoryHook(hook TerritoryHook) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.territoryHook = hook
+}
+
+// SetWinnerResolver wires the contribution-aware winner callback.
+// Pass nil to fall back to pure coin-flip resolution. Not
+// thread-safe against running TickWars calls — set at server
+// startup.
+func (m *Manager) SetWinnerResolver(resolver WinnerResolver) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.winnerResolver = resolver
 }
 
 // DeclareWar creates a new active war between two NPC factions and
@@ -558,11 +582,24 @@ func (m *Manager) TickWars(factions []models.NPCFaction) {
 		}
 	}
 	for _, w := range expired {
-		// Coin flip for winner — a proper territory-weighted
-		// outcome lands in P5D once territory exists.
-		winnerID := w.AggressorID
-		if m.rng.Intn(2) == 0 {
-			winnerID = w.DefenderID
+		// Prefer contribution-based resolution. Only fall back to
+		// the RNG coin flip when the resolver says there's no
+		// clear leader (tie or zero contributions on both sides)
+		// or no resolver is wired. This is the main behavioral
+		// upgrade in P5D-2: a war with a dominant side now
+		// reliably ends in that side's favor.
+		var winnerID string
+		if m.winnerResolver != nil {
+			leader, _ := m.winnerResolver(w.WarZoneSystems, w.AggressorID, w.DefenderID)
+			if leader != "" {
+				winnerID = leader
+			}
+		}
+		if winnerID == "" {
+			winnerID = w.AggressorID
+			if m.rng.Intn(2) == 0 {
+				winnerID = w.DefenderID
+			}
 		}
 		m.resolveLocked(w, winnerID)
 	}

@@ -81,6 +81,13 @@ type Manager struct {
 	factionName      map[string]string
 	factionShortName map[string]string
 
+	// P5D-2: player-contribution tracking. Nested map keyed by
+	// lowercased system name → factionID → points accumulated.
+	// Cleared for a system when its ownership flips, so a freshly-
+	// captured system starts fresh — past contributions to the
+	// losing side don't transfer with the flag.
+	contributions map[string]map[string]int64
+
 	newsBus NewsBus
 	now     func() time.Time // seam for deterministic tests
 }
@@ -94,6 +101,7 @@ func NewManager(newsBus NewsBus) *Manager {
 		originalCase:     make(map[string]string),
 		factionName:      make(map[string]string),
 		factionShortName: make(map[string]string),
+		contributions:    make(map[string]map[string]int64),
 		newsBus:          newsBus,
 		now:              time.Now,
 	}
@@ -105,8 +113,8 @@ func NewManager(newsBus NewsBus) *Manager {
 // "some presence," not control. Later wars will transfer core
 // systems between factions.
 //
-// Idempotent: re-seeding overwrites prior state. Useful for
-// hot-reload and test resets.
+// Idempotent: re-seeding overwrites prior state (ownership AND
+// contributions). Useful for hot-reload and test resets.
 func (m *Manager) Seed(factions []models.NPCFaction) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -115,6 +123,7 @@ func (m *Manager) Seed(factions []models.NPCFaction) {
 	m.originalCase = make(map[string]string, 64)
 	m.factionName = make(map[string]string, len(factions))
 	m.factionShortName = make(map[string]string, len(factions))
+	m.contributions = make(map[string]map[string]int64)
 
 	for _, f := range factions {
 		m.factionName[f.ID] = f.Name
@@ -240,6 +249,12 @@ func (m *Manager) TransferSystem(systemName, newFactionID string) (*FlipRecord, 
 		At:         m.now(),
 	}
 	m.ownerBySystem[key] = newFactionID
+	// Flip resets per-system contributions: the captured system
+	// starts fresh under its new owner. Leaving old contributions
+	// intact would let a faction "bank" effort from an earlier
+	// conflict across ownership changes, which makes contested
+	// systems frustrating to re-contest.
+	delete(m.contributions, key)
 
 	m.emitFlipNews(rec)
 	return rec, nil
@@ -284,6 +299,7 @@ func (m *Manager) ResolveWarTerritory(zoneSystems []string, loserID, winnerID st
 			At:         m.now(),
 		}
 		m.ownerBySystem[key] = winnerID
+		delete(m.contributions, key) // fresh slate under new owner
 		m.emitFlipNews(rec)
 		flips = append(flips, rec)
 	}
@@ -304,6 +320,126 @@ func (m *Manager) AllOwnership() map[string]string {
 			name = orig
 		}
 		out[name] = owner
+	}
+	return out
+}
+
+// ============================================================================
+// P5D-2 player contribution tracking
+// ============================================================================
+
+// AddContribution credits `amount` points toward a faction's control
+// of the named system. Intended callers: combat (player kill in a
+// war zone credits the opposite side), mission handlers (completion
+// of faction war mission), and admin tools.
+//
+// Amount is allowed to be negative (future use: faction-friendly
+// act sabotages your account with other belligerents). Zero and
+// non-tracked-system inputs are silently ignored — this is not a
+// validation path, it's a hot-path hook called from every combat
+// resolution, so we don't want it failing the caller on an unknown
+// system name.
+func (m *Manager) AddContribution(systemName, factionID string, amount int64) {
+	if m == nil || amount == 0 {
+		return
+	}
+	key := normalize(systemName)
+	if key == "" {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, tracked := m.ownerBySystem[key]; !tracked {
+		return
+	}
+	if _, known := m.factionName[factionID]; !known {
+		return
+	}
+	if m.contributions[key] == nil {
+		m.contributions[key] = make(map[string]int64, 2)
+	}
+	m.contributions[key][factionID] += amount
+}
+
+// ContributionFor returns the points a faction has accumulated in a
+// specific system. Zero for systems/factions with no activity —
+// unknown inputs aren't distinguished from "tracked but zero"
+// because the caller can always check GetOwner first if they need
+// to disambiguate.
+func (m *Manager) ContributionFor(systemName, factionID string) int64 {
+	if m == nil {
+		return 0
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	bySystem := m.contributions[normalize(systemName)]
+	if bySystem == nil {
+		return 0
+	}
+	return bySystem[factionID]
+}
+
+// ContributionLeader aggregates contributions across a set of
+// systems (typically a war's WarZoneSystems list) for each of the
+// two candidate factions and reports who's in the lead. Return
+// values:
+//
+//   - leaderID: factionID with the highest total, or "" on tie /
+//     no-contributions
+//   - margin: leader's total minus runner-up's total (non-negative).
+//     A margin of 0 indicates a tie.
+//
+// Used by factionwar.TickWars auto-resolution: when a war expires
+// and there's a clear contribution leader, they win; otherwise
+// the RNG coin flip decides.
+func (m *Manager) ContributionLeader(systems []string, aggressorID, defenderID string) (leaderID string, margin int64) {
+	if m == nil {
+		return "", 0
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var aggressorTotal, defenderTotal int64
+	for _, sys := range systems {
+		bySystem := m.contributions[normalize(sys)]
+		if bySystem == nil {
+			continue
+		}
+		aggressorTotal += bySystem[aggressorID]
+		defenderTotal += bySystem[defenderID]
+	}
+
+	switch {
+	case aggressorTotal > defenderTotal:
+		return aggressorID, aggressorTotal - defenderTotal
+	case defenderTotal > aggressorTotal:
+		return defenderID, defenderTotal - aggressorTotal
+	default:
+		return "", 0
+	}
+}
+
+// SystemContributions returns a snapshot of the contribution map
+// for a single system: factionID → points. Empty map when the
+// system is tracked but has no activity, nil when the system is
+// unknown. Primarily for TUI rendering of a contested-system
+// status panel.
+func (m *Manager) SystemContributions(systemName string) map[string]int64 {
+	if m == nil {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	key := normalize(systemName)
+	if _, tracked := m.ownerBySystem[key]; !tracked {
+		return nil
+	}
+	bySystem := m.contributions[key]
+	out := make(map[string]int64, len(bySystem))
+	for k, v := range bySystem {
+		out[k] = v
 	}
 	return out
 }

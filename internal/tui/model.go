@@ -87,6 +87,7 @@ const (
 	ScreenNotifications
 	ScreenPilotRecord
 	ScreenFactionWars
+	ScreenTerritoryMap
 )
 
 // Model is the main TUI model
@@ -142,6 +143,7 @@ type Model struct {
 	newsModel            newsModel
 	newsTicker           newsTickerState
 	factionWarsModel     factionWarsModel
+	territoryMap         territoryMapModel
 	leaderboardsModel    leaderboardsModel
 	playersModel         playersModel
 	chatModel            chatModel
@@ -499,6 +501,7 @@ func NewLoginModel(
 		factionWarManager:    factionWarManager,
 		npcTerritoryManager:  npcTerritoryManager,
 		factionWarsModel:     newFactionWarsModel(),
+		territoryMap:         newTerritoryMapModel(),
 		tradeModel:           newTradeModel(),
 		tradeManager:         trade.NewManager(),
 		pvpModel:             newPvPModel(),
@@ -826,6 +829,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updatePilotRecord(msg)
 	case ScreenFactionWars:
 		return m.updateFactionWars(msg)
+	case ScreenTerritoryMap:
+		return m.updateTerritoryMap(msg)
 	default:
 		return m, nil
 	}
@@ -937,6 +942,8 @@ func (m Model) viewScreen() string {
 		return m.viewPilotRecord()
 	case ScreenFactionWars:
 		return m.viewFactionWars()
+	case ScreenTerritoryMap:
+		return m.viewTerritoryMap()
 	default:
 		return "Unknown screen"
 	}

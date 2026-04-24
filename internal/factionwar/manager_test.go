@@ -901,6 +901,79 @@ func TestTerritoryHookNotFiredOnCeaseFire(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// P5D-2 contribution-aware resolution
+// ============================================================================
+
+func TestTickWarsUsesContributionLeaderOverCoinFlip(t *testing.T) {
+	m, _, clock := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+
+	// Resolver says defender wins regardless of RNG. The scripted
+	// RNG's single int would pick aggressor (Intn=1), so if the
+	// resolver wasn't consulted the test would fail.
+	m.SetWinnerResolver(func(zones []string, aggID, defID string) (string, int64) {
+		return defID, 42
+	})
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.5}, ints: []int{1}})
+	m.SetLifecycleConfig(LifecycleConfig{MaxWarDuration: time.Hour, DeclarationProbability: 0.0})
+
+	*clock = clock.Add(2 * time.Hour)
+	m.TickWars([]models.NPCFaction{
+		{ID: a.ID, Enemies: []string{b.ID}, CoreSystems: a.CoreSystems},
+		{ID: b.ID, Enemies: []string{a.ID}, CoreSystems: b.CoreSystems},
+	})
+
+	if war.WinnerFactionID != b.ID {
+		t.Errorf("resolver should override RNG: winner %q, want %q", war.WinnerFactionID, b.ID)
+	}
+}
+
+func TestTickWarsFallsBackToCoinFlipOnNoLeader(t *testing.T) {
+	m, _, clock := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+
+	// Resolver returns "" (tie / no data) → RNG path runs.
+	m.SetWinnerResolver(func(zones []string, aggID, defID string) (string, int64) {
+		return "", 0
+	})
+	// Int=1 → aggressor wins per coin-flip convention.
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.5}, ints: []int{1}})
+	m.SetLifecycleConfig(LifecycleConfig{MaxWarDuration: time.Hour, DeclarationProbability: 0.0})
+
+	*clock = clock.Add(2 * time.Hour)
+	m.TickWars([]models.NPCFaction{
+		{ID: a.ID, Enemies: []string{b.ID}, CoreSystems: a.CoreSystems},
+		{ID: b.ID, Enemies: []string{a.ID}, CoreSystems: b.CoreSystems},
+	})
+
+	if war.WinnerFactionID != a.ID {
+		t.Errorf("empty resolver should defer to RNG (aggressor wins on Int=1), got %q", war.WinnerFactionID)
+	}
+}
+
+func TestTickWarsNilResolverIsSafe(t *testing.T) {
+	m, _, clock := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+	// No resolver set — pure RNG path.
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.5}, ints: []int{0}})
+	m.SetLifecycleConfig(LifecycleConfig{MaxWarDuration: time.Hour, DeclarationProbability: 0.0})
+
+	*clock = clock.Add(2 * time.Hour)
+	m.TickWars([]models.NPCFaction{
+		{ID: a.ID, Enemies: []string{b.ID}, CoreSystems: a.CoreSystems},
+		{ID: b.ID, Enemies: []string{a.ID}, CoreSystems: b.CoreSystems},
+	})
+
+	// Int=0 → defender wins.
+	if war.WinnerFactionID != b.ID {
+		t.Errorf("nil resolver + Int=0 coin flip: winner %q, want %q", war.WinnerFactionID, b.ID)
+	}
+}
+
 func TestTerritoryHookNilSafe(t *testing.T) {
 	// nil hook → ResolveWar still succeeds.
 	m, _, _ := newTestManager()

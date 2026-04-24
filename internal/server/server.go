@@ -379,6 +379,12 @@ func (s *Server) initDatabase() error {
 	s.factionWarManager.SetTerritoryHook(func(zones []string, loserID, winnerID string) {
 		s.npcTerritoryManager.ResolveWarTerritory(zones, loserID, winnerID)
 	})
+	// P5D-2: let contribution tallies drive auto-resolution. Wars
+	// with a dominant side now end in that side's favor; ties
+	// (empty leader) still fall back to the RNG coin flip.
+	s.factionWarManager.SetWinnerResolver(func(zones []string, aggID, defID string) (string, int64) {
+		return s.npcTerritoryManager.ContributionLeader(zones, aggID, defID)
+	})
 
 	// Start background workers for managers
 	s.fleetManager.Start()
