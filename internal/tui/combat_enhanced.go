@@ -909,6 +909,24 @@ func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Success - add to combat log
 			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog, "> "+msg.logMessage)
 
+			// Escort AI turn — each active escort acts per behavior
+			// (attack/heal/idle), with the resolution folded into
+			// the same turn as the player's fire so the flow stays
+			// player → escorts → enemy. applyEscortActions skips
+			// attacks on an enemy already at 0 hull, so the
+			// just-killed case doesn't produce ghost chip damage.
+			escortActs := resolveEscortActions(m.combatEnhanced.playerEscorts, defaultEscortRNG())
+			escortLogs := applyEscortActions(escortActs, &m.combatEnhanced.playerShip, &m.combatEnhanced.enemyShip)
+			for _, line := range escortLogs {
+				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog, "> "+line)
+			}
+			// Re-check combat-over after escort fire: an escort
+			// kill steals victory from the player but still counts.
+			if !msg.combatOver && m.combatEnhanced.enemyShip.hull <= 0 {
+				msg.combatOver = true
+				msg.victory = true
+			}
+
 			// End player turn
 			m.combatEnhanced.isPlayerTurn = false
 			m.combatEnhanced.turnNumber++

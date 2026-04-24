@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5B-2 escort AI turns)
+- **Escorts now act every turn.** Previously escorts were visual-only
+  + supplied a passive damage multiplier (P5B-1). This slice makes
+  each escort take an action per turn, resolved in player→escorts→
+  enemy order.
+  - **Aggressive**: always attacks for `12 × (1 + level/10)` damage
+    (level 1 → 13, level 10 → 24).
+  - **Defensive**: 40% chance to attack for 75% of aggressive damage;
+    otherwise logs "holds the line".
+  - **Support**: restores `level × 1` shields (floor 1), clamped at
+    player's max shields.
+  - **Passive**: no action, no log line.
+  - Escort attacks use the same shields-then-hull rule as player fire
+    (extracted into `applyShipDamage` so both paths share
+    arithmetic). Attacks on an already-dead enemy still print a log
+    line for narrative flavor but don't stack hull damage below 0.
+  - The just-killed enemy edge case: if an escort lands the finishing
+    blow after the player's own shot already downed the enemy, the
+    player still gets victory credit — the "enemy just died" check
+    runs once after all escort actions resolve.
+  - Deterministic testing via an `escortRNG` interface seam; tests
+    use a `fixedRNG` to assert behaviors without probabilistic
+    flakes. Production path uses a zero-alloc `globalRandRNG{}`
+    wrapper over math/rand's global source (no per-turn allocation).
+  - 12 new unit tests cover: level scaling with level-0 floor-clamp,
+    aggressive-always-attacks invariant, defensive RNG threshold,
+    support heal level scaling with floor, passive skip, shields-
+    then-hull math, dead-enemy skip + log, heal clamp at max, idle
+    no-mutation invariant, nil-guard (actions + ships).
+
 ### Added (2026-04-24 - P5B-1 fleet escorts participate in combat)
 - **Escorts now appear in enhanced combat and boost player damage.**
   Before this slice, `fleet.Manager` knew how to hire/dismiss/command

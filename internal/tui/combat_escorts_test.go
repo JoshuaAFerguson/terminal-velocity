@@ -215,3 +215,256 @@ func TestRenderEscortStripPreview(t *testing.T) {
 	}
 	t.Logf("escort strip (width=70):\n%s", renderEscortStrip(escorts, 70))
 }
+
+// ============================================================================
+// P5B-2 tests: escort AI turns
+// ============================================================================
+
+// fixedRNG is a deterministic escortRNG for unit tests — always returns
+// the configured float and int, regardless of the input range.
+type fixedRNG struct {
+	f float64
+	i int
+}
+
+func (r fixedRNG) Float64() float64 { return r.f }
+func (r fixedRNG) Intn(n int) int   { return r.i }
+
+func TestLevelScale(t *testing.T) {
+	tests := []struct {
+		level int
+		want  float64
+	}{
+		{0, 1.1},  // clamp to 1
+		{-5, 1.1}, // clamp to 1
+		{1, 1.1},
+		{5, 1.5},
+		{10, 2.0},
+	}
+	for _, tc := range tests {
+		if got := levelScale(tc.level); got != tc.want {
+			t.Errorf("levelScale(%d) = %v, want %v", tc.level, got, tc.want)
+		}
+	}
+}
+
+func TestResolveEscortActionsEmpty(t *testing.T) {
+	if got := resolveEscortActions(nil, fixedRNG{f: 0.0}); got != nil {
+		t.Fatalf("nil escorts should return nil, got %v", got)
+	}
+	if got := resolveEscortActions([]combatEscort{}, fixedRNG{f: 0.0}); got != nil {
+		t.Fatalf("empty escorts should return nil, got %v", got)
+	}
+}
+
+func TestResolveEscortActionsAggressiveAlwaysAttacks(t *testing.T) {
+	escorts := []combatEscort{
+		{pilot: "A", behavior: fleet.BehaviorAggressive, level: 1},
+		{pilot: "B", behavior: fleet.BehaviorAggressive, level: 10},
+	}
+	// Force roll=0.99 to show aggressive ignores RNG.
+	actions := resolveEscortActions(escorts, fixedRNG{f: 0.99})
+
+	if len(actions) != 2 {
+		t.Fatalf("expected 2 actions, got %d", len(actions))
+	}
+	for _, a := range actions {
+		if a.kind != escortActionAttack {
+			t.Fatalf("aggressive escort produced non-attack action: %v", a)
+		}
+	}
+	// level 1 → 12 * 1.1 = 13 (truncated)
+	if actions[0].damage != 13 {
+		t.Fatalf("level 1 aggressive damage: got %d, want 13", actions[0].damage)
+	}
+	// level 10 → 12 * 2.0 = 24
+	if actions[1].damage != 24 {
+		t.Fatalf("level 10 aggressive damage: got %d, want 24", actions[1].damage)
+	}
+}
+
+func TestResolveEscortActionsDefensiveRollsForAttack(t *testing.T) {
+	escort := combatEscort{pilot: "D", behavior: fleet.BehaviorDefensive, level: 10}
+
+	// Roll below threshold → attack.
+	acts := resolveEscortActions([]combatEscort{escort}, fixedRNG{f: 0.1})
+	if len(acts) != 1 || acts[0].kind != escortActionAttack {
+		t.Fatalf("defensive with low roll should attack, got %v", acts)
+	}
+	// Damage is 0.75 × 12 × 2.0 = 18
+	if acts[0].damage != 18 {
+		t.Fatalf("defensive lv10 damage: got %d, want 18", acts[0].damage)
+	}
+
+	// Roll above threshold → idle.
+	acts = resolveEscortActions([]combatEscort{escort}, fixedRNG{f: 0.9})
+	if len(acts) != 1 || acts[0].kind != escortActionIdle {
+		t.Fatalf("defensive with high roll should idle, got %v", acts)
+	}
+}
+
+func TestResolveEscortActionsSupportHealsScaledByLevel(t *testing.T) {
+	escorts := []combatEscort{
+		{pilot: "S1", behavior: fleet.BehaviorSupport, level: 0},
+		{pilot: "S5", behavior: fleet.BehaviorSupport, level: 5},
+		{pilot: "S10", behavior: fleet.BehaviorSupport, level: 10},
+	}
+	acts := resolveEscortActions(escorts, fixedRNG{f: 0.0})
+	if len(acts) != 3 {
+		t.Fatalf("expected 3 heal actions, got %d", len(acts))
+	}
+	// Level 0 → floor-clamped to 1
+	if acts[0].heal != 1 {
+		t.Fatalf("level 0 support heal: got %d, want 1", acts[0].heal)
+	}
+	if acts[1].heal != 5 {
+		t.Fatalf("level 5 support heal: got %d, want 5", acts[1].heal)
+	}
+	if acts[2].heal != 10 {
+		t.Fatalf("level 10 support heal: got %d, want 10", acts[2].heal)
+	}
+	for _, a := range acts {
+		if a.kind != escortActionHeal {
+			t.Fatalf("support escort produced non-heal action: %v", a)
+		}
+	}
+}
+
+func TestResolveEscortActionsPassiveIsSkipped(t *testing.T) {
+	escorts := []combatEscort{
+		{pilot: "P", behavior: fleet.BehaviorPassive, level: 5},
+		{pilot: "A", behavior: fleet.BehaviorAggressive, level: 5},
+	}
+	acts := resolveEscortActions(escorts, fixedRNG{f: 0.0})
+	if len(acts) != 1 {
+		t.Fatalf("passive should be skipped, got %d actions", len(acts))
+	}
+	if acts[0].pilot != "A" {
+		t.Fatalf("expected aggressive escort action, got %q", acts[0].pilot)
+	}
+}
+
+func TestApplyEscortActionsAttackChipsShieldsThenHull(t *testing.T) {
+	player := &combatShip{shields: 100, maxShields: 100, hull: 100}
+	enemy := &combatShip{shields: 20, maxShields: 100, hull: 100}
+
+	acts := []escortAction{
+		{kind: escortActionAttack, pilot: "A", damage: 50, message: "strafe"},
+	}
+	logs := applyEscortActions(acts, player, enemy)
+
+	if enemy.shields != 0 {
+		t.Errorf("enemy shields should be drained: got %d, want 0", enemy.shields)
+	}
+	if enemy.hull != 70 {
+		t.Errorf("enemy hull should take remainder: got %d, want 70", enemy.hull)
+	}
+	if len(logs) != 1 {
+		t.Errorf("expected 1 log line, got %d", len(logs))
+	}
+}
+
+func TestApplyEscortActionsAttackSkipsDeadEnemy(t *testing.T) {
+	player := &combatShip{shields: 100, maxShields: 100, hull: 100}
+	enemy := &combatShip{shields: 0, maxShields: 100, hull: 0} // already destroyed
+
+	acts := []escortAction{
+		{kind: escortActionAttack, pilot: "A", damage: 999, message: "chip"},
+	}
+	logs := applyEscortActions(acts, player, enemy)
+
+	// Hull stays 0, not negative — no over-kill accumulation.
+	if enemy.hull != 0 {
+		t.Errorf("dead enemy hull should stay 0, got %d", enemy.hull)
+	}
+	// Log line still prints — narrative flavor for "I fired on the wreck" is fine.
+	if len(logs) != 1 {
+		t.Errorf("expected log line even on dead enemy (narrative), got %d", len(logs))
+	}
+}
+
+func TestApplyEscortActionsHealClampsAtMaxShields(t *testing.T) {
+	player := &combatShip{shields: 95, maxShields: 100, hull: 100}
+	enemy := &combatShip{shields: 50, maxShields: 100, hull: 100}
+
+	acts := []escortAction{
+		{kind: escortActionHeal, pilot: "S", heal: 20, message: "regen"},
+	}
+	applyEscortActions(acts, player, enemy)
+
+	if player.shields != 100 {
+		t.Errorf("player shields should clamp at max 100, got %d", player.shields)
+	}
+	if enemy.shields != 50 {
+		t.Errorf("enemy shields should be untouched by heal, got %d", enemy.shields)
+	}
+}
+
+func TestApplyEscortActionsIdleEmitsLogNoMutation(t *testing.T) {
+	player := &combatShip{shields: 50, maxShields: 100, hull: 100}
+	enemy := &combatShip{shields: 50, maxShields: 100, hull: 100}
+
+	acts := []escortAction{
+		{kind: escortActionIdle, pilot: "D", message: "holds"},
+	}
+	logs := applyEscortActions(acts, player, enemy)
+
+	if player.shields != 50 || enemy.shields != 50 || enemy.hull != 100 {
+		t.Errorf("idle action should not mutate state; got player.shields=%d enemy.shields=%d enemy.hull=%d",
+			player.shields, enemy.shields, enemy.hull)
+	}
+	if len(logs) != 1 {
+		t.Errorf("idle should still log, got %d lines", len(logs))
+	}
+}
+
+func TestApplyEscortActionsNilGuards(t *testing.T) {
+	// Nil actions → nil logs, no panic.
+	if logs := applyEscortActions(nil, &combatShip{}, &combatShip{}); logs != nil {
+		t.Errorf("nil actions should return nil logs, got %v", logs)
+	}
+	// Nil ships → nil logs, no panic.
+	acts := []escortAction{{kind: escortActionAttack, damage: 50}}
+	if logs := applyEscortActions(acts, nil, &combatShip{}); logs != nil {
+		t.Errorf("nil player should return nil logs, got %v", logs)
+	}
+	if logs := applyEscortActions(acts, &combatShip{}, nil); logs != nil {
+		t.Errorf("nil enemy should return nil logs, got %v", logs)
+	}
+}
+
+func TestApplyShipDamageShieldThenHull(t *testing.T) {
+	s := &combatShip{shields: 30, hull: 100}
+	applyShipDamage(s, 50)
+	if s.shields != 0 {
+		t.Errorf("shields should drain first: got %d, want 0", s.shields)
+	}
+	if s.hull != 80 {
+		t.Errorf("hull should take remainder: got %d, want 80", s.hull)
+	}
+
+	// Exact-shield kill: no hull damage.
+	s = &combatShip{shields: 30, hull: 100}
+	applyShipDamage(s, 30)
+	if s.shields != 0 || s.hull != 100 {
+		t.Errorf("exact-shield kill: got shields=%d hull=%d, want 0/100", s.shields, s.hull)
+	}
+
+	// Negative/zero damage is a no-op.
+	s = &combatShip{shields: 30, hull: 100}
+	applyShipDamage(s, 0)
+	applyShipDamage(s, -5)
+	if s.shields != 30 || s.hull != 100 {
+		t.Errorf("non-positive damage should be no-op, got shields=%d hull=%d", s.shields, s.hull)
+	}
+
+	// Over-kill clamps at 0.
+	s = &combatShip{shields: 10, hull: 10}
+	applyShipDamage(s, 999)
+	if s.hull != 0 {
+		t.Errorf("over-kill should clamp hull at 0, got %d", s.hull)
+	}
+
+	// Nil ship is a no-op, not a panic.
+	applyShipDamage(nil, 50)
+}
