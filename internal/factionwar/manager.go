@@ -14,6 +14,7 @@ package factionwar
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -67,6 +68,14 @@ type Manager struct {
 
 	newsBus NewsBus
 	now     func() time.Time // seam for deterministic tests
+
+	// P5C-4 lifecycle automation. config/rng are set at
+	// construction to defaults; SetLifecycleConfig/RNG at server
+	// startup override them. Tick-callers all go through TickWars,
+	// which holds the write lock, so no additional synchronization
+	// is needed on these fields once set.
+	config LifecycleConfig
+	rng    LifecycleRNG
 }
 
 // NewManager constructs a Manager with optional news integration.
@@ -80,7 +89,27 @@ func NewManager(newsBus NewsBus) *Manager {
 		warZones:     make(map[string]map[uuid.UUID]struct{}),
 		newsBus:      newsBus,
 		now:          time.Now,
+		config:       DefaultLifecycleConfig(),
+		rng:          &defaultLifecycleRNG{},
 	}
+}
+
+// SetLifecycleConfig overrides the tick-driven lifecycle parameters
+// (max war duration, emergent-declaration probability). Intended for
+// server startup — not thread-safe vs. running TickWars calls.
+func (m *Manager) SetLifecycleConfig(c LifecycleConfig) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.config = c
+}
+
+// SetLifecycleRNG swaps the random source used by TickWars for
+// declaration rolls and coin-flip resolutions. Test-only seam;
+// production callers should leave the default in place.
+func (m *Manager) SetLifecycleRNG(r LifecycleRNG) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rng = r
 }
 
 // DeclareWar creates a new active war between two NPC factions and
@@ -381,6 +410,313 @@ func (m *Manager) WarEconomyPriceMultiplier(systemName, category string) float64
 		return 1.0
 	}
 	return WarEconomyMultiplier
+}
+
+// ============================================================================
+// P5C-4 lifecycle automation
+// ============================================================================
+
+// LifecycleConfig tunes TickWars behavior. Exposed so the server can
+// override defaults (e.g., tighten the cadence for a live event) and
+// so tests can set deterministic thresholds.
+type LifecycleConfig struct {
+	// MaxWarDuration is how long an active war can run before
+	// TickWars force-resolves it by coin flip. Defaults to 7 days
+	// of real time — faction wars aren't supposed to grind
+	// indefinitely, and auto-resolution creates natural story
+	// beats ("the UEF-Crimson conflict ended yesterday...").
+	MaxWarDuration time.Duration
+
+	// DeclarationProbability is the per-tick chance each pair of
+	// mutually-hostile NPC factions rolls for an emergent war
+	// declaration. At the default tick cadence (5 minutes) and
+	// default probability (0.0005), a single pair has ~50% odds
+	// of declaring over ~8 hours of continuous uptime. With 4
+	// hostile pairs in StandardNPCFactions, something spins up
+	// every few hours of server time on average.
+	DeclarationProbability float64
+
+	// EmergentCasusBelli is the copy attached to auto-declared
+	// wars. Kept configurable so events / seasons can customize
+	// the narrative (e.g., "Piracy along the trade corridor").
+	EmergentCasusBelli string
+}
+
+// DefaultLifecycleConfig returns sensible starting values for the
+// tick-driven war lifecycle. Callers can override individual fields
+// before passing to SetLifecycleConfig.
+func DefaultLifecycleConfig() LifecycleConfig {
+	return LifecycleConfig{
+		MaxWarDuration:         7 * 24 * time.Hour,
+		DeclarationProbability: 0.0005,
+		EmergentCasusBelli:     "Border tensions escalated into open conflict.",
+	}
+}
+
+// LifecycleRNG is the RNG seam TickWars uses for declaration rolls
+// and coin-flip war resolution. Tests inject deterministic
+// implementations; production uses defaultLifecycleRNG (wraps
+// math/rand's global).
+type LifecycleRNG interface {
+	Float64() float64
+	Intn(n int) int
+}
+
+type defaultLifecycleRNG struct{}
+
+func (defaultLifecycleRNG) Float64() float64 { return rand.Float64() }
+func (defaultLifecycleRNG) Intn(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	return rand.Intn(n)
+}
+
+// tickCandidate is a NPCFaction pair ordered alphabetically by ID
+// (matches pairKey) so declaration rolls are deterministic across
+// runs with the same RNG seed and faction list.
+type tickCandidate struct {
+	a, b *models.NPCFaction
+}
+
+// TickWars runs one iteration of the war lifecycle: resolves any
+// active war that has exceeded MaxWarDuration, then rolls
+// declaration probabilities for each pair of mutually-hostile NPC
+// factions that aren't already at war. Called from the server's
+// tick service (see server.initTick).
+//
+// factions is the current list of NPC factions — normally
+// models.StandardNPCFactions, but plumbed in so tests can use a
+// controlled fixture. The function takes the write lock once and
+// holds it for the whole operation; TickWars isn't expected to run
+// concurrently with itself but is safe against concurrent queries.
+func (m *Manager) TickWars(factions []models.NPCFaction) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// First pass: auto-resolve long-running wars. Work on a
+	// snapshot because we mutate m.activeByPair during iteration.
+	now := m.now()
+	var expired []*models.FactionWar
+	for _, w := range m.activeByPair {
+		if now.Sub(w.DeclaredAt) >= m.config.MaxWarDuration {
+			expired = append(expired, w)
+		}
+	}
+	for _, w := range expired {
+		// Coin flip for winner — a proper territory-weighted
+		// outcome lands in P5D once territory exists.
+		winnerID := w.AggressorID
+		if m.rng.Intn(2) == 0 {
+			winnerID = w.DefenderID
+		}
+		m.resolveLocked(w, winnerID)
+	}
+
+	// Second pass: roll emergent declarations. Build candidate
+	// pairs deterministically so a seeded RNG produces the same
+	// outcomes across runs.
+	candidates := buildHostilePairs(factions)
+	for _, pc := range candidates {
+		key := pairKey(pc.a.ID, pc.b.ID)
+		if _, already := m.activeByPair[key]; already {
+			continue
+		}
+		if m.rng.Float64() >= m.config.DeclarationProbability {
+			continue
+		}
+		// RNG picks which side is aggressor — no lore reason the
+		// first-listed enemy is always the instigator.
+		aggressor, defender := pc.a, pc.b
+		if m.rng.Intn(2) == 1 {
+			aggressor, defender = pc.b, pc.a
+		}
+		m.declareLocked(aggressor, defender, m.config.EmergentCasusBelli)
+	}
+}
+
+// buildHostilePairs walks the faction list and returns each
+// mutually-hostile pair exactly once, with stable ordering so
+// seeded RNGs produce deterministic TickWars outputs.
+//
+// A pair is "mutually hostile" if each faction lists the other in
+// its Enemies slice. One-way animosities (e.g., pirates hate UEF
+// but UEF's Enemies doesn't name pirates) don't roll for war — the
+// feeling has to be reciprocal.
+func buildHostilePairs(factions []models.NPCFaction) []tickCandidate {
+	// Index enemies sets for O(1) mutual-hostility checks.
+	enemiesOf := make(map[string]map[string]struct{}, len(factions))
+	byID := make(map[string]*models.NPCFaction, len(factions))
+	for i := range factions {
+		f := &factions[i]
+		byID[f.ID] = f
+		set := make(map[string]struct{}, len(f.Enemies))
+		for _, e := range f.Enemies {
+			set[e] = struct{}{}
+		}
+		enemiesOf[f.ID] = set
+	}
+
+	seen := make(map[string]struct{}, len(factions))
+	var out []tickCandidate
+	for i := range factions {
+		a := &factions[i]
+		for _, enemyID := range a.Enemies {
+			b, ok := byID[enemyID]
+			if !ok {
+				continue // unknown faction in Enemies list — skip
+			}
+			// Reciprocal check.
+			if _, mutual := enemiesOf[b.ID][a.ID]; !mutual {
+				continue
+			}
+			key := pairKey(a.ID, b.ID)
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
+			// Canonical (alphabetical) ordering so the RNG sees
+			// the same pair regardless of which faction iterated
+			// first.
+			if a.ID <= b.ID {
+				out = append(out, tickCandidate{a: a, b: b})
+			} else {
+				out = append(out, tickCandidate{a: b, b: a})
+			}
+		}
+	}
+	return out
+}
+
+// declareLocked is the core of DeclareWar minus the entry checks —
+// callers that already hold the write lock and have validated
+// inputs (e.g., TickWars picking from hostile-pair candidates) use
+// this path to avoid re-checking invariants. Emits the declaration
+// news article, just like the public path.
+func (m *Manager) declareLocked(aggressor, defender *models.NPCFaction, casusBelli string) {
+	zones := warZoneSystems(aggressor, defender)
+	war := &models.FactionWar{
+		ID:             uuid.New(),
+		AggressorID:    aggressor.ID,
+		AggressorName:  aggressor.Name,
+		DefenderID:     defender.ID,
+		DefenderName:   defender.Name,
+		Status:         models.FactionWarActive,
+		DeclaredAt:     m.now(),
+		WarZoneSystems: zones,
+		CasusBelli:     casusBelli,
+	}
+	m.wars[war.ID] = war
+	m.activeByPair[pairKey(aggressor.ID, defender.ID)] = war
+	for _, sys := range zones {
+		m.addWarZone(sys, war.ID)
+	}
+	m.emitDeclarationNews(war)
+}
+
+// resolveLocked is the core of ResolveWar minus the entry checks.
+// Called by TickWars' auto-resolution path.
+func (m *Manager) resolveLocked(war *models.FactionWar, winnerFactionID string) {
+	resolvedAt := m.now()
+	war.Status = models.FactionWarResolved
+	war.ResolvedAt = &resolvedAt
+	war.WinnerFactionID = winnerFactionID
+
+	delete(m.activeByPair, pairKey(war.AggressorID, war.DefenderID))
+	for _, sys := range war.WarZoneSystems {
+		m.removeWarZone(sys, war.ID)
+	}
+	m.emitResolutionNews(war)
+}
+
+// ReportIncident is the admin / combat-system hook for incident-
+// triggered wars. When the combat system detects a major
+// provocation (e.g., a player destroys a patrol flagship of a
+// belligerent's ally), it calls this with the offended faction and
+// the system context. If the offended faction has any mutually-
+// hostile enemies AND the incident intensity rolls above threshold,
+// a war is declared between the offended faction and a random
+// hostile enemy.
+//
+// intensity is 0.0..1.0 — higher values make war more likely. Use
+// 1.0 for "unambiguously hostile act against a high-profile target".
+//
+// Returns the declared war (if any) or nil if no declaration
+// happened this call. nil factions / nil manager / no enemies → nil.
+func (m *Manager) ReportIncident(offended *models.NPCFaction, factions []models.NPCFaction, intensity float64) *models.FactionWar {
+	if m == nil || offended == nil {
+		return nil
+	}
+	if intensity <= 0 {
+		return nil
+	}
+	if intensity > 1 {
+		intensity = 1
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Pick a mutually-hostile enemy not already at war with us.
+	candidates := make([]*models.NPCFaction, 0, len(offended.Enemies))
+	byID := make(map[string]*models.NPCFaction, len(factions))
+	for i := range factions {
+		byID[factions[i].ID] = &factions[i]
+	}
+	for _, enemyID := range offended.Enemies {
+		enemy, ok := byID[enemyID]
+		if !ok {
+			continue
+		}
+		// Reciprocal hostility.
+		reciprocal := false
+		for _, e := range enemy.Enemies {
+			if e == offended.ID {
+				reciprocal = true
+				break
+			}
+		}
+		if !reciprocal {
+			continue
+		}
+		if _, exists := m.activeByPair[pairKey(offended.ID, enemy.ID)]; exists {
+			continue
+		}
+		candidates = append(candidates, enemy)
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	if m.rng.Float64() >= intensity {
+		return nil
+	}
+
+	// Pick uniformly among eligible enemies.
+	chosen := candidates[m.rng.Intn(len(candidates))]
+
+	casus := fmt.Sprintf("Incident in %s-aligned space escalated beyond diplomatic repair.", offended.ShortName)
+	war := &models.FactionWar{
+		ID:             uuid.New(),
+		AggressorID:    offended.ID,
+		AggressorName:  offended.Name,
+		DefenderID:     chosen.ID,
+		DefenderName:   chosen.Name,
+		Status:         models.FactionWarActive,
+		DeclaredAt:     m.now(),
+		WarZoneSystems: warZoneSystems(offended, chosen),
+		CasusBelli:     casus,
+	}
+	m.wars[war.ID] = war
+	m.activeByPair[pairKey(offended.ID, chosen.ID)] = war
+	for _, sys := range war.WarZoneSystems {
+		m.addWarZone(sys, war.ID)
+	}
+	m.emitDeclarationNews(war)
+	return war
 }
 
 // ============================================================================

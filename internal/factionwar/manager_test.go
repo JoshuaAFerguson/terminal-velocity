@@ -521,6 +521,304 @@ func TestWarEconomyPriceMultiplierNilManager(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// P5C-4 lifecycle automation
+// ============================================================================
+
+// scriptedRNG returns the configured floats / ints in order, one per
+// Float64() / Intn() call respectively. Runs off the end → panics so
+// tests catch unexpected extra RNG consumption. Used instead of a
+// fixed-value RNG because TickWars makes multiple distinct rolls per
+// invocation (declaration chance, aggressor coin flip, winner coin
+// flip) and we need to script each independently.
+type scriptedRNG struct {
+	floats []float64
+	ints   []int
+}
+
+func (r *scriptedRNG) Float64() float64 {
+	if len(r.floats) == 0 {
+		panic("scriptedRNG: out of floats")
+	}
+	v := r.floats[0]
+	r.floats = r.floats[1:]
+	return v
+}
+
+func (r *scriptedRNG) Intn(n int) int {
+	if len(r.ints) == 0 {
+		panic("scriptedRNG: out of ints")
+	}
+	v := r.ints[0]
+	r.ints = r.ints[1:]
+	return v
+}
+
+// hostileFactionPair returns two factions that list each other as
+// mutual enemies. Used to build a predictable StandardNPCFactions
+// slice for TickWars tests that doesn't depend on the live data.
+func hostileFactionPair() (a, b models.NPCFaction) {
+	a = models.NPCFaction{
+		ID:          "hostile_a",
+		Name:        "A",
+		ShortName:   "A",
+		CoreSystems: []string{"Sol"},
+		Enemies:     []string{"hostile_b"},
+	}
+	b = models.NPCFaction{
+		ID:          "hostile_b",
+		Name:        "B",
+		ShortName:   "B",
+		CoreSystems: []string{"Wolf 359"},
+		Enemies:     []string{"hostile_a"},
+	}
+	return
+}
+
+func TestDefaultLifecycleConfig(t *testing.T) {
+	c := DefaultLifecycleConfig()
+	if c.MaxWarDuration != 7*24*time.Hour {
+		t.Errorf("default max war duration: got %v, want 7d", c.MaxWarDuration)
+	}
+	if c.DeclarationProbability <= 0 || c.DeclarationProbability >= 1 {
+		t.Errorf("declaration probability out of (0,1): got %v", c.DeclarationProbability)
+	}
+	if c.EmergentCasusBelli == "" {
+		t.Error("default casus belli should be non-empty")
+	}
+}
+
+func TestBuildHostilePairsSkipsOneWayAnimosity(t *testing.T) {
+	// A lists B as enemy, but B doesn't reciprocate → no pair.
+	one := []models.NPCFaction{
+		{ID: "x", Enemies: []string{"y"}},
+		{ID: "y", Enemies: []string{}},
+	}
+	if got := buildHostilePairs(one); len(got) != 0 {
+		t.Errorf("one-way animosity should produce 0 pairs, got %d", len(got))
+	}
+}
+
+func TestBuildHostilePairsDedupesReciprocal(t *testing.T) {
+	a, b := hostileFactionPair()
+	got := buildHostilePairs([]models.NPCFaction{a, b})
+	if len(got) != 1 {
+		t.Fatalf("mutual hostility should produce 1 pair, got %d", len(got))
+	}
+	// Canonical ordering: alphabetical by ID.
+	if got[0].a.ID != "hostile_a" || got[0].b.ID != "hostile_b" {
+		t.Errorf("pair ordering: got (%s, %s), want (hostile_a, hostile_b)",
+			got[0].a.ID, got[0].b.ID)
+	}
+}
+
+func TestBuildHostilePairsIgnoresUnknownEnemy(t *testing.T) {
+	factions := []models.NPCFaction{
+		{ID: "x", Enemies: []string{"ghost"}}, // "ghost" doesn't exist
+	}
+	if got := buildHostilePairs(factions); len(got) != 0 {
+		t.Errorf("unknown enemy should be skipped, got %d pairs", len(got))
+	}
+}
+
+func TestTickWarsResolvesExpiredWars(t *testing.T) {
+	m, bus, clock := newTestManager()
+	a, b, _ := testFactions()
+
+	war, _ := m.DeclareWar(a, b, "test")
+
+	// RNG script: Intn(2) for winner coin flip → 1 (aggressor
+	// wins per the code's convention: 0 picks defender, non-zero
+	// stays on aggressor). Float64 is still consumed in the
+	// second pass: after the expired war resolves, the same pair
+	// becomes eligible again in-tick, so TickWars rolls
+	// declaration for it. DeclarationProbability 0.0 means any
+	// float ≥ 0.0 (i.e. all of them) skips — we just have to
+	// supply one to feed the RNG.
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.5}, ints: []int{1}})
+	m.SetLifecycleConfig(LifecycleConfig{
+		MaxWarDuration:         1 * time.Hour,
+		DeclarationProbability: 0.0,
+	})
+
+	// Advance past max duration.
+	*clock = clock.Add(2 * time.Hour)
+
+	// TickWars fixture: mutual-hostile pair matching war belligerents.
+	tickFactions := []models.NPCFaction{
+		{ID: a.ID, Enemies: []string{b.ID}, CoreSystems: a.CoreSystems},
+		{ID: b.ID, Enemies: []string{a.ID}, CoreSystems: b.CoreSystems},
+	}
+	m.TickWars(tickFactions)
+
+	if war.Status != models.FactionWarResolved {
+		t.Errorf("expected war to be resolved by TickWars, status %q", war.Status)
+	}
+	if war.WinnerFactionID != a.ID {
+		t.Errorf("expected aggressor winner (coin flip 0), got %q", war.WinnerFactionID)
+	}
+	// Declaration + resolution news articles emitted.
+	if len(bus.snapshot()) < 2 {
+		t.Errorf("expected declare + resolve articles, got %d", len(bus.snapshot()))
+	}
+}
+
+func TestTickWarsExpiredDefenderWinsOnCoinFlip1(t *testing.T) {
+	m, _, clock := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+
+	// Ints[0]=0 → defender wins coin flip (code convention: 0
+	// picks defender, non-zero stays on aggressor). Float64 is
+	// consumed in the post-resolve declaration pass.
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.5}, ints: []int{0}})
+	m.SetLifecycleConfig(LifecycleConfig{MaxWarDuration: time.Hour, DeclarationProbability: 0.0})
+
+	*clock = clock.Add(2 * time.Hour)
+	m.TickWars([]models.NPCFaction{
+		{ID: a.ID, Enemies: []string{b.ID}, CoreSystems: a.CoreSystems},
+		{ID: b.ID, Enemies: []string{a.ID}, CoreSystems: b.CoreSystems},
+	})
+
+	if war.WinnerFactionID != b.ID {
+		t.Errorf("coin flip 1 should make defender win, got %q", war.WinnerFactionID)
+	}
+}
+
+func TestTickWarsRollsEmergentDeclaration(t *testing.T) {
+	m, _, _ := newTestManager()
+	// Float64 roll: 0.0 is below threshold → declaration fires.
+	// Intn(2) for aggressor pick → 0 (first pair member).
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.0}, ints: []int{0}})
+	m.SetLifecycleConfig(LifecycleConfig{
+		MaxWarDuration:         time.Hour,
+		DeclarationProbability: 0.5,
+		EmergentCasusBelli:     "test incident",
+	})
+
+	a, b := hostileFactionPair()
+	m.TickWars([]models.NPCFaction{a, b})
+
+	active := m.GetActiveWars()
+	if len(active) != 1 {
+		t.Fatalf("expected 1 emergent war, got %d", len(active))
+	}
+	if active[0].AggressorID != a.ID {
+		t.Errorf("Intn(2)=0 should make canonical-first the aggressor, got %q", active[0].AggressorID)
+	}
+	if active[0].CasusBelli != "test incident" {
+		t.Errorf("casus belli: got %q, want %q", active[0].CasusBelli, "test incident")
+	}
+}
+
+func TestTickWarsRollsAboveThresholdDoesNothing(t *testing.T) {
+	m, _, _ := newTestManager()
+	// Float64 above the 0.1 threshold → no declaration. No Intn
+	// should be consumed (panics scriptedRNG if it is).
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.99}, ints: nil})
+	m.SetLifecycleConfig(LifecycleConfig{
+		MaxWarDuration:         time.Hour,
+		DeclarationProbability: 0.1,
+	})
+	a, b := hostileFactionPair()
+	m.TickWars([]models.NPCFaction{a, b})
+	if got := len(m.GetActiveWars()); got != 0 {
+		t.Errorf("expected 0 wars, got %d", got)
+	}
+}
+
+func TestTickWarsSkipsPairAlreadyAtWar(t *testing.T) {
+	m, _, _ := newTestManager()
+	a := models.NPCFaction{ID: "a", Name: "A", CoreSystems: []string{"Sol"}, Enemies: []string{"b"}}
+	b := models.NPCFaction{ID: "b", Name: "B", CoreSystems: []string{"Wolf 359"}, Enemies: []string{"a"}}
+
+	// Declare war first (uses the real DeclareWar).
+	_, err := m.DeclareWar(&a, &b, "")
+	if err != nil {
+		t.Fatalf("DeclareWar: %v", err)
+	}
+	// RNG intentionally empty — we expect no rolls because the
+	// only pair is already at war.
+	m.SetLifecycleRNG(&scriptedRNG{})
+	m.SetLifecycleConfig(LifecycleConfig{
+		MaxWarDuration:         time.Hour,
+		DeclarationProbability: 1.0, // would otherwise always fire
+	})
+	m.TickWars([]models.NPCFaction{a, b})
+	if got := len(m.GetActiveWars()); got != 1 {
+		t.Errorf("should still have 1 war (no new declaration), got %d", got)
+	}
+}
+
+func TestReportIncidentFiresWarWhenIntensityRollsLow(t *testing.T) {
+	m, _, _ := newTestManager()
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.1}, ints: []int{0}})
+
+	a, b := hostileFactionPair()
+	war := m.ReportIncident(&a, []models.NPCFaction{a, b}, 0.5)
+	if war == nil {
+		t.Fatalf("intensity 0.5 with roll 0.1 should fire, got nil")
+	}
+	if war.AggressorID != a.ID || war.DefenderID != b.ID {
+		t.Errorf("belligerents: got %s→%s, want %s→%s", war.AggressorID, war.DefenderID, a.ID, b.ID)
+	}
+}
+
+func TestReportIncidentNoopsWhenRollAboveIntensity(t *testing.T) {
+	m, _, _ := newTestManager()
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.9}})
+	a, b := hostileFactionPair()
+	if war := m.ReportIncident(&a, []models.NPCFaction{a, b}, 0.5); war != nil {
+		t.Errorf("roll 0.9 vs intensity 0.5 should no-op, got war %v", war)
+	}
+}
+
+func TestReportIncidentClampsIntensity(t *testing.T) {
+	m, _, _ := newTestManager()
+	// Intensity >1 is clamped to 1, so roll 0.99 fires.
+	m.SetLifecycleRNG(&scriptedRNG{floats: []float64{0.99}, ints: []int{0}})
+	a, b := hostileFactionPair()
+	if war := m.ReportIncident(&a, []models.NPCFaction{a, b}, 5.0); war == nil {
+		t.Errorf("clamped intensity should fire with roll 0.99, got nil")
+	}
+}
+
+func TestReportIncidentZeroIntensityIsNoop(t *testing.T) {
+	m, _, _ := newTestManager()
+	m.SetLifecycleRNG(&scriptedRNG{})
+	a, b := hostileFactionPair()
+	if war := m.ReportIncident(&a, []models.NPCFaction{a, b}, 0); war != nil {
+		t.Errorf("zero intensity should no-op, got war %v", war)
+	}
+	// Also: negative intensity.
+	if war := m.ReportIncident(&a, []models.NPCFaction{a, b}, -1); war != nil {
+		t.Errorf("negative intensity should no-op, got war %v", war)
+	}
+}
+
+func TestReportIncidentSkipsAlreadyAtWarEnemies(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b := hostileFactionPair()
+
+	// Existing war between a and b → no enemies left to declare on.
+	_, _ = m.DeclareWar(&a, &b, "")
+	m.SetLifecycleRNG(&scriptedRNG{})
+	if war := m.ReportIncident(&a, []models.NPCFaction{a, b}, 1.0); war != nil {
+		t.Errorf("no-available-enemy path should return nil, got %v", war)
+	}
+}
+
+func TestReportIncidentNilSafety(t *testing.T) {
+	var nilMgr *Manager
+	if got := nilMgr.ReportIncident(nil, nil, 1.0); got != nil {
+		t.Errorf("nil manager should return nil, got %v", got)
+	}
+	m, _, _ := newTestManager()
+	if got := m.ReportIncident(nil, nil, 1.0); got != nil {
+		t.Errorf("nil faction should return nil, got %v", got)
+	}
+}
+
 func TestConcurrentDeclareAndQuery(t *testing.T) {
 	// Race test — run with -race to catch lock misuse. Spawns one
 	// declarer and many readers; all queries should return

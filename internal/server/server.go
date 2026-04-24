@@ -423,6 +423,19 @@ func (s *Server) initDatabase() error {
 		log.Info("system_events: %q (system=%s)", article.Headline, name)
 		return nil
 	})
+	// faction_wars: every 5 minutes run the war lifecycle —
+	// force-resolves wars past their max duration and rolls
+	// emergent declarations between mutually-hostile NPC faction
+	// pairs. Cadence is deliberately coarse: wars are slow-tempo
+	// universe events, not per-frame simulation. TickWars holds
+	// the factionwar manager's lock internally.
+	s.tickService.Register("faction_wars", 5*time.Minute, func(ctx context.Context) error {
+		if s.factionWarManager == nil {
+			return nil
+		}
+		s.factionWarManager.TickWars(models.StandardNPCFactions)
+		return nil
+	})
 
 	log.Info("Database connected successfully")
 	return nil

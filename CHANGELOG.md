@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5C-4 war lifecycle automation, closes P5C block)
+- **Faction wars now start and end without admin intervention.** A
+  new `TickWars` pass runs every 5 minutes via the existing tick
+  service and handles two things:
+  1. **Auto-resolution**: any active war that has been running
+     longer than `LifecycleConfig.MaxWarDuration` (default 7 days)
+     is force-resolved by coin flip between aggressor and defender.
+     Winner gets the `WinnerFactionID`; standard resolution news
+     article fires. Territory-weighted winner-picking is a
+     P5D-dependent follow-up.
+  2. **Emergent declarations**: each pair of *mutually-hostile* NPC
+     factions (both list the other in `Enemies`) that isn't
+     already at war rolls `DeclarationProbability` per tick
+     (default 0.05%). At the default 5-minute cadence, a single
+     pair averages ~50% odds over ~8 hours of server uptime —
+     across 4 hostile pairs in `StandardNPCFactions`, a fresh war
+     spins up every few hours.
+- **`ReportIncident(offended, factions, intensity)`** is the
+  admin/combat hook for provocation-driven wars. Rolls against the
+  intensity value (clamped to [0, 1]); on success, picks a random
+  eligible mutually-hostile enemy and declares war with a
+  contextual casus belli. Intended to be called from combat when
+  a player destroys a high-profile patrol, from mission handlers
+  on major plot triggers, or from admin console commands.
+- **Config + test seams**: `LifecycleConfig` exposes
+  `MaxWarDuration`, `DeclarationProbability`, and
+  `EmergentCasusBelli` so balance tuning doesn't require code
+  edits. `LifecycleRNG` interface lets tests inject a scripted
+  RNG with pre-queued Float64/Intn sequences — the test RNG
+  panics when asked for more randomness than scripted, catching
+  accidental extra rolls.
+- **`buildHostilePairs`** deduplicates mutually-hostile faction
+  pairs into canonical alphabetical ordering so seeded RNGs
+  produce deterministic TickWars outputs across runs. One-way
+  animosity (A lists B, B doesn't reciprocate) doesn't declare —
+  both sides must want it.
+- **Wired into `server.initTick`** as the new `faction_wars`
+  handler. Coarse 5-minute cadence deliberately matches the
+  slow-tempo nature of diplomacy; wars aren't per-frame sims.
+- **14 new subtests** covering: default config sanity, hostile-
+  pair deduplication (mutual / one-way / unknown-enemy),
+  expired-war resolution with both coin-flip outcomes,
+  declaration roll above/below threshold, skip-pair-already-at-war,
+  ReportIncident fires/no-ops/clamps/nil-safety (5 paths), and
+  skip-when-all-enemies-already-at-war. factionwar coverage at
+  93.7%.
+
 ### Added (2026-04-24 - P5C-3 war gameplay integration)
 - **War-economy price spikes now visible on planet markets in active
   war zones.** The DB stores peace-time prices; on market load the
