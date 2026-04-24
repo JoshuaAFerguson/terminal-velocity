@@ -68,6 +68,46 @@ services:
       retries: 3
       start_period: 10s
 
+  # Web-terminal bridge. Serves a browser-based xterm.js UI that
+  # auto-spawns an SSH connection to the game server on every page
+  # load. Let players connect from any browser without installing
+  # cloudflared or an SSH client.
+  #
+  # Behind the tunnel, cloudflared routes the public hostname (e.g.
+  # tv.toconnect.me) to http://webterm:7681. ttyd handles the
+  # WebSocket upgrade; openssh-client inside the image runs the
+  # actual SSH session to the game container.
+  #
+  # --writable:   allow browser keystrokes through (otherwise readonly)
+  # --max-clients 100: DoS ceiling; game itself has per-IP rate limits
+  # ssh options:  skip host-key prompts since the game's SSH auth is
+  #               anonymous (real auth is in the app's login screen)
+  webterm:
+    build:
+      context: ./docker/webterm
+      dockerfile: Dockerfile
+    container_name: terminal-velocity-webterm
+    restart: unless-stopped
+    profiles:
+      - public
+    depends_on:
+      server:
+        condition: service_healthy
+    command: >
+      ttyd
+      --writable
+      --port 7681
+      --max-clients 100
+      ssh
+      -o StrictHostKeyChecking=no
+      -o UserKnownHostsFile=/dev/null
+      -o LogLevel=ERROR
+      -o ServerAliveInterval=30
+      -p 2222
+      guest@server
+    networks:
+      - terminal-velocity-net
+
   # Cloudflare Tunnel (Optional — public access via tv.toconnect.me)
   #
   # Enable by setting CLOUDFLARE_TUNNEL_TOKEN in your .env (not committed).
