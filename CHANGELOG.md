@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5C-3 war gameplay integration)
+- **War-economy price spikes now visible on planet markets in active
+  war zones.** The DB stores peace-time prices; on market load the
+  model overlays a 1.4× multiplier on war-material commodities
+  (weapons, medical, industrial, ore) when the current system is a
+  war zone. Both buy and sell prices are scaled symmetrically so
+  smugglers bringing supplies into hot zones earn a premium and
+  defenders pay through the nose for imports. Non-war-material
+  goods (food, luxuries, electronics) are unaffected.
+  - `factionwar.WarEconomyPriceMultiplier(system, category)` — 1.4
+    only when both "system is a war zone" AND "category is war
+    material" hold. Peaceful systems and nil manager return 1.0.
+  - `factionwar.IsWarMaterial(category)` — the shared
+    classification so news, missions, and pricing all agree.
+  - `(Model).applyWarEconomyToPrices(prices, commodities)` overlays
+    the multiplier on `*MarketPrice` pointers. Copies the struct
+    before amplifying so the original DB-backed values stay intact
+    for any caller still referencing them. Unknown-commodity rows
+    pass through unchanged (conservative — better than guessing a
+    category).
+  - Tunable constants: `WarEconomyMultiplier = 1.40`,
+    `WarZoneReputationMultiplier = 1.5`. Exported so tests don't
+    go stale when the numbers are rebalanced.
+- **War-zone reputation amplification helpers ready for wiring.**
+  - `factionwar.WarZoneReputationScale(system, factionID)` returns
+    1.5× when the faction is a belligerent in a war covering the
+    system, 1.0 otherwise. Nil-receiver safe so callers can dispatch
+    unconditionally.
+  - `combat.AmplifyReputationChanges(changes, multiplier)` scales
+    every change's Amount symmetrically (both gains and losses).
+    Pure — returns a new slice, leaves the input untouched so
+    callers can keep the pre-amp values for logging. Negative
+    multipliers clamp to 0 rather than flipping sign. Multiplier
+    1.0 returns the original slice identity (zero-alloc fast path).
+  - These two compose to produce the "amplified reputation in war
+    zones" behavior from `docs/FACTION_RELATIONS.md` §"War Zones".
+    The combat screen's full reputation pipeline isn't wired yet
+    (tracked separately — the `CalculateCombatReputation` →
+    `ApplyReputationChanges` path currently has no callers), but
+    the amplifier is ready for P5C-4's mission-reward path.
+- **17 new subtests** across three files. `factionwar`: war-material
+  classification (incl. case sensitivity), zone reputation scaling
+  (peace / war-zone belligerent / zone-adjacent neutral / peaceful
+  system), economy multiplier (peace / war × war-material / non-war-
+  material / peaceful system), nil-manager safety on both. `combat`:
+  no-op paths (nil / empty / 1.0 multiplier identity), positive +
+  negative scaling with truncation semantics documented, negative-
+  multiplier clamp, input-not-mutated invariant, zero-amount edge,
+  amplify→apply chain integration. `tui`: price overlay with nil
+  manager, peacetime, wartime war-material, non-war-material
+  passthrough, input-not-mutated invariant, unknown-commodity
+  passthrough.
+
 ### Added (2026-04-24 - P5C-2 faction war TUI + space-view banner)
 - **New `Faction Wars` screen** (main menu → Faction Wars, or
   `ScreenFactionWars` in the enum). Two-pane layout: left column is

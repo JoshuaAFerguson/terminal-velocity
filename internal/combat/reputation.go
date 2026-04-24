@@ -346,6 +346,53 @@ func GetReinforcementDelay(factionPatrolStrength int) int {
 	}
 }
 
+// AmplifyReputationChanges scales every change's Amount by the given
+// multiplier and returns a new slice. The input is not mutated —
+// callers may hold references to the originals for logging.
+//
+// Multipliers < 0 are treated as 0 (can't flip sign — a negative
+// rep loss amplified to a gain would be surprising). Values are
+// truncated toward zero when converted back to int, so
+// AmplifyReputationChanges([{+5}], 1.4) → +7 (5 × 1.4 = 7.0), and
+// [{-5}] at 1.5 → -7 (5 × 1.5 = 7.5, truncates to 7, then sign-
+// restored).
+//
+// Used by the war-zone integration: callers resolve the multiplier
+// from the faction-war manager, then apply it here before handing
+// the changes to ApplyReputationChanges.
+func AmplifyReputationChanges(changes []ReputationChange, multiplier float64) []ReputationChange {
+	if len(changes) == 0 {
+		return changes
+	}
+	if multiplier < 0 {
+		multiplier = 0
+	}
+	if multiplier == 1.0 {
+		return changes
+	}
+	out := make([]ReputationChange, len(changes))
+	for i, c := range changes {
+		// Truncate-toward-zero by taking the absolute value, scaling,
+		// then restoring the sign. Go's int conversion already
+		// truncates toward zero for positive values, but |-5.4| → 5
+		// is cleaner than the sign-preserving gymnastics of a direct
+		// cast.
+		sign := 1
+		abs := c.Amount
+		if abs < 0 {
+			sign = -1
+			abs = -abs
+		}
+		scaled := int(float64(abs) * multiplier)
+		out[i] = ReputationChange{
+			FactionID: c.FactionID,
+			Amount:    sign * scaled,
+			Reason:    c.Reason,
+		}
+	}
+	return out
+}
+
 // ApplyReputationChanges applies a list of reputation changes to a player
 func ApplyReputationChanges(
 	playerReputation map[string]int,

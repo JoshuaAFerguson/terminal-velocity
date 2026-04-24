@@ -1,7 +1,7 @@
 // File: internal/tui/trading.go
 // Project: Terminal Velocity
 // Description: Terminal UI component for trading
-// Version: 1.2.0
+// Version: 1.3.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -144,7 +144,11 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.trading.error = fmt.Sprintf("Failed to load market: %v", msg.err)
 		} else {
-			m.trading.marketPrices = msg.prices
+			// Overlay the war-economy multiplier on top of base
+			// DB prices. The DB stores peace-time prices; the
+			// visible market amplifies war materials in hot
+			// systems (§"War Economy" in FACTION_RELATIONS.md).
+			m.trading.marketPrices = m.applyWarEconomyToPrices(msg.prices, msg.commodities)
 			m.trading.commodities = msg.commodities
 			m.trading.currentPlanet = msg.planet
 			m.trading.error = ""
@@ -739,4 +743,53 @@ func (m Model) executeSell() tea.Cmd {
 			err:     nil,
 		}
 	}
+}
+
+// applyWarEconomyToPrices overlays the war-economy price multiplier
+// on top of the DB base prices for war-material commodities when
+// the current system is a war zone. Returns a new slice; inputs are
+// not mutated so the caller can still compare against the pre-
+// overlay prices for logging if needed.
+//
+// The multiplier is applied symmetrically: both buy (what the
+// planet pays) and sell (what the planet charges) go up by the war
+// factor. This matches the spec intent — war-zone merchants pay
+// premium for imports and also gouge on exports because the goods
+// are scarce locally.
+//
+// Pricing precision: int64 × float64 truncates toward zero. The
+// effective rate matches WarEconomyMultiplier (1.4 today) within 1
+// credit per unit, which is well below the noise floor of the
+// per-transaction supply/demand swings.
+func (m Model) applyWarEconomyToPrices(prices []*models.MarketPrice, commodities []models.Commodity) []*models.MarketPrice {
+	if m.factionWarManager == nil || m.currentSystem == nil || len(prices) == 0 {
+		return prices
+	}
+	systemName := m.currentSystem.Name
+
+	// Index commodities by ID so the inner loop stays O(1).
+	byID := make(map[string]models.Commodity, len(commodities))
+	for _, c := range commodities {
+		byID[c.ID] = c
+	}
+
+	out := make([]*models.MarketPrice, len(prices))
+	for i, p := range prices {
+		c, ok := byID[p.CommodityID]
+		if !ok {
+			out[i] = p
+			continue
+		}
+		mult := m.factionWarManager.WarEconomyPriceMultiplier(systemName, c.Category)
+		if mult == 1.0 {
+			out[i] = p
+			continue
+		}
+		// Copy so we don't mutate the caller's pointer target.
+		amplified := *p
+		amplified.BuyPrice = int64(float64(p.BuyPrice) * mult)
+		amplified.SellPrice = int64(float64(p.SellPrice) * mult)
+		out[i] = &amplified
+	}
+	return out
 }

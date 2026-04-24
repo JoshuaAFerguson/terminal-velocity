@@ -295,6 +295,95 @@ func (m *Manager) WarsInSystem(systemName string) []*models.FactionWar {
 }
 
 // ============================================================================
+// P5C-3 gameplay integration
+// ============================================================================
+
+// Gameplay multipliers — tuned per docs/FACTION_RELATIONS.md spec
+// (§"War Zones" amplified rep, §"War Economy" price spikes).
+// Exposed as constants so test assertions don't go stale when these
+// are rebalanced.
+const (
+	// WarZoneReputationMultiplier scales reputation deltas earned or
+	// lost toward belligerent factions when the combat happens
+	// inside a war zone. 1.5× is chosen so kills feel more
+	// impactful without letting a player grind allegiance in a
+	// single session.
+	WarZoneReputationMultiplier = 1.5
+
+	// WarEconomyMultiplier scales the sell price of war-material
+	// commodities (weapons, medical, fuel/ore proxies) inside a
+	// war-zone planet's market. Players bringing supplies into hot
+	// systems earn a premium; enemies of the belligerents take the
+	// hit on import costs.
+	WarEconomyMultiplier = 1.40
+)
+
+// warMaterialCategories lists commodity categories that spike in
+// war economies per the spec. Weapons and medical are direct
+// consumables; industrial covers repair parts; ore is the upstream
+// feedstock for both.
+//
+// Kept as a set (map for O(1) lookup) so the check in
+// WarEconomyPriceMultiplier stays allocation-free.
+var warMaterialCategories = map[string]struct{}{
+	"weapons":    {},
+	"medical":    {},
+	"industrial": {},
+	"ore":        {},
+}
+
+// IsWarMaterial reports whether a commodity category counts as war
+// material for pricing purposes. Exposed so callers (trading UI,
+// mission generators, news copy) can share the classification
+// without each redefining their own list.
+func IsWarMaterial(category string) bool {
+	_, ok := warMaterialCategories[category]
+	return ok
+}
+
+// WarZoneReputationScale returns the reputation multiplier for a
+// player's combat action inside a war zone against a belligerent
+// faction. Returns 1.0 on any miss:
+//   - System is peaceful (no active wars cover it)
+//   - factionID is not a belligerent in any war covering this system
+//   - manager is nil (callers should use the zero-value path)
+//
+// The multiplier is applied to absolute reputation deltas, so both
+// gains and losses are amplified — fighting for the UEF in UEF-vs-
+// Crimson zone gets you more rep with UEF allies, but drops you
+// faster with Crimson allies too.
+func (m *Manager) WarZoneReputationScale(systemName, factionID string) float64 {
+	if m == nil {
+		return 1.0
+	}
+	wars := m.WarsInSystem(systemName)
+	for _, w := range wars {
+		if w.AggressorID == factionID || w.DefenderID == factionID {
+			return WarZoneReputationMultiplier
+		}
+	}
+	return 1.0
+}
+
+// WarEconomyPriceMultiplier returns the sell-price multiplier for a
+// commodity category at a planet in the given system. War-material
+// categories (IsWarMaterial) spike by WarEconomyMultiplier when the
+// system is any active war's zone; all other commodities are
+// unaffected. Peaceful systems and nil manager return 1.0.
+func (m *Manager) WarEconomyPriceMultiplier(systemName, category string) float64 {
+	if m == nil {
+		return 1.0
+	}
+	if !IsWarMaterial(category) {
+		return 1.0
+	}
+	if !m.IsSystemWarZone(systemName) {
+		return 1.0
+	}
+	return WarEconomyMultiplier
+}
+
+// ============================================================================
 // Internal helpers
 // ============================================================================
 

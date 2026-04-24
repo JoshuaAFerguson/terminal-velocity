@@ -422,6 +422,105 @@ func TestPairKeyIsStable(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// P5C-3 gameplay integration
+// ============================================================================
+
+func TestIsWarMaterial(t *testing.T) {
+	tests := map[string]bool{
+		"weapons":    true,
+		"medical":    true,
+		"industrial": true,
+		"ore":        true,
+		// Non-war-material categories stay unaffected:
+		"food":        false,
+		"electronics": false,
+		"luxuries":    false,
+		"contraband":  false,
+		"":            false,
+		"WEAPONS":     false, // case-sensitive per models constants
+	}
+	for category, want := range tests {
+		if got := IsWarMaterial(category); got != want {
+			t.Errorf("IsWarMaterial(%q) = %v, want %v", category, got, want)
+		}
+	}
+}
+
+func TestWarZoneReputationScale(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, c := testFactions()
+
+	// No wars → baseline 1.0 for anyone.
+	if got := m.WarZoneReputationScale("Sol", a.ID); got != 1.0 {
+		t.Errorf("peacetime Sol: got %v, want 1.0", got)
+	}
+
+	// Declare A vs B. Sol is in A's core → war zone.
+	_, _ = m.DeclareWar(a, b, "")
+	if got := m.WarZoneReputationScale("Sol", a.ID); got != WarZoneReputationMultiplier {
+		t.Errorf("belligerent A in war zone Sol: got %v, want %v", got, WarZoneReputationMultiplier)
+	}
+	if got := m.WarZoneReputationScale("Sol", b.ID); got != WarZoneReputationMultiplier {
+		t.Errorf("belligerent B in war zone Sol: got %v, want %v", got, WarZoneReputationMultiplier)
+	}
+	// Third faction not at war — no amplification even in the zone.
+	if got := m.WarZoneReputationScale("Sol", c.ID); got != 1.0 {
+		t.Errorf("neutral faction in war zone: got %v, want 1.0", got)
+	}
+	// Peaceful system — no amplification for anyone.
+	if got := m.WarZoneReputationScale("Vega", a.ID); got != 1.0 {
+		t.Errorf("belligerent in peaceful system: got %v, want 1.0", got)
+	}
+}
+
+func TestWarZoneReputationScaleNilManager(t *testing.T) {
+	var m *Manager // nil
+	if got := m.WarZoneReputationScale("Sol", "any"); got != 1.0 {
+		t.Errorf("nil manager: got %v, want 1.0", got)
+	}
+}
+
+func TestWarEconomyPriceMultiplier(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+
+	// Peacetime — baseline even for war materials.
+	if got := m.WarEconomyPriceMultiplier("Sol", "weapons"); got != 1.0 {
+		t.Errorf("peacetime weapons: got %v, want 1.0", got)
+	}
+
+	_, _ = m.DeclareWar(a, b, "")
+
+	// War material in a war zone → multiplied.
+	if got := m.WarEconomyPriceMultiplier("Sol", "weapons"); got != WarEconomyMultiplier {
+		t.Errorf("wartime weapons in Sol: got %v, want %v", got, WarEconomyMultiplier)
+	}
+	if got := m.WarEconomyPriceMultiplier("Sol", "medical"); got != WarEconomyMultiplier {
+		t.Errorf("wartime medical in Sol: got %v, want %v", got, WarEconomyMultiplier)
+	}
+
+	// Non-war-material in a war zone → baseline.
+	if got := m.WarEconomyPriceMultiplier("Sol", "food"); got != 1.0 {
+		t.Errorf("wartime food: got %v, want 1.0", got)
+	}
+	if got := m.WarEconomyPriceMultiplier("Sol", "luxuries"); got != 1.0 {
+		t.Errorf("wartime luxuries: got %v, want 1.0", got)
+	}
+
+	// War material outside the zone → baseline.
+	if got := m.WarEconomyPriceMultiplier("Vega", "weapons"); got != 1.0 {
+		t.Errorf("peaceful-system weapons: got %v, want 1.0", got)
+	}
+}
+
+func TestWarEconomyPriceMultiplierNilManager(t *testing.T) {
+	var m *Manager
+	if got := m.WarEconomyPriceMultiplier("Sol", "weapons"); got != 1.0 {
+		t.Errorf("nil manager: got %v, want 1.0", got)
+	}
+}
+
 func TestConcurrentDeclareAndQuery(t *testing.T) {
 	// Race test — run with -race to catch lock misuse. Spawns one
 	// declarer and many readers; all queries should return
