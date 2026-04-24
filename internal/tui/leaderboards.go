@@ -1,7 +1,7 @@
 // File: internal/tui/leaderboards.go
 // Project: Terminal Velocity
 // Description: Leaderboard UI displaying competitive rankings across multiple categories
-// Version: 1.0.0
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -13,7 +13,67 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
+
+// leaderboardCategoryTab is a single tab entry. The tab bar derives its
+// order, digit shortcuts, icons, and the 1-7 keymap from this slice so
+// the view and the update handler stay in sync without a second source
+// of truth. Ordering here defines tab index for arrow-key navigation.
+type leaderboardCategoryTab struct {
+	key      string
+	label    string
+	category models.LeaderboardCategory
+}
+
+var leaderboardCategoryTabs = []leaderboardCategoryTab{
+	{"1", "Overall", models.LeaderboardOverall},
+	{"2", "Combat", models.LeaderboardCombat},
+	{"3", "Trading", models.LeaderboardTrading},
+	{"4", "Exploration", models.LeaderboardExploration},
+	{"5", "Wealth", models.LeaderboardWealth},
+	{"6", "Missions", models.LeaderboardMissions},
+	{"7", "Reputation", models.LeaderboardReputation},
+}
+
+// leaderboardCategoryIndex returns the slice index for a category, or
+// -1 if the category isn't in the tab list.
+func leaderboardCategoryIndex(cat models.LeaderboardCategory) int {
+	for i, t := range leaderboardCategoryTabs {
+		if t.category == cat {
+			return i
+		}
+	}
+	return -1
+}
+
+// leaderboardCategoryByDigit resolves a digit keystring (e.g. "3") to a
+// category. Returns ok=false on any non-matching key.
+func leaderboardCategoryByDigit(digit string) (models.LeaderboardCategory, bool) {
+	for _, t := range leaderboardCategoryTabs {
+		if t.key == digit {
+			return t.category, true
+		}
+	}
+	return "", false
+}
+
+// cycleLeaderboardCategory returns the next/previous category with
+// wrap-around. delta is typically +1 (right) or -1 (left). Invalid
+// current category falls back to the first entry.
+func cycleLeaderboardCategory(cur models.LeaderboardCategory, delta int) models.LeaderboardCategory {
+	n := len(leaderboardCategoryTabs)
+	if n == 0 {
+		return cur
+	}
+	idx := leaderboardCategoryIndex(cur)
+	if idx < 0 {
+		return leaderboardCategoryTabs[0].category
+	}
+	// Go modulo can return negative for negative operands; normalize.
+	next := ((idx+delta)%n + n) % n
+	return leaderboardCategoryTabs[next].category
+}
 
 type leaderboardsModel struct {
 	cursor           int
@@ -71,34 +131,23 @@ func (m Model) updateLeaderboards(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh leaderboards
 			return m, m.refreshLeaderboards()
 
-		// Category selection shortcuts
-		case "1":
-			m.leaderboardsModel.selectedCategory = models.LeaderboardOverall
+		case "left":
+			m.leaderboardsModel.selectedCategory = cycleLeaderboardCategory(m.leaderboardsModel.selectedCategory, -1)
 			m.leaderboardsModel.cursor = 0
 
-		case "2":
-			m.leaderboardsModel.selectedCategory = models.LeaderboardCombat
+		case "right":
+			m.leaderboardsModel.selectedCategory = cycleLeaderboardCategory(m.leaderboardsModel.selectedCategory, 1)
 			m.leaderboardsModel.cursor = 0
 
-		case "3":
-			m.leaderboardsModel.selectedCategory = models.LeaderboardTrading
-			m.leaderboardsModel.cursor = 0
-
-		case "4":
-			m.leaderboardsModel.selectedCategory = models.LeaderboardExploration
-			m.leaderboardsModel.cursor = 0
-
-		case "5":
-			m.leaderboardsModel.selectedCategory = models.LeaderboardWealth
-			m.leaderboardsModel.cursor = 0
-
-		case "6":
-			m.leaderboardsModel.selectedCategory = models.LeaderboardMissions
-			m.leaderboardsModel.cursor = 0
-
-		case "7":
-			m.leaderboardsModel.selectedCategory = models.LeaderboardReputation
-			m.leaderboardsModel.cursor = 0
+		default:
+			// Digit shortcut: 1-7 jumps directly to that category.
+			// Up/down are handled above; 'h'/'l' remain free (vim-nav
+			// on the leaderboard row cursor, not tab switching), so
+			// tab motion is arrow-keys only.
+			if cat, ok := leaderboardCategoryByDigit(msg.String()); ok {
+				m.leaderboardsModel.selectedCategory = cat
+				m.leaderboardsModel.cursor = 0
+			}
 		}
 	}
 
@@ -141,36 +190,11 @@ func (m Model) viewLeaderboards() string {
 	s += "\n"
 	s += strings.Repeat("─", 80) + "\n\n"
 
-	// Category tabs
-	tabs := []struct {
-		key      string
-		label    string
-		category models.LeaderboardCategory
-	}{
-		{"1", "Overall", models.LeaderboardOverall},
-		{"2", "Combat", models.LeaderboardCombat},
-		{"3", "Trading", models.LeaderboardTrading},
-		{"4", "Exploration", models.LeaderboardExploration},
-		{"5", "Wealth", models.LeaderboardWealth},
-		{"6", "Missions", models.LeaderboardMissions},
-		{"7", "Reputation", models.LeaderboardReputation},
-	}
-
-	s += "Categories: "
-	for i, tab := range tabs {
-		isActive := m.leaderboardsModel.selectedCategory == tab.category
-
-		if isActive {
-			s += highlightStyle.Render("[" + tab.label + "]")
-		} else {
-			s += helpStyle.Render(" " + tab.label + " ")
-		}
-
-		if i < len(tabs)-1 {
-			s += " "
-		}
-	}
-	s += "\n\n"
+	// Category tabs. Two-line underline style: line 1 shows the icon
+	// + label + "(n)" digit shortcut for every tab, line 2 draws a
+	// heavy ━ under only the active tab. Much easier to scan at a
+	// glance than the prior bracketed inline strip.
+	s += renderLeaderboardTabs(m.leaderboardsModel.selectedCategory) + "\n\n"
 
 	// View mode toggle
 	if m.leaderboardsModel.viewMode == "near_player" && playerRank > 0 {
@@ -191,7 +215,7 @@ func (m Model) viewLeaderboards() string {
 
 	if len(entries) == 0 {
 		s += helpStyle.Render("No entries to display.\n\n")
-		s += renderFooter("ESC: Back | 1-7: Change Category | V: Toggle View | R: Refresh")
+		s += renderFooter("ESC: Back | ←/→ or 1-7: Category | V: Toggle View | R: Refresh")
 		return s
 	}
 
@@ -199,7 +223,7 @@ func (m Model) viewLeaderboards() string {
 	s += m.renderLeaderboardEntries(entries, category)
 
 	// Footer
-	s += "\n" + renderFooter("↑/↓: Navigate | 1-7: Category | V: Toggle View | R: Refresh | ESC: Back")
+	s += "\n" + renderFooter("↑/↓: Navigate | ←/→ or 1-7: Category | V: Toggle View | R: Refresh | ESC: Back")
 
 	return s
 }
@@ -314,4 +338,56 @@ func (m Model) formatLeaderboardDetails(category models.LeaderboardCategory, ent
 	default:
 		return ""
 	}
+}
+
+// tabActiveStyle and tabInactiveStyle are local (no margins) because
+// the global helpStyle has MarginTop(1) — fine for inline help lines
+// but it injects a leading newline into every rendered cell, which
+// would break a single-line tab strip. Same colors as helpStyle /
+// highlightStyle so the visual language stays consistent.
+var (
+	tabActiveStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("39")). // Cyan
+			Bold(true)
+
+	tabInactiveStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("241")) // Gray
+)
+
+// renderLeaderboardTabs draws the two-line tab strip. Line 1 is the
+// icon + label + "(N)" digit shortcut for every tab. Line 2 draws a
+// heavy ━ run under ONLY the active tab, in the same highlight color,
+// which reads as a Chrome-style underline without needing a full box.
+//
+// Widths are measured with lipgloss.Width so emoji/variation-selector
+// runes that occupy 2 cells (🏆, ⚔️, 🧭 …) underline correctly. Byte
+// len() on these strings would under-count the active width and leave
+// a visible gap between the label and its underline.
+func renderLeaderboardTabs(active models.LeaderboardCategory) string {
+	var labels, underlines strings.Builder
+	sep := "  " // two spaces between tabs
+
+	for i, t := range leaderboardCategoryTabs {
+		icon := models.GetCategoryIcon(t.category)
+		// "( N )" trailing digit hint lives inside each tab's cell so
+		// the underline covers both the label and its shortcut.
+		cell := fmt.Sprintf(" %s %s (%s) ", icon, t.label, t.key)
+		width := lipgloss.Width(cell)
+
+		isActive := t.category == active
+		if isActive {
+			labels.WriteString(tabActiveStyle.Render(cell))
+			underlines.WriteString(tabActiveStyle.Render(strings.Repeat("━", width)))
+		} else {
+			labels.WriteString(tabInactiveStyle.Render(cell))
+			underlines.WriteString(strings.Repeat(" ", width))
+		}
+
+		if i < len(leaderboardCategoryTabs)-1 {
+			labels.WriteString(sep)
+			underlines.WriteString(strings.Repeat(" ", lipgloss.Width(sep)))
+		}
+	}
+
+	return labels.String() + "\n" + underlines.String()
 }

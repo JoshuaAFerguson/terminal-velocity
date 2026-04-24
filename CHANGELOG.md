@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-04-23 - P5G leaderboard category tabs polish)
+- **Leaderboard screen switched from inline bracket-tag "Categories:"
+  strip to a two-line underline tab bar** with icons, digit shortcuts
+  `(N)`, and a heavy `━` marker under only the active tab.
+  - New arrow-key navigation: `←`/`→` cycle categories with
+    wrap-around; digit keys `1`–`7` still jump directly for muscle
+    memory. `h`/`l` are left free (reserved for future row-level
+    navigation; they don't collide with tab motion).
+  - Category list, digit keymap, and tab render all read from a
+    single `leaderboardCategoryTabs` slice — no more duplicated
+    per-digit switch cases.
+  - Three pure helpers (`leaderboardCategoryIndex`,
+    `leaderboardCategoryByDigit`, `cycleLeaderboardCategory`) extracted
+    for isolated testing; renderer uses `lipgloss.Width` so emoji like
+    `⚔️` / `🧭` (which occupy 2 cells thanks to variation selectors)
+    underline correctly instead of leaving a half-cell gap.
+  - Local `tabActiveStyle` / `tabInactiveStyle` declared without
+    `MarginTop` so a `.Render(cell)` call doesn't silently inject a
+    leading newline into each tab and shred the strip into a column.
+  - Footer hint updated to reflect new bindings:
+    `↑/↓: Navigate | ←/→ or 1-7: Category | …`.
+
 ### Added (2026-04-23 - P5A-3 PvP challenger-side auto-transition)
 - **Challenger's PvP session now auto-transitions to combat when the
   target accepts.** Previously only the target (the side pressing `a`)
