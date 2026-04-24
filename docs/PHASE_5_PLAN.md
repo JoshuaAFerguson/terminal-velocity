@@ -249,16 +249,41 @@ My recommendation: **A** first, so subsequent work inherits
 server-wide managers by default. B right after because it unblocks
 marketplace durability. Then **G** as a palate cleanser.
 
-## Open Questions Before Coding
+## Decisions Made (2026-04-23)
 
-1. Do player factions run on a single server instance, or is
-   multi-instance / multi-region expected? Affects 5A (is LISTEN/NOTIFY
-   enough, or do we need a real broker?).
-2. Is there a design doc for the faction war mechanic, or is that
-   this-team's invention? Affects 5C scope.
-3. Are tutorials required for a beta release, or can they ship later?
-   Affects 5F priority.
-4. Budget: how much content do we want to author for 5E (storylines)
-   vs. shipping the engine with a placeholder questline?
+Answered the four open questions and rebased the plan accordingly:
 
-Answering these now saves rework later.
+1. **Multi-region expected.** Chat / presence / PvP / marketplace
+   must work across multiple server instances. `LISTEN/NOTIFY`
+   alone isn't sufficient long-term — plan lands a broker (NATS or
+   Redis Streams) during 5A. For beta we can stay single-region
+   and swap the event transport later, but every new persistence
+   schema introduced in 5A should be shaped so a broker swap
+   doesn't require another migration.
+2. **Faction war design doc exists** at `docs/FACTION_RELATIONS.md`
+   §"Faction War Mechanics". War declaration → border war zones →
+   NPC fleet engagements → amplified reputation swings → war-
+   materials price spikes → territorial resolution. 5C scope
+   follows this spec rather than inventing one.
+3. **Tutorials are a beta blocker.** 5F moves ahead of 5A in the
+   execution order — the overlay + step content must ship before
+   inviting new players.
+4. **Ship with 15 storylines.** 5E grows from "1–2 as reference" to
+   "author 15 questlines". Content dominates engine; plan as a
+   dedicated milestone with a shared structure template and per-
+   faction authoring.
+
+### Updated Execution Order
+
+1. **5F tutorials** — beta blocker; small engine work, most of it
+   is content + overlay UX.
+2. **5A infra hardening** — server-own remaining managers,
+   DB-persist marketplace, challenger-side duel routing. Broker
+   deferred until beta has real cross-instance traffic.
+3. **5G leaderboard categories** — half-day palate cleanser.
+4. **5H newsreel ticker** — one day, uses existing data.
+5. **5B fleet play** — needs 5A.
+6. **5E storylines × 15** — largest content block. Could run in
+   parallel with 5B for content authoring.
+7. **5C faction wars** — implement per `docs/FACTION_RELATIONS.md`.
+8. **5D territory capture** — capstone; hardest item.
