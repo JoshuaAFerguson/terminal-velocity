@@ -30,6 +30,15 @@ type combatEscort struct {
 	shipType string
 	behavior fleet.EscortBehavior
 	level    int
+
+	// P5B-3: per-escort hull tracking. maxHull is snapshotted at
+	// combat entry from fleet.Escort.Ship.MaxHull (or defaults to
+	// 100 when ship data is missing). destroyed short-circuits all
+	// combat paths — resolver skips them, targeting skips them,
+	// render strip shows them grayed.
+	hull      int
+	maxHull   int
+	destroyed bool
 }
 
 // initializeCombatEscorts populates combatEnhancedModel.playerEscorts
@@ -49,12 +58,21 @@ func (m *Model) initializeCombatEscorts() {
 		if e == nil || e.Ship == nil {
 			continue
 		}
+		// Defaults protect against ship records with zeroed hull
+		// (fleet-manager TODO items): a freshly-hired escort with
+		// unset MaxHull shouldn't start combat pre-destroyed.
+		maxHull := e.Ship.Hull
+		if maxHull <= 0 {
+			maxHull = 100
+		}
 		m.combatEnhanced.playerEscorts = append(m.combatEnhanced.playerEscorts, combatEscort{
 			id:       e.ID.String(),
 			pilot:    e.Pilot,
 			shipType: e.Ship.Name,
 			behavior: e.Behavior,
 			level:    e.Level,
+			hull:     maxHull,
+			maxHull:  maxHull,
 		})
 	}
 }
@@ -73,6 +91,9 @@ func (m *Model) initializeCombatEscorts() {
 func computeEscortDamageBonus(escorts []combatEscort) float64 {
 	bonus := 1.0
 	for _, e := range escorts {
+		if e.destroyed {
+			continue
+		}
 		switch e.behavior {
 		case fleet.BehaviorAggressive:
 			bonus += 0.10
@@ -107,7 +128,7 @@ func applyEscortBonus(baseDamage int, escorts []combatEscort) int {
 func countSupportEscorts(escorts []combatEscort) int {
 	n := 0
 	for _, e := range escorts {
-		if e.behavior == fleet.BehaviorSupport {
+		if !e.destroyed && e.behavior == fleet.BehaviorSupport {
 			n++
 		}
 	}
@@ -132,14 +153,35 @@ func renderEscortStrip(escorts []combatEscort, width int) string {
 	sb.WriteString(" FLEET ESCORTS\n")
 	sb.WriteString(" " + strings.Repeat("─", width-2) + "\n")
 	for _, e := range escorts {
-		line := fmt.Sprintf(" ▲ %s  (%s)  [%s]  Lv%d",
-			e.pilot, e.shipType, escortBehaviorLabel(e.behavior), e.level)
+		var line string
+		if e.destroyed {
+			// Destroyed escorts stay in the strip until the combat
+			// loop removes them at the end of the enemy turn; shown
+			// with a wreck marker so the player sees the loss
+			// without the UI flashing the row out.
+			line = fmt.Sprintf(" ✗ %s  (%s)  [DESTROYED]", e.pilot, e.shipType)
+		} else {
+			hullPct := 0
+			if e.maxHull > 0 {
+				hullPct = (e.hull * 100) / e.maxHull
+			}
+			line = fmt.Sprintf(" ▲ %s  (%s)  [%s]  Lv%d  H:%d%%",
+				e.pilot, e.shipType, escortBehaviorLabel(e.behavior), e.level, hullPct)
+		}
 		sb.WriteString(PadRight(line, width) + "\n")
 	}
-	// Footer summary line showing the active bonus.
+	// Footer: computeEscortDamageBonus and countSupportEscorts both
+	// skip destroyed escorts internally, so the numbers shown here
+	// reflect the live effective fleet, not the starting roster.
 	bonus := computeEscortDamageBonus(escorts)
-	footer := fmt.Sprintf(" ⚔  Damage bonus: +%d%%   🛡  Support: %d",
-		int((bonus-1.0)*100), countSupportEscorts(escorts))
+	alive := 0
+	for _, e := range escorts {
+		if !e.destroyed {
+			alive++
+		}
+	}
+	footer := fmt.Sprintf(" ⚔  Damage bonus: +%d%%   🛡  Support: %d   🚀  Alive: %d",
+		int((bonus-1.0)*100), countSupportEscorts(escorts), alive)
 	sb.WriteString(PadRight(footer, width) + "\n")
 	return sb.String()
 }
@@ -239,6 +281,12 @@ func resolveEscortActions(escorts []combatEscort, rng escortRNG) []escortAction 
 	}
 	actions := make([]escortAction, 0, len(escorts))
 	for _, e := range escorts {
+		// Destroyed escorts skip their turn — still in the slice
+		// for render purposes (grayed out) until the combat loop
+		// removes them, but they don't roll.
+		if e.destroyed {
+			continue
+		}
 		switch e.behavior {
 		case fleet.BehaviorAggressive:
 			dmg := int(float64(baseEscortAttackDamage) * levelScale(e.level))
@@ -353,3 +401,78 @@ func (globalRandRNG) Intn(n int) int   { return rand.Intn(n) }
 // defaultEscortRNG returns the production RNG used by combat_enhanced.
 // Tests inject a deterministic fixedRNG via resolveEscortActions directly.
 func defaultEscortRNG() escortRNG { return globalRandRNG{} }
+
+// ============================================================================
+// P5B-3: enemy targeting escorts + destruction
+// ============================================================================
+
+// escortInterceptChancePerAlive is the per-escort probability that an
+// incoming enemy shot is redirected onto that escort. With 1 alive
+// escort the chance is 15%, 2 is 30%, 3 is 45%, 4+ is clamped at
+// escortInterceptCap. Tuned so a small fleet feels protective without
+// trivializing enemy threat.
+const escortInterceptChancePerAlive = 0.15
+
+// escortInterceptCap is the ceiling on combined intercept probability.
+// Without this, 6 escorts would redirect 90% of hits, which makes the
+// player ship functionally invulnerable.
+const escortInterceptCap = 0.60
+
+// selectEscortInterceptIndex decides whether an incoming enemy hit is
+// intercepted by an escort, and if so, which escort takes it. Returns
+// -1 to indicate the player ship takes the hit. Pure given the RNG.
+//
+// The intercept roll uses Float64() once; the target selection uses
+// Intn() once. Tests can assert both legs via the fixedRNG seam.
+func selectEscortInterceptIndex(escorts []combatEscort, rng escortRNG) int {
+	aliveIndices := make([]int, 0, len(escorts))
+	for i, e := range escorts {
+		if !e.destroyed {
+			aliveIndices = append(aliveIndices, i)
+		}
+	}
+	if len(aliveIndices) == 0 {
+		return -1
+	}
+	chance := float64(len(aliveIndices)) * escortInterceptChancePerAlive
+	if chance > escortInterceptCap {
+		chance = escortInterceptCap
+	}
+	if rng.Float64() >= chance {
+		return -1
+	}
+	// Pick a random alive escort to take the hit.
+	return aliveIndices[rng.Intn(len(aliveIndices))]
+}
+
+// applyEscortHit applies `damage` to the escort at `index`, clamping
+// hull at 0 and flipping the destroyed flag when that happens.
+// Returns (logMessage, becameDestroyed). Callers are expected to pass
+// the address of the slice element, not a copy.
+func applyEscortHit(e *combatEscort, damage int) (string, bool) {
+	if e == nil || damage <= 0 || e.destroyed {
+		return "", false
+	}
+	e.hull -= damage
+	if e.hull <= 0 {
+		e.hull = 0
+		e.destroyed = true
+		return fmt.Sprintf("%s's ship has been destroyed!", e.pilot), true
+	}
+	return fmt.Sprintf("%s intercepts the hit — %d hull damage (%d/%d remaining).",
+		e.pilot, damage, e.hull, e.maxHull), false
+}
+
+// removeDestroyedEscorts returns a new slice containing only escorts
+// that are still alive. Used after an enemy turn to clear dead
+// escorts out of the combat view. Kept pure so tests can assert
+// without needing the full Model.
+func removeDestroyedEscorts(escorts []combatEscort) []combatEscort {
+	alive := make([]combatEscort, 0, len(escorts))
+	for _, e := range escorts {
+		if !e.destroyed {
+			alive = append(alive, e)
+		}
+	}
+	return alive
+}

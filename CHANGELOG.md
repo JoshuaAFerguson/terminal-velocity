@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5B-3 escort damage + destruction, closes fleet play block)
+- **Escorts can now take damage and be destroyed.** Per-escort hull is
+  tracked and snapshotted from `fleet.Escort.Ship.Hull` on combat
+  entry (default 100 when ship data is missing). When the enemy lands
+  a hit, a roll decides whether an escort intercepts.
+  - Intercept probability is `15% × (alive escorts)`, capped at 60%.
+    So 1 escort = 15%, 3 = 45%, 4+ stays 60% — enough to make a small
+    fleet feel protective without trivializing enemy threat.
+  - When interception happens, a random alive escort takes the full
+    shot. Shields-then-hull math reuses `applyShipDamage`; over-kill
+    clamps hull at 0 and flips the `destroyed` flag.
+  - Destroyed escorts persist visually in the strip (shown as
+    `✗ [DESTROYED]`) until the enemy turn resolves, so the player
+    sees the destruction log line before the row disappears.
+  - `fleet.Manager.DismissEscort(...)` is called for each destroyed
+    escort so the loss persists to the DB — leaving and re-entering
+    combat never shows ghost escorts.
+  - `computeEscortDamageBonus`, `countSupportEscorts`, and
+    `resolveEscortActions` now skip destroyed escorts. Combat stat
+    lines (bonus %, support count, alive count) reflect the live
+    effective fleet, not the starting roster.
+- **Fixes a pre-existing bug in `processAITurnCmd`**: the closure was
+  mutating `m.combatEnhanced.playerShip.shields` on a copy of the
+  model that never made it back to the Update handler — enemy damage
+  was silently dropped. Moving mutation into the `enemyTurnMsg`
+  handler was a prerequisite for escort interception to actually
+  persist; fixing the player-damage path fell out of that refactor.
+- **New `targetEscortIndex` field on `enemyTurnMsg`**: `-1` means the
+  player ship is hit; any other value indexes into `playerEscorts`.
+  Decision is made in the command closure (which is read-only now),
+  application happens in the handler.
+- **16 new subtests** cover the intercept math (below/above threshold,
+  60% cap, skipping destroyed for selection), damage application
+  (partial, exact-kill, over-kill, zero, already-destroyed, nil
+  guards), alive filtering, and the updated "skips destroyed"
+  behavior of the P5B-1/P5B-2 helpers. `TestRenderEscortStripPreview`
+  now shows three state snapshots (full / damaged / one-down).
+
 ### Added (2026-04-24 - P5B-2 escort AI turns)
 - **Escorts now act every turn.** Previously escorts were visual-only
   + supplied a passive damage multiplier (P5B-1). This slice makes

@@ -206,14 +206,28 @@ func TestRenderEscortStripContent(t *testing.T) {
 }
 
 // TestRenderEscortStripPreview dumps sample output so a reviewer can
-// eyeball the strip with `go test -v`.
+// eyeball the strip with `go test -v`. Covers three states: full
+// health, mid-damage, and with a destroyed escort still visible.
 func TestRenderEscortStripPreview(t *testing.T) {
-	escorts := []combatEscort{
-		{pilot: "Kira Rehn", shipType: "Interceptor", behavior: fleet.BehaviorAggressive, level: 3},
-		{pilot: "Maz Oort", shipType: "Corvette", behavior: fleet.BehaviorDefensive, level: 5},
-		{pilot: "Drex", shipType: "Gunship", behavior: fleet.BehaviorSupport, level: 7},
+	full := []combatEscort{
+		{pilot: "Kira Rehn", shipType: "Interceptor", behavior: fleet.BehaviorAggressive, level: 3, hull: 100, maxHull: 100},
+		{pilot: "Maz Oort", shipType: "Corvette", behavior: fleet.BehaviorDefensive, level: 5, hull: 100, maxHull: 100},
+		{pilot: "Drex", shipType: "Gunship", behavior: fleet.BehaviorSupport, level: 7, hull: 100, maxHull: 100},
 	}
-	t.Logf("escort strip (width=70):\n%s", renderEscortStrip(escorts, 70))
+	damaged := []combatEscort{
+		{pilot: "Kira Rehn", shipType: "Interceptor", behavior: fleet.BehaviorAggressive, level: 3, hull: 45, maxHull: 100},
+		{pilot: "Maz Oort", shipType: "Corvette", behavior: fleet.BehaviorDefensive, level: 5, hull: 100, maxHull: 100},
+		{pilot: "Drex", shipType: "Gunship", behavior: fleet.BehaviorSupport, level: 7, hull: 20, maxHull: 100},
+	}
+	oneDown := []combatEscort{
+		{pilot: "Kira Rehn", shipType: "Interceptor", behavior: fleet.BehaviorAggressive, level: 3, hull: 45, maxHull: 100},
+		{pilot: "Maz Oort", shipType: "Corvette", behavior: fleet.BehaviorDefensive, level: 5, hull: 0, maxHull: 100, destroyed: true},
+		{pilot: "Drex", shipType: "Gunship", behavior: fleet.BehaviorSupport, level: 7, hull: 20, maxHull: 100},
+	}
+
+	t.Logf("full health (width=70):\n%s", renderEscortStrip(full, 70))
+	t.Logf("damaged (width=70):\n%s", renderEscortStrip(damaged, 70))
+	t.Logf("one destroyed — row shown until combat loop cleans it (width=70):\n%s", renderEscortStrip(oneDown, 70))
 }
 
 // ============================================================================
@@ -430,6 +444,231 @@ func TestApplyEscortActionsNilGuards(t *testing.T) {
 	}
 	if logs := applyEscortActions(acts, &combatShip{}, nil); logs != nil {
 		t.Errorf("nil enemy should return nil logs, got %v", logs)
+	}
+}
+
+// ============================================================================
+// P5B-3 tests: escort targeting + destruction
+// ============================================================================
+
+func escWithHull(behavior fleet.EscortBehavior, hull, maxHull int, destroyed bool) combatEscort {
+	return combatEscort{
+		id:        "test-" + string(behavior),
+		pilot:     "Test Pilot",
+		shipType:  "Corvette",
+		behavior:  behavior,
+		level:     5,
+		hull:      hull,
+		maxHull:   maxHull,
+		destroyed: destroyed,
+	}
+}
+
+func TestSelectEscortInterceptIndexNoEscorts(t *testing.T) {
+	// Roll extremely low — if the function didn't guard against the
+	// empty case, this test would panic on Intn(0).
+	if got := selectEscortInterceptIndex(nil, fixedRNG{f: 0.0}); got != -1 {
+		t.Fatalf("empty escorts should return -1, got %d", got)
+	}
+	if got := selectEscortInterceptIndex([]combatEscort{}, fixedRNG{f: 0.0}); got != -1 {
+		t.Fatalf("empty slice should return -1, got %d", got)
+	}
+}
+
+func TestSelectEscortInterceptIndexAllDestroyed(t *testing.T) {
+	escorts := []combatEscort{
+		escWithHull(fleet.BehaviorAggressive, 0, 100, true),
+		escWithHull(fleet.BehaviorDefensive, 0, 100, true),
+	}
+	if got := selectEscortInterceptIndex(escorts, fixedRNG{f: 0.0}); got != -1 {
+		t.Fatalf("all-destroyed fleet should return -1, got %d", got)
+	}
+}
+
+func TestSelectEscortInterceptIndexRollAboveThreshold(t *testing.T) {
+	escorts := []combatEscort{
+		escWithHull(fleet.BehaviorAggressive, 100, 100, false),
+	}
+	// 1 escort → 15% threshold. Roll 0.20 → player takes the hit.
+	if got := selectEscortInterceptIndex(escorts, fixedRNG{f: 0.20}); got != -1 {
+		t.Fatalf("roll above threshold should return -1, got %d", got)
+	}
+}
+
+func TestSelectEscortInterceptIndexRollBelowThreshold(t *testing.T) {
+	escorts := []combatEscort{
+		escWithHull(fleet.BehaviorAggressive, 100, 100, false),
+	}
+	// 1 escort → 15% threshold. Roll 0.10 → escort intercepts.
+	// fixedRNG.Intn always returns 0 → picks first alive escort.
+	if got := selectEscortInterceptIndex(escorts, fixedRNG{f: 0.10, i: 0}); got != 0 {
+		t.Fatalf("roll below threshold should intercept, got %d", got)
+	}
+}
+
+func TestSelectEscortInterceptIndexCapsAt60Percent(t *testing.T) {
+	// 6 escorts would be 90% naïvely, but cap is 60%. Roll 0.61 →
+	// player takes hit; roll 0.59 → escort intercepts.
+	escorts := make([]combatEscort, 6)
+	for i := range escorts {
+		escorts[i] = escWithHull(fleet.BehaviorAggressive, 100, 100, false)
+	}
+	if got := selectEscortInterceptIndex(escorts, fixedRNG{f: 0.61}); got != -1 {
+		t.Fatalf("roll above 60%% cap should return -1 with 6 escorts, got %d", got)
+	}
+	if got := selectEscortInterceptIndex(escorts, fixedRNG{f: 0.59, i: 2}); got != 2 {
+		t.Fatalf("roll below 60%% cap should intercept with 6 escorts, got %d", got)
+	}
+}
+
+func TestSelectEscortInterceptIndexSkipsDestroyed(t *testing.T) {
+	escorts := []combatEscort{
+		escWithHull(fleet.BehaviorAggressive, 0, 100, true),
+		escWithHull(fleet.BehaviorAggressive, 100, 100, false),
+		escWithHull(fleet.BehaviorAggressive, 0, 100, true),
+	}
+	// fixedRNG.Intn returns 0, but alive list is [1], so it must
+	// map back to index 1 in the original slice.
+	if got := selectEscortInterceptIndex(escorts, fixedRNG{f: 0.0, i: 0}); got != 1 {
+		t.Fatalf("expected interception at original index 1 (only alive), got %d", got)
+	}
+}
+
+func TestApplyEscortHit(t *testing.T) {
+	t.Run("hit reduces hull, not destroyed yet", func(t *testing.T) {
+		e := escWithHull(fleet.BehaviorAggressive, 50, 100, false)
+		msg, destroyed := applyEscortHit(&e, 30)
+		if destroyed {
+			t.Error("should not be destroyed yet")
+		}
+		if e.hull != 20 {
+			t.Errorf("hull: got %d, want 20", e.hull)
+		}
+		if e.destroyed {
+			t.Error("destroyed flag should not be set yet")
+		}
+		if !strings.Contains(msg, "intercepts") {
+			t.Errorf("log line should mention intercepts, got %q", msg)
+		}
+	})
+
+	t.Run("exact-kill hit marks destroyed", func(t *testing.T) {
+		e := escWithHull(fleet.BehaviorAggressive, 30, 100, false)
+		msg, destroyed := applyEscortHit(&e, 30)
+		if !destroyed {
+			t.Error("should be destroyed on exact-kill")
+		}
+		if e.hull != 0 {
+			t.Errorf("hull should clamp at 0, got %d", e.hull)
+		}
+		if !e.destroyed {
+			t.Error("destroyed flag should be set")
+		}
+		if !strings.Contains(msg, "destroyed") {
+			t.Errorf("log line should mention destroyed, got %q", msg)
+		}
+	})
+
+	t.Run("over-kill clamps at 0 and marks destroyed", func(t *testing.T) {
+		e := escWithHull(fleet.BehaviorAggressive, 10, 100, false)
+		_, destroyed := applyEscortHit(&e, 999)
+		if !destroyed {
+			t.Error("should be destroyed on over-kill")
+		}
+		if e.hull != 0 {
+			t.Errorf("hull should clamp at 0, got %d", e.hull)
+		}
+	})
+
+	t.Run("zero-damage hit is a no-op", func(t *testing.T) {
+		e := escWithHull(fleet.BehaviorAggressive, 50, 100, false)
+		msg, destroyed := applyEscortHit(&e, 0)
+		if destroyed {
+			t.Error("zero damage should not destroy")
+		}
+		if e.hull != 50 {
+			t.Errorf("hull should be unchanged, got %d", e.hull)
+		}
+		if msg != "" {
+			t.Errorf("zero damage should return empty log, got %q", msg)
+		}
+	})
+
+	t.Run("already-destroyed escort is a no-op", func(t *testing.T) {
+		e := escWithHull(fleet.BehaviorAggressive, 0, 100, true)
+		msg, destroyed := applyEscortHit(&e, 50)
+		if destroyed {
+			t.Error("already-destroyed should not re-destroy")
+		}
+		if msg != "" {
+			t.Errorf("already-destroyed should return empty log, got %q", msg)
+		}
+	})
+
+	t.Run("nil escort is a no-op", func(t *testing.T) {
+		msg, destroyed := applyEscortHit(nil, 50)
+		if destroyed {
+			t.Error("nil escort should not report destroyed")
+		}
+		if msg != "" {
+			t.Errorf("nil escort should return empty log, got %q", msg)
+		}
+	})
+}
+
+func TestRemoveDestroyedEscorts(t *testing.T) {
+	escorts := []combatEscort{
+		{pilot: "A", destroyed: false},
+		{pilot: "B", destroyed: true},
+		{pilot: "C", destroyed: false},
+		{pilot: "D", destroyed: true},
+	}
+	alive := removeDestroyedEscorts(escorts)
+	if len(alive) != 2 {
+		t.Fatalf("expected 2 alive escorts, got %d", len(alive))
+	}
+	if alive[0].pilot != "A" || alive[1].pilot != "C" {
+		t.Fatalf("expected [A, C], got [%s, %s]", alive[0].pilot, alive[1].pilot)
+	}
+
+	// Empty input returns empty (not nil — we always allocate).
+	if got := removeDestroyedEscorts(nil); got == nil || len(got) != 0 {
+		t.Errorf("nil input should return empty (not nil) slice, got %v", got)
+	}
+}
+
+func TestComputeEscortDamageBonusSkipsDestroyed(t *testing.T) {
+	escorts := []combatEscort{
+		escWithHull(fleet.BehaviorAggressive, 100, 100, false),
+		escWithHull(fleet.BehaviorAggressive, 0, 100, true), // destroyed — shouldn't count
+		escWithHull(fleet.BehaviorDefensive, 100, 100, false),
+	}
+	got := computeEscortDamageBonus(escorts)
+	// Alive: 1 aggressive (+0.10) + 1 defensive (+0.05) = 1.15
+	if diff := got - 1.15; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("destroyed escort should not contribute to bonus; got %v, want 1.15", got)
+	}
+}
+
+func TestCountSupportEscortsSkipsDestroyed(t *testing.T) {
+	escorts := []combatEscort{
+		escWithHull(fleet.BehaviorSupport, 100, 100, false),
+		escWithHull(fleet.BehaviorSupport, 0, 100, true), // destroyed
+		escWithHull(fleet.BehaviorSupport, 100, 100, false),
+	}
+	if got := countSupportEscorts(escorts); got != 2 {
+		t.Fatalf("destroyed support should not count; got %d, want 2", got)
+	}
+}
+
+func TestResolveEscortActionsSkipsDestroyed(t *testing.T) {
+	escorts := []combatEscort{
+		escWithHull(fleet.BehaviorAggressive, 0, 100, true), // destroyed
+		escWithHull(fleet.BehaviorAggressive, 100, 100, false),
+	}
+	acts := resolveEscortActions(escorts, fixedRNG{f: 0.0})
+	if len(acts) != 1 {
+		t.Fatalf("destroyed escort should not take a turn; got %d actions", len(acts))
 	}
 }
 

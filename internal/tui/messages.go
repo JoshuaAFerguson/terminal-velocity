@@ -22,17 +22,17 @@ type tradingEnhancedDataMsg struct {
 }
 
 type transactionCompleteMsg struct {
-	action       string // "buy" or "sell"
-	commodityID  string
-	quantity     int
-	newBalance   int64
-	err          error
+	action      string // "buy" or "sell"
+	commodityID string
+	quantity    int
+	newBalance  int64
+	err         error
 }
 
 // Shipyard messages
 // Note: shipyardLoadedMsg/shipPurchasedMsg already defined in shipyard.go (old screen)
 // Use shipyardEnhancedDataMsg for enhanced screens
-type shipyardEnhancedDataMsg struct{
+type shipyardEnhancedDataMsg struct {
 	ships       []*models.ShipType
 	currentShip *models.Ship
 	err         error
@@ -70,10 +70,10 @@ type questActionMsg struct {
 }
 
 type questProgressMsg struct {
-	questID      uuid.UUID
-	objectiveID  string
-	completed    bool
-	err          error
+	questID     uuid.UUID
+	objectiveID string
+	completed   bool
+	err         error
 }
 
 // Navigation/System messages.
@@ -94,14 +94,14 @@ type combatInitMsg struct {
 }
 
 type combatActionMsg struct {
-	actionType  string // "fire", "evade", "defend", "hail"
-	weaponSlot  int
-	hit         bool
-	damage      int
-	logMessage  string
-	combatOver  bool
-	victory     bool
-	err         error
+	actionType string // "fire", "evade", "defend", "hail"
+	weaponSlot int
+	hit        bool
+	damage     int
+	logMessage string
+	combatOver bool
+	victory    bool
+	err        error
 }
 
 type enemyTurnMsg struct {
@@ -111,6 +111,14 @@ type enemyTurnMsg struct {
 	logMessage string
 	combatOver bool
 	err        error
+
+	// P5B-3: tells the enemyTurnMsg handler who actually takes the
+	// hit. targetEscortIndex == -1 means the player ship; anything
+	// else means the escort at that index in playerEscorts. Added so
+	// damage mutation lives in the handler (applied to the live
+	// model) rather than inside the tea.Cmd closure (which mutates a
+	// copy that's discarded — the pre-existing bug this fixes).
+	targetEscortIndex int
 }
 
 type combatEndMsg struct {
@@ -151,10 +159,10 @@ type equipmentActionMsg struct {
 }
 
 type loadoutActionMsg struct {
-	action     string // "save", "load", "delete", "clone"
-	loadoutID  uuid.UUID
+	action      string // "save", "load", "delete", "clone"
+	loadoutID   uuid.UUID
 	loadoutName string
-	err        error
+	err         error
 }
 
 // Space View messages

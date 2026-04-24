@@ -709,72 +709,73 @@ func (m Model) collectCombatLootCmd() tea.Cmd {
 	}
 }
 
-// processAITurnCmd processes the AI enemy's turn
+// processAITurnCmd processes the AI enemy's turn.
+//
+// Action choice + hit roll + targeting happen here, but damage
+// application is handled in the enemyTurnMsg handler. Previously the
+// mutations in this closure operated on a copy of m and were
+// silently discarded (fixed in P5B-3 along with escort targeting).
 func (m Model) processAITurnCmd() tea.Cmd {
+	// Snapshot the values the closure needs — the closure runs
+	// asynchronously, so reading m.combatEnhanced there would race
+	// with subsequent turn handling.
+	escorts := append([]combatEscort(nil), m.combatEnhanced.playerEscorts...)
+
 	return func() tea.Msg {
 		// Simple AI: randomly choose an action
 		action := rand.Intn(3) // 0=fire, 1=evade, 2=defend
 
-		var logMsg string
-		hit := false
-		damage := 0
-		combatOver := false
-
 		switch action {
-		case 0: // Fire weapon
-			if len(m.combatEnhanced.enemyShip.weapons) > 0 {
-				weapon := m.combatEnhanced.enemyShip.weapons[0]
-
-				// Random hit chance
-				hit = rand.Float64() < 0.65 // 65% hit chance for enemy
-
-				if hit {
-					damage = weapon.damage
-					logMsg = fmt.Sprintf("Enemy fires %s - HIT for %d damage!", weapon.name, damage)
-
-					// Apply damage to player (shields first, then hull)
-					if m.combatEnhanced.playerShip.shields > 0 {
-						if m.combatEnhanced.playerShip.shields >= damage {
-							m.combatEnhanced.playerShip.shields -= damage
-						} else {
-							remainingDamage := damage - m.combatEnhanced.playerShip.shields
-							m.combatEnhanced.playerShip.shields = 0
-							m.combatEnhanced.playerShip.hull -= remainingDamage
-							if m.combatEnhanced.playerShip.hull < 0 {
-								m.combatEnhanced.playerShip.hull = 0
-							}
-						}
-					} else {
-						m.combatEnhanced.playerShip.hull -= damage
-						if m.combatEnhanced.playerShip.hull < 0 {
-							m.combatEnhanced.playerShip.hull = 0
-						}
-					}
-
-					// Check if player is destroyed
-					combatOver = m.combatEnhanced.playerShip.hull <= 0
-				} else {
-					logMsg = fmt.Sprintf("Enemy fires %s - MISS!", weapon.name)
-				}
+		case 1: // Evade — no damage, no target
+			return enemyTurnMsg{
+				action:            "evade",
+				logMessage:        "Enemy performs evasive maneuvers!",
+				targetEscortIndex: -1,
 			}
-
-		case 1: // Evade
-			logMsg = "Enemy performs evasive maneuvers!"
-
-		case 2: // Defend
-			logMsg = "Enemy boosts their shields!"
-			m.combatEnhanced.enemyShip.shields += 10
-			if m.combatEnhanced.enemyShip.shields > 100 {
-				m.combatEnhanced.enemyShip.shields = 100
+		case 2: // Defend — enemy shield boost, logged here but applied in handler
+			return enemyTurnMsg{
+				action:            "defend",
+				logMessage:        "Enemy boosts their shields!",
+				targetEscortIndex: -1,
 			}
 		}
 
+		// Fire weapon path
+		if len(m.combatEnhanced.enemyShip.weapons) == 0 {
+			return enemyTurnMsg{action: "attack", targetEscortIndex: -1}
+		}
+		weapon := m.combatEnhanced.enemyShip.weapons[0]
+		hit := rand.Float64() < 0.65 // 65% enemy hit chance
+
+		if !hit {
+			return enemyTurnMsg{
+				action:            "attack",
+				hit:               false,
+				logMessage:        fmt.Sprintf("Enemy fires %s - MISS!", weapon.name),
+				targetEscortIndex: -1,
+			}
+		}
+
+		// Hit lands — decide whether an escort intercepts.
+		rng := defaultEscortRNG()
+		targetIdx := selectEscortInterceptIndex(escorts, rng)
+
+		var logMsg string
+		if targetIdx < 0 {
+			logMsg = fmt.Sprintf("Enemy fires %s - HIT for %d damage!", weapon.name, weapon.damage)
+		} else {
+			// Initial log line only — the handler appends the
+			// escort's per-hit line ("X intercepts…" / "X destroyed")
+			// when it applies damage, so we don't double-log.
+			logMsg = fmt.Sprintf("Enemy fires %s - HIT!", weapon.name)
+		}
+
 		return enemyTurnMsg{
-			action:     "attack",
-			hit:        hit,
-			damage:     damage,
-			logMessage: logMsg,
-			combatOver: combatOver,
+			action:            "attack",
+			hit:               true,
+			damage:            weapon.damage,
+			logMessage:        logMsg,
+			targetEscortIndex: targetIdx,
 		}
 	}
 }
@@ -994,20 +995,73 @@ func (m Model) updateCombatEnhanced(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.errorMessage = msg.err.Error()
 			m.showErrorDialog = true
-		} else {
-			// Add to combat log
+			return m, nil
+		}
+		// Append the primary action line (fire/hit/miss/evade/defend).
+		if msg.logMessage != "" {
 			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog, "> "+msg.logMessage)
+		}
 
-			// Check if combat is over (player defeated)
-			if msg.combatOver {
-				m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
-					"> YOUR SHIP IS DESTROYED! Defeat!")
-				m.combatEnhanced.combatPhase = "defeat"
-				m.screen = ScreenMainMenu
-			} else {
-				// Return to player turn
-				m.combatEnhanced.isPlayerTurn = true
+		// Apply the side-effect of the chosen action to the live
+		// model. These used to run inside processAITurnCmd, but that
+		// closure mutated a copy that never made it back to the
+		// caller — fixed in P5B-3 as a prerequisite for escort
+		// interception actually persisting.
+		playerDestroyed := false
+		var destroyedEscortIDs []string
+		switch msg.action {
+		case "defend":
+			m.combatEnhanced.enemyShip.shields += 10
+			if m.combatEnhanced.enemyShip.shields > 100 {
+				m.combatEnhanced.enemyShip.shields = 100
 			}
+		case "attack":
+			if msg.hit && msg.damage > 0 {
+				if msg.targetEscortIndex >= 0 && msg.targetEscortIndex < len(m.combatEnhanced.playerEscorts) {
+					// Escort intercepts the shot.
+					line, destroyed := applyEscortHit(&m.combatEnhanced.playerEscorts[msg.targetEscortIndex], msg.damage)
+					if line != "" {
+						m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog, "> "+line)
+					}
+					if destroyed {
+						destroyedEscortIDs = append(destroyedEscortIDs,
+							m.combatEnhanced.playerEscorts[msg.targetEscortIndex].id)
+					}
+				} else {
+					// Player ship takes the hit directly.
+					applyShipDamage(&m.combatEnhanced.playerShip, msg.damage)
+					if m.combatEnhanced.playerShip.hull <= 0 {
+						playerDestroyed = true
+					}
+				}
+			}
+		}
+
+		// Persist escort destructions to the fleet manager so the
+		// loss survives leaving combat. DismissEscort writes through
+		// to the DB; we pass context.Background() because combat is
+		// not latency-sensitive at this point and we've already
+		// committed to the state change locally.
+		if len(destroyedEscortIDs) > 0 && m.fleetManager != nil {
+			for _, idStr := range destroyedEscortIDs {
+				if escortID, err := uuid.Parse(idStr); err == nil {
+					_ = m.fleetManager.DismissEscort(context.Background(), m.playerID, escortID)
+				}
+			}
+			// Clear destroyed escorts from the combat view at the
+			// end of the enemy turn so the player sees the "X
+			// destroyed!" log before the row disappears.
+			m.combatEnhanced.playerEscorts = removeDestroyedEscorts(m.combatEnhanced.playerEscorts)
+		}
+
+		if playerDestroyed {
+			m.combatEnhanced.combatLog = append(m.combatEnhanced.combatLog,
+				"> YOUR SHIP IS DESTROYED! Defeat!")
+			m.combatEnhanced.combatPhase = "defeat"
+			m.screen = ScreenMainMenu
+		} else {
+			// Return to player turn
+			m.combatEnhanced.isPlayerTurn = true
 		}
 		return m, nil
 
