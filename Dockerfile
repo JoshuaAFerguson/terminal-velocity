@@ -33,19 +33,17 @@ ARG TARGETARCH
 # Build the application. Bash-style ${VAR:+value} substitution only
 # emits the GOOS=/GOARCH= prefix when the arg is non-empty, so Go
 # falls back to its native target on a plain `docker build` while
-# still respecting buildx's cross-compile args.
-RUN CGO_ENABLED=0 \
-    ${TARGETOS:+GOOS=${TARGETOS}} \
-    ${TARGETARCH:+GOARCH=${TARGETARCH}} \
+# still respecting buildx's cross-compile args. Wrapped in `env` so
+# the line-continuation syntax stays valid under POSIX sh (ash in
+# alpine) — inline env-var prefixes can't be split with `\` newlines.
+RUN env CGO_ENABLED=0 ${TARGETOS:+GOOS=${TARGETOS}} ${TARGETARCH:+GOARCH=${TARGETARCH}} \
     go build \
     -ldflags="-w -s -X main.version=${VERSION:-dev} -X main.commit=${COMMIT:-unknown} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -o terminal-velocity \
     cmd/server/main.go
 
 # Build genmap tool
-RUN CGO_ENABLED=0 \
-    ${TARGETOS:+GOOS=${TARGETOS}} \
-    ${TARGETARCH:+GOARCH=${TARGETARCH}} \
+RUN env CGO_ENABLED=0 ${TARGETOS:+GOOS=${TARGETOS}} ${TARGETARCH:+GOARCH=${TARGETARCH}} \
     go build \
     -ldflags="-w -s" \
     -o genmap \
