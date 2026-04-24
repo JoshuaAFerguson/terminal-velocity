@@ -15,6 +15,7 @@
 package npcterritory
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -22,8 +23,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 )
+
+var log = logger.WithComponent("NPCTerritory")
 
 // Sentinel errors — callers `errors.Is` against these to branch on
 // specific failure modes rather than string-matching.
@@ -38,6 +42,19 @@ var (
 type NewsBus interface {
 	AddArticle(*models.NewsArticle)
 }
+
+// OwnershipPersister is the write-through hook for persisting
+// ownership changes. Called on every flip so a server restart
+// preserves the political map. Production wires a simple adapter
+// around database.NPCTerritoryRepository.UpsertOwnership; tests
+// pass nil for no persistence or an in-memory recorder for
+// assertions.
+//
+// Errors are logged but do not roll back the in-memory flip — a
+// transient DB hiccup shouldn't undo a war resolution, it should
+// just mean the next restart recovers to the pre-flip state and a
+// later war can re-flip it.
+type OwnershipPersister func(ctx context.Context, systemName, factionID string) error
 
 // FlipRecord captures one ownership change. Returned from
 // ResolveWarTerritory so callers (the factionwar manager, primarily)
@@ -89,7 +106,14 @@ type Manager struct {
 	contributions map[string]map[string]int64
 
 	newsBus NewsBus
-	now     func() time.Time // seam for deterministic tests
+
+	// P5D-3: write-through DB persistence. nil when no
+	// persistence is wired (tests; standalone servers with
+	// no DB). Called with the ORIGINAL-CASE system name so the
+	// row's user-facing display stays stable across restarts.
+	persister OwnershipPersister
+
+	now func() time.Time // seam for deterministic tests
 }
 
 // NewManager constructs a Manager. newsBus may be nil — callers that
@@ -104,6 +128,50 @@ func NewManager(newsBus NewsBus) *Manager {
 		contributions:    make(map[string]map[string]int64),
 		newsBus:          newsBus,
 		now:              time.Now,
+	}
+}
+
+// SetPersister wires the write-through persistence hook. Call at
+// server startup, before the first flip — it's not synchronized
+// against concurrent TransferSystem/ResolveWarTerritory.
+func (m *Manager) SetPersister(p OwnershipPersister) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.persister = p
+}
+
+// RestoreOwnership applies a list of persisted overrides on top of
+// the Seed()-populated defaults. Call this AFTER Seed() so that a
+// war-captured system recorded in the DB overrides its static
+// CoreSystems entry.
+//
+// Unknown factions are logged and skipped (can happen if the static
+// faction list was trimmed between server versions — we don't want
+// a bad DB row to crash startup). The system_name original casing
+// is whatever the DB had at write time; if that system isn't in
+// the seed list, it's added with that casing.
+func (m *Manager) RestoreOwnership(overrides map[string]string) {
+	if m == nil || len(overrides) == 0 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for sysName, factionID := range overrides {
+		key := normalize(sysName)
+		if key == "" {
+			continue
+		}
+		if _, known := m.factionName[factionID]; !known {
+			log.Warn("RestoreOwnership: skipping unknown faction %q for system %q", factionID, sysName)
+			continue
+		}
+		m.ownerBySystem[key] = factionID
+		// Persist the original casing from the DB row (preserves
+		// whatever the seed had, or the casing from a later flip).
+		if _, kept := m.originalCase[key]; !kept {
+			m.originalCase[key] = sysName
+		}
 	}
 }
 
@@ -256,6 +324,7 @@ func (m *Manager) TransferSystem(systemName, newFactionID string) (*FlipRecord, 
 	// systems frustrating to re-contest.
 	delete(m.contributions, key)
 
+	m.persistOwnershipLocked(rec.SystemName, newFactionID)
 	m.emitFlipNews(rec)
 	return rec, nil
 }
@@ -300,6 +369,7 @@ func (m *Manager) ResolveWarTerritory(zoneSystems []string, loserID, winnerID st
 		}
 		m.ownerBySystem[key] = winnerID
 		delete(m.contributions, key) // fresh slate under new owner
+		m.persistOwnershipLocked(rec.SystemName, winnerID)
 		m.emitFlipNews(rec)
 		flips = append(flips, rec)
 	}
@@ -450,6 +520,26 @@ func (m *Manager) SystemContributions(systemName string) map[string]int64 {
 
 func normalize(systemName string) string {
 	return strings.ToLower(strings.TrimSpace(systemName))
+}
+
+// persistOwnershipLocked fires the persister hook if configured.
+// Called while m.mu is held in write mode (by the caller); errors
+// are logged, not returned, because a transient DB blip shouldn't
+// roll back an in-memory flip — the worst case is the next
+// restart recovers to the pre-flip state, which is still consistent.
+//
+// 5-second timeout keeps the write bounded even on a degraded DB;
+// beyond that the flip is orphaned in memory (acceptable given
+// wars are infrequent and this handler runs under lock).
+func (m *Manager) persistOwnershipLocked(systemName, factionID string) {
+	if m.persister == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := m.persister(ctx, systemName, factionID); err != nil {
+		log.Warn("persist ownership %s → %s: %v", systemName, factionID, err)
+	}
 }
 
 func (m *Manager) emitFlipNews(rec *FlipRecord) {

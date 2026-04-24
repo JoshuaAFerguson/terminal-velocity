@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5D-3 territory persistence, closes P5D block)
+- **NPC territory ownership now survives server restarts.** A war-
+  captured system that flipped from UEF to Crimson on Monday stays
+  Crimson on Tuesday morning rather than regenerating to its static
+  seed value.
+  - New `npc_territory` table: `(system_name TEXT PRIMARY KEY,
+    faction_id TEXT NOT NULL, updated_at TIMESTAMP)` with a
+    `faction_id` index for the territory-map "Who owns what"
+    queries. Rows are added lazily — only systems whose ownership
+    has actually been recorded get a row, which keeps the table
+    small against the 100-system universe.
+  - `database.NPCTerritoryRepository` with `UpsertOwnership` (idempotent
+    `ON CONFLICT` upsert) and `LoadAll` (full-table scan for
+    restart recovery). Parameterized queries; no string concat.
+  - `npcterritory.OwnershipPersister` callback on the manager.
+    Wired from the server via a one-line adapter. Fires on every
+    mutation path (`TransferSystem`, `ResolveWarTerritory`) so
+    both admin-driven flips and war-resolution flips persist.
+  - `npcterritory.RestoreOwnership(overrides)` applies persisted
+    rows on top of the `Seed()`-populated defaults. Server calls
+    it AFTER seeding so DB rows override static `CoreSystems`
+    entries, which is how captured systems survive restart.
+- **Failure mode: DB errors don't roll back in-memory flips.** A
+  transient persist failure logs a warning and leaves the
+  in-memory state advanced — better to show the correct post-war
+  galaxy and re-sync on next restart than to resurrect the old
+  owner and create a ghost state. 5-second context timeout keeps
+  the write bounded even on a degraded DB.
+- **Unknown factions on restore are logged and skipped**, so a
+  stale DB row (faction removed / renamed between builds) doesn't
+  crash startup.
+- **Idempotent flips don't hit the DB.** `TransferSystem` to the
+  current owner is a no-op; no ghost persist call. Verified by
+  test.
+- **9 new subtests**: persister fires on transfer, does NOT fire
+  on idempotent same-owner transfer, fires per-flip on war
+  resolution (respecting the loser-only filter so UEF-owned
+  systems persist but ROM third-party systems don't), DB errors
+  don't roll back in-memory flip, restore overrides seed,
+  restore skips unknown factions, restore is a no-op on empty /
+  nil inputs, restore on nil manager is safe, restore can add
+  systems that weren't in the static seed (supports data
+  evolution across versions). Coverage: npcterritory 93.3%.
+
 ### Added (2026-04-24 - P5D-2 contributions + territory map UI)
 - **Player contribution tracking on npcterritory.** Mission,
   combat, and admin hooks can call

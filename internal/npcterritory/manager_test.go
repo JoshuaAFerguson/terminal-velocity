@@ -9,6 +9,7 @@
 package npcterritory
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -465,6 +466,172 @@ func TestSystemContributionsSnapshot(t *testing.T) {
 	snap["uef"] = 9999
 	if got := m.ContributionFor("Sol", "uef"); got != 10 {
 		t.Errorf("snapshot leaked mutation: got %d, want 10", got)
+	}
+}
+
+// ============================================================================
+// P5D-3 persistence
+// ============================================================================
+
+// fakePersister records every upsert call. Order matters for the
+// transfer vs. war-resolve tests, so we keep the full sequence
+// rather than a map.
+type persistCall struct {
+	system  string
+	faction string
+}
+
+type fakePersister struct {
+	mu    sync.Mutex
+	calls []persistCall
+	err   error // set non-nil to simulate DB failure
+}
+
+func (p *fakePersister) hook(ctx context.Context, systemName, factionID string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls = append(p.calls, persistCall{system: systemName, faction: factionID})
+	return p.err
+}
+
+func (p *fakePersister) snapshot() []persistCall {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]persistCall, len(p.calls))
+	copy(out, p.calls)
+	return out
+}
+
+func TestPersisterFiresOnTransfer(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	p := &fakePersister{}
+	m.SetPersister(p.hook)
+
+	if _, err := m.TransferSystem("Sol", "crimson"); err != nil {
+		t.Fatalf("TransferSystem: %v", err)
+	}
+	calls := p.snapshot()
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 persist call, got %d", len(calls))
+	}
+	if calls[0].system != "Sol" || calls[0].faction != "crimson" {
+		t.Errorf("call: got %+v, want {Sol, crimson}", calls[0])
+	}
+}
+
+func TestPersisterDoesNotFireOnIdempotentTransfer(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	p := &fakePersister{}
+	m.SetPersister(p.hook)
+
+	// Transfer Sol to its current owner (uef) — no-op path should
+	// NOT hit the DB.
+	_, _ = m.TransferSystem("Sol", "uef")
+	if got := len(p.snapshot()); got != 0 {
+		t.Errorf("idempotent transfer should skip persister, got %d calls", got)
+	}
+}
+
+func TestPersisterFiresPerFlipOnResolveWarTerritory(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	p := &fakePersister{}
+	m.SetPersister(p.hook)
+
+	// UEF owns Sol + Alpha Centauri; war zone includes both plus
+	// Procyon (ROM) and Wolf 359 (Crimson). Only UEF-owned
+	// systems should persist.
+	zones := []string{"Sol", "Alpha Centauri", "Wolf 359", "Procyon"}
+	m.ResolveWarTerritory(zones, "uef", "crimson")
+
+	calls := p.snapshot()
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 persist calls (UEF-owned flips), got %d", len(calls))
+	}
+	for _, c := range calls {
+		if c.faction != "crimson" {
+			t.Errorf("flip should target winner crimson, got %+v", c)
+		}
+	}
+}
+
+func TestPersisterErrorDoesNotRollbackFlip(t *testing.T) {
+	// A DB hiccup must not undo the in-memory flip. Better to show
+	// the player the new owner and re-sync on next restart than to
+	// resurrect the old one and create ghost states.
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	p := &fakePersister{err: errors.New("simulated DB failure")}
+	m.SetPersister(p.hook)
+
+	rec, err := m.TransferSystem("Sol", "crimson")
+	if err != nil {
+		t.Fatalf("persister error should not surface as transfer error: %v", err)
+	}
+	if rec == nil {
+		t.Fatal("flip should still succeed despite persister error")
+	}
+	if owner, _ := m.GetOwner("Sol"); owner != "crimson" {
+		t.Errorf("in-memory flip rolled back on persister error: got %q", owner)
+	}
+}
+
+func TestRestoreOwnershipOverridesSeed(t *testing.T) {
+	// Startup sequence: Seed(static), then RestoreOwnership(DB).
+	// The persisted row should win for any system it covers.
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	// Persisted history says Crimson captured Sol on a previous run.
+	m.RestoreOwnership(map[string]string{"Sol": "crimson"})
+
+	if owner, _ := m.GetOwner("Sol"); owner != "crimson" {
+		t.Errorf("restore should override seed: got %q, want crimson", owner)
+	}
+	// Non-restored systems keep their seed values.
+	if owner, _ := m.GetOwner("Alpha Centauri"); owner != "uef" {
+		t.Errorf("seed preserved for non-restored: got %q", owner)
+	}
+}
+
+func TestRestoreOwnershipSkipsUnknownFaction(t *testing.T) {
+	// If the persisted row references a faction the current build
+	// no longer knows (faction removed / renamed), skip rather
+	// than crash.
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.RestoreOwnership(map[string]string{"Sol": "ghost_faction"})
+	// Sol keeps its seed value.
+	if owner, _ := m.GetOwner("Sol"); owner != "uef" {
+		t.Errorf("unknown faction should be skipped: got %q, want uef", owner)
+	}
+}
+
+func TestRestoreOwnershipEmptyIsNoop(t *testing.T) {
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.RestoreOwnership(nil)                 // must not panic
+	m.RestoreOwnership(map[string]string{}) // also must not panic
+	if owner, _ := m.GetOwner("Sol"); owner != "uef" {
+		t.Errorf("empty restore should leave seed intact, got %q", owner)
+	}
+}
+
+func TestRestoreOwnershipNilManagerSafe(t *testing.T) {
+	var m *Manager
+	m.RestoreOwnership(map[string]string{"Sol": "uef"}) // must not panic
+}
+
+func TestRestoreOwnershipAddsNewSystem(t *testing.T) {
+	// A system captured in a previous run but not in anyone's
+	// CoreSystems at seed time should still appear as owned after
+	// restore. (Happens if the system list evolves.)
+	m := NewManager(nil)
+	m.Seed(testFactions())
+	m.RestoreOwnership(map[string]string{"Vega": "uef"})
+	if owner, _ := m.GetOwner("Vega"); owner != "uef" {
+		t.Errorf("unseeded system should be addable via restore: got %q", owner)
 	}
 }
 

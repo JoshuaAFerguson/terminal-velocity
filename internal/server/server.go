@@ -376,6 +376,28 @@ func (s *Server) initDatabase() error {
 	// articles, so factionwar doesn't need to re-log them.
 	s.npcTerritoryManager = npcterritory.NewManager(s.newsManager)
 	s.npcTerritoryManager.Seed(models.StandardNPCFactions)
+	// P5D-3: persistence. Write-through on every flip via the
+	// persister hook; restore persisted overrides AFTER seed so
+	// war-captured systems survive restart. DB errors on restore
+	// are logged but don't block startup — worst case the galaxy
+	// regenerates to its static seed state.
+	npcTerritoryRepo := database.NewNPCTerritoryRepository(s.db)
+	s.npcTerritoryManager.SetPersister(func(ctx context.Context, systemName, factionID string) error {
+		return npcTerritoryRepo.UpsertOwnership(ctx, &database.NPCTerritoryRow{
+			SystemName: systemName,
+			FactionID:  factionID,
+		})
+	})
+	if rows, err := npcTerritoryRepo.LoadAll(context.Background()); err != nil {
+		log.Warn("load npc territory: %v — continuing with seed state", err)
+	} else if len(rows) > 0 {
+		overrides := make(map[string]string, len(rows))
+		for _, r := range rows {
+			overrides[r.SystemName] = r.FactionID
+		}
+		s.npcTerritoryManager.RestoreOwnership(overrides)
+		log.Info("NPC territory: restored %d persisted system(s)", len(rows))
+	}
 	s.factionWarManager.SetTerritoryHook(func(zones []string, loserID, winnerID string) {
 		s.npcTerritoryManager.ResolveWarTerritory(zones, loserID, winnerID)
 	})

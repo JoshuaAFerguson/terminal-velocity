@@ -167,6 +167,20 @@ CREATE INDEX IF NOT EXISTS idx_marketplace_auctions_status ON marketplace_auctio
 CREATE INDEX IF NOT EXISTS idx_marketplace_auctions_seller ON marketplace_auctions(seller_id);
 CREATE INDEX IF NOT EXISTS idx_marketplace_auctions_end ON marketplace_auctions(end_time);
 
+-- NPC faction territory ownership (P5D-3). Seeded from
+-- StandardNPCFactions.CoreSystems on first boot, then mutated
+-- by the faction-war lifecycle as systems are captured. Rows
+-- are added lazily: a system only gets a row once its ownership
+-- is explicitly changed OR it's first loaded into memory at
+-- startup. The manager treats "row absent" as "use the static
+-- seed value" on first boot.
+CREATE TABLE IF NOT EXISTS npc_territory (
+    system_name TEXT PRIMARY KEY,
+    faction_id TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_npc_territory_faction ON npc_territory(faction_id);
+
 -- Star systems
 CREATE TABLE IF NOT EXISTS star_systems (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
