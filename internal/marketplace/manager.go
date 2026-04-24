@@ -41,6 +41,11 @@ type Manager struct {
 	onContractClaimed func(contract *Contract)
 	onBountyClaimed   func(bounty *Bounty)
 
+	// Optional persister — when set, CreateAuction / bid updates /
+	// state transitions fire a save so the auction survives server
+	// restart. Nil means in-memory-only (current pre-5A.2 behaviour).
+	persister AuctionPersister
+
 	// Background workers
 	stopChan chan struct{}
 	wg       sync.WaitGroup
@@ -87,6 +92,51 @@ func DefaultMarketplaceConfig() MarketplaceConfig {
 		MaxBountiesPerPlayer:   5,
 		BountyClaimWindow:      5 * time.Minute,
 	}
+}
+
+// AuctionPersister lets the marketplace Manager save auctions to a
+// backing store (e.g., a database) without importing the database
+// package directly. Implementations live in internal/database and
+// are wired in by Server.
+type AuctionPersister interface {
+	// SaveAuction writes a full snapshot of the auction state. Called on
+	// create, bid, buyout, cancel, expire — anywhere the in-memory
+	// auction mutates.
+	SaveAuction(a *Auction) error
+}
+
+// SetAuctionPersister attaches a persister so subsequent mutations
+// also write to the backing store. Safe to call before or after
+// Start(); nil resets to in-memory-only mode.
+func (m *Manager) SetAuctionPersister(p AuctionPersister) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.persister = p
+}
+
+// LoadAuctions seeds the in-memory map from a slice of previously-
+// persisted auctions (typically called once at server startup with
+// the result of AuctionPersister's load method). Existing in-memory
+// auctions with the same ID are overwritten.
+func (m *Manager) LoadAuctions(auctions []*Auction) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, a := range auctions {
+		if a != nil {
+			m.auctions[a.ID] = a
+		}
+	}
+}
+
+// saveAuction is a fire-and-forget persist helper. Holds no lock; the
+// caller must already hold m.mu or have just released it. Errors are
+// silently swallowed — the auction's in-memory state is the authority,
+// and persistence catches up on the next write.
+func (m *Manager) saveAuction(a *Auction) {
+	if m.persister == nil || a == nil {
+		return
+	}
+	_ = m.persister.SaveAuction(a)
 }
 
 // NewManager creates a new marketplace manager
@@ -211,6 +261,9 @@ func (m *Manager) CreateAuction(ctx context.Context, sellerID uuid.UUID, sellerN
 	m.auctions[auction.ID] = auction
 	m.mu.Unlock()
 
+	// Persist outside the lock so a slow DB doesn't stall the manager.
+	m.saveAuction(auction)
+
 	log.Info("Auction created: seller=%s, item=%s, duration=%v", sellerName, itemName, duration)
 	return auction, nil
 }
@@ -282,6 +335,10 @@ func (m *Manager) PlaceBid(ctx context.Context, auctionID uuid.UUID, bidderID uu
 		Timestamp:  time.Now(),
 	})
 
+	// Persist new high-bid state. Bid history itself stays in-memory
+	// for beta; a Phase 5B follow-up can add a marketplace_bids table.
+	m.saveAuction(auction)
+
 	log.Info("Bid placed: auction=%s, bidder=%s, amount=%d", auction.ItemName, bidderName, amount)
 	return nil
 }
@@ -341,6 +398,10 @@ func (m *Manager) Buyout(ctx context.Context, auctionID uuid.UUID, buyerID uuid.
 	auction.CurrentBid = auction.BuyoutPrice
 	auction.HighBidder = buyerID
 
+	// Persist the final state so reloading doesn't see the auction
+	// as still-active after restart.
+	m.saveAuction(auction)
+
 	log.Info("Auction buyout: auction=%s, buyer=%s, price=%d", auction.ItemName, buyer.Username, auction.BuyoutPrice)
 
 	// Trigger callback
@@ -374,6 +435,7 @@ func (m *Manager) CancelAuction(ctx context.Context, auctionID uuid.UUID, player
 	}
 
 	auction.Status = "cancelled"
+	m.saveAuction(auction)
 	log.Info("Auction cancelled: auction=%s, seller=%s", auction.ItemName, auction.SellerName)
 	return nil
 }
@@ -821,6 +883,10 @@ func (m *Manager) processExpiries() {
 				auction.Status = "expired"
 				log.Info("Auction expired: item=%s (no bids)", auction.ItemName)
 			}
+			// Persist the terminal state so the restart-loader doesn't
+			// bring this auction back as active. saveAuction is a no-op
+			// when the persister is unset (legacy in-memory mode).
+			m.saveAuction(auction)
 		}
 	}
 

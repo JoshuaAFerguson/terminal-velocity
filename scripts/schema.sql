@@ -142,6 +142,31 @@ CREATE TABLE IF NOT EXISTS player_achievements (
 );
 CREATE INDEX IF NOT EXISTS idx_player_achievements_player ON player_achievements(player_id);
 
+-- Marketplace auctions (player-to-player trading listings)
+-- bids are kept in-memory-only for beta; auctions persist so a server
+-- restart doesn't drop every active listing mid-sale.
+CREATE TABLE IF NOT EXISTS marketplace_auctions (
+    id UUID PRIMARY KEY,
+    seller_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    seller_name VARCHAR(32) NOT NULL,
+    auction_type VARCHAR(32) NOT NULL,
+    item_id UUID,
+    item_name VARCHAR(120) NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    description TEXT,
+    starting_bid BIGINT NOT NULL,
+    buyout_price BIGINT NOT NULL DEFAULT 0,
+    current_bid BIGINT NOT NULL DEFAULT 0,
+    high_bidder UUID,
+    high_bidder_name VARCHAR(32),
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active'
+);
+CREATE INDEX IF NOT EXISTS idx_marketplace_auctions_status ON marketplace_auctions(status);
+CREATE INDEX IF NOT EXISTS idx_marketplace_auctions_seller ON marketplace_auctions(seller_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_auctions_end ON marketplace_auctions(end_time);
+
 -- Star systems
 CREATE TABLE IF NOT EXISTS star_systems (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

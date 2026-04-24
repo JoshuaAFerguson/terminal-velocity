@@ -58,6 +58,10 @@ type Server struct {
 	socialRepo    *database.SocialRepository
 	itemRepo        *database.ItemRepository
 	achievementRepo *database.AchievementRepository
+	// Persists marketplace_auctions so listings survive restart.
+	// marketplace.Manager itself stays in-memory-shaped; this repo is
+	// the "save on state change" layer.
+	marketplaceRepo *database.MarketplaceRepository
 	metricsServer *metrics.Server
 	rateLimiter   *ratelimit.Limiter
 
@@ -317,6 +321,7 @@ func (s *Server) initDatabase() error {
 	s.socialRepo = database.NewSocialRepository(s.db)
 	s.itemRepo = database.NewItemRepository(s.db)
 	s.achievementRepo = database.NewAchievementRepository(s.db)
+	s.marketplaceRepo = database.NewMarketplaceRepository(s.db)
 
 	// Initialize managers
 	log.Debug("Initializing game managers")
@@ -325,6 +330,21 @@ func (s *Server) initDatabase() error {
 	s.notificationsManager = notifications.NewManager(s.socialRepo)
 	s.friendsManager = friends.NewManager(s.socialRepo)
 	s.marketplaceManager = marketplace.NewManager(s.playerRepo, s.shipRepo)
+	// Wire auction persistence: save on mutation + restore active
+	// listings at startup so server restart doesn't drop mid-sale
+	// auctions. Bids are still in-memory for beta; their high-bid
+	// state is captured on each PlaceBid call through this adapter.
+	s.marketplaceManager.SetAuctionPersister(newAuctionPersister(s.marketplaceRepo))
+	if rows, err := s.marketplaceRepo.LoadActiveAuctions(context.Background()); err == nil {
+		auctions := make([]*marketplace.Auction, 0, len(rows))
+		for _, r := range rows {
+			auctions = append(auctions, auctionRowToModel(r))
+		}
+		s.marketplaceManager.LoadAuctions(auctions)
+		log.Info("Marketplace: restored %d active auction(s) from DB", len(auctions))
+	} else {
+		log.Warn("Marketplace: failed to load auctions on startup: %v", err)
+	}
 	s.newsManager = news.NewManager()
 	// Seed the feed so fresh deploys don't greet the first player with
 	// an empty news screen.
@@ -1036,4 +1056,36 @@ func (ps *PlayerSession) Close() {
 			log.Warn("Failed to close SSH channel for user %s: %v", ps.Username, err)
 		}
 	}
+}
+
+// auctionRowToModel converts a DB row back into the marketplace package's
+// Auction struct. BidHistory is left empty because bids aren't persisted
+// in the beta schema — only the current high bid state from the row's
+// current_bid / high_bidder fields. Players will see their bid totals
+// but not the history after a restart, which is an acceptable trade-off
+// until a marketplace_bids table lands.
+func auctionRowToModel(r *database.AuctionRow) *marketplace.Auction {
+	a := &marketplace.Auction{
+		ID:             r.ID,
+		SellerID:       r.SellerID,
+		SellerName:     r.SellerName,
+		Type:           marketplace.AuctionType(r.AuctionType),
+		ItemName:       r.ItemName,
+		Quantity:       r.Quantity,
+		Description:    r.Description,
+		StartingBid:    r.StartingBid,
+		BuyoutPrice:    r.BuyoutPrice,
+		CurrentBid:     r.CurrentBid,
+		HighBidderName: r.HighBidderName,
+		StartTime:      time.Unix(r.StartTime, 0),
+		EndTime:        time.Unix(r.EndTime, 0),
+		Status:         r.Status,
+	}
+	if r.ItemID != nil {
+		a.ItemID = *r.ItemID
+	}
+	if r.HighBidder != nil {
+		a.HighBidder = *r.HighBidder
+	}
+	return a
 }
