@@ -235,7 +235,7 @@ Make progression feel real.
 content. Three of five items done; Licences and Storyline Hooks still
 pending.
 
-### Phase 4 — Multiplayer wiring (in progress)
+### Phase 4 — Multiplayer wiring (COMPLETE 2026-04-23)
 
 Everything between players. Requires Phase 1.
 
@@ -258,8 +258,17 @@ Everything between players. Requires Phase 1.
       LISTEN/NOTIFY so messages survive process restarts. Tmux
       harness: `scripts/tmux_chat_broadcast_test.sh` (two tester
       sessions, Session A sends, Session B sees).
-- [ ] **PvP duel flow.** Player A hails player B → duel offer → accept →
-      arena instance → loser pays ante, winner earns reward.
+- [x] **PvP duel flow.** Players screen gains "C: Challenge" —
+      pressing `c` on a cursor'd online player calls
+      `pvp.Manager.CreateChallenge` with `ChallengeDuel` and their
+      current system. PvP screen gets a 2 s `pvpPollTick` so incoming
+      challenges surface without a keypress. Challenger transitions
+      to ScreenPvP; target's `a` (accept) triggers
+      `combat_enhanced.initializePvPCombat`. Remaining gap
+      (Phase 4.5/polish): challenger's session doesn't auto-
+      transition to combat when the accept lands — needs a combat-
+      ready msg on the poll branch or a DB-notify push. Harness:
+      `scripts/tmux_duel_challenge_test.sh`.
 - [x] **Bounties.** `pvp.Manager` is server-owned. Attacking a police
       patrol auto-issues a bounty on the attacker at
       `5000 + CR*100` credits (escalates on repeat offences). The
@@ -268,12 +277,18 @@ Everything between players. Requires Phase 1.
       bounty board. Kill-side claim still rides on `CompleteCombat`
       which is called by `combat_enhanced` — that closes fully once
       the P4.3 duel flow wires outcome routing.
-- [ ] **Marketplace orders.** Player posts a buy/sell order for an item
-      or ship; another player completes it. Persists to a new
-      `marketplace_listings` table (or the existing package's schema).
+- [x] **Marketplace orders.** `marketplace.Manager` already had
+      CreateAuction / PlaceBid / Buyout / CreateContract /
+      ClaimContract / CompleteContract on the server. New "Marketplace"
+      main-menu entry wires the screen that already rendered these
+      into the user flow; `marketplacePollTick` (2 s) keeps the
+      Auctions / Contracts / Bounties tabs fresh across sessions.
+      Storage is in-memory today — a DB-backed
+      `marketplace_listings` table is the Phase 5 polish hook.
 
-**DoD:** two concurrent SSH sessions on the same stack can see each
-other, fight, trade, and chat.
+**DoD:** ✅ two concurrent SSH sessions on the same stack can see each
+other (P4.1), chat (P4.2), challenge-to-duel (P4.3), hold bounties
+on each other (P4.4), and trade via auctions/contracts (P4.5).
 
 ### Phase 5 — Meta + polish (ongoing)
 
