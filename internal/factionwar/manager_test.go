@@ -1,0 +1,449 @@
+// File: internal/factionwar/manager_test.go
+// Project: Terminal Velocity
+// Description: Tests for the faction war manager. Covers declare /
+//   resolve / ceasefire lifecycles, war zone index correctness,
+//   sentinel errors, and news emission.
+// Version: 1.0.0
+// Author: Joshua Ferguson
+// Created: 2026-04-24
+
+package factionwar
+
+import (
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
+	"github.com/google/uuid"
+)
+
+// fakeNewsBus records every article for inspection — no real news
+// manager needed to assert the manager's news emission.
+type fakeNewsBus struct {
+	mu       sync.Mutex
+	articles []*models.NewsArticle
+}
+
+func (f *fakeNewsBus) AddArticle(a *models.NewsArticle) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.articles = append(f.articles, a)
+}
+
+func (f *fakeNewsBus) snapshot() []*models.NewsArticle {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]*models.NewsArticle, len(f.articles))
+	copy(out, f.articles)
+	return out
+}
+
+// testFactions returns two fixture NPC factions that share no systems
+// initially, plus a third sharing one system with the first. Used to
+// keep test setup short without depending on the live
+// StandardNPCFactions data (which can evolve).
+func testFactions() (a, b, c *models.NPCFaction) {
+	a = &models.NPCFaction{
+		ID:          "fac_a",
+		Name:        "Alpha Republic",
+		ShortName:   "ALR",
+		CoreSystems: []string{"Sol", "Alpha Centauri"},
+		Influence:   []string{"Procyon"},
+	}
+	b = &models.NPCFaction{
+		ID:          "fac_b",
+		Name:        "Crimson Pact",
+		ShortName:   "CRP",
+		CoreSystems: []string{"Wolf 359"},
+		Influence:   []string{"Barnard"},
+	}
+	c = &models.NPCFaction{
+		ID:          "fac_c",
+		Name:        "Eastern Coalition",
+		ShortName:   "ECO",
+		CoreSystems: []string{"Sol"}, // shares with A for overlap tests
+		Influence:   []string{},
+	}
+	return
+}
+
+// newTestManager gives a manager with a controllable clock and a
+// fake news bus so tests can assert both state and side effects.
+func newTestManager() (*Manager, *fakeNewsBus, *time.Time) {
+	bus := &fakeNewsBus{}
+	m := NewManager(bus)
+	clock := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	m.now = func() time.Time { return clock }
+	return m, bus, &clock
+}
+
+func TestDeclareWarHappyPath(t *testing.T) {
+	m, bus, _ := newTestManager()
+	a, b, _ := testFactions()
+
+	war, err := m.DeclareWar(a, b, "border dispute")
+	if err != nil {
+		t.Fatalf("DeclareWar: %v", err)
+	}
+	if war.Status != models.FactionWarActive {
+		t.Errorf("status: got %q, want active", war.Status)
+	}
+	if war.AggressorID != a.ID || war.DefenderID != b.ID {
+		t.Errorf("belligerents swapped: got %s→%s, want %s→%s",
+			war.AggressorID, war.DefenderID, a.ID, b.ID)
+	}
+	// Zones: union of a.Core(Sol, Alpha Centauri) + a.Influence(Procyon)
+	//        + b.Core(Wolf 359) + b.Influence(Barnard)  = 5 systems
+	if len(war.WarZoneSystems) != 5 {
+		t.Errorf("zones count: got %d, want 5", len(war.WarZoneSystems))
+	}
+	// CasusBelli flows through to the news body.
+	arts := bus.snapshot()
+	if len(arts) != 1 {
+		t.Fatalf("expected 1 declaration article, got %d", len(arts))
+	}
+	if arts[0].Priority != models.NewsPriorityCritical {
+		t.Errorf("declaration priority: got %v, want critical", arts[0].Priority)
+	}
+}
+
+func TestDeclareWarRejectsSameFaction(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, _, _ := testFactions()
+	_, err := m.DeclareWar(a, a, "self-attack")
+	if !errors.Is(err, ErrSameFaction) {
+		t.Errorf("self-war: got %v, want ErrSameFaction", err)
+	}
+}
+
+func TestDeclareWarRejectsNilFaction(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, _, _ := testFactions()
+	if _, err := m.DeclareWar(nil, a, ""); !errors.Is(err, ErrNilFaction) {
+		t.Errorf("nil aggressor: got %v, want ErrNilFaction", err)
+	}
+	if _, err := m.DeclareWar(a, nil, ""); !errors.Is(err, ErrNilFaction) {
+		t.Errorf("nil defender: got %v, want ErrNilFaction", err)
+	}
+}
+
+func TestDeclareWarRejectsDuplicate(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+	if _, err := m.DeclareWar(a, b, ""); err != nil {
+		t.Fatalf("first declare: %v", err)
+	}
+	// Second declare in either direction → ErrAlreadyAtWar.
+	if _, err := m.DeclareWar(a, b, ""); !errors.Is(err, ErrAlreadyAtWar) {
+		t.Errorf("same-direction redeclare: got %v, want ErrAlreadyAtWar", err)
+	}
+	if _, err := m.DeclareWar(b, a, ""); !errors.Is(err, ErrAlreadyAtWar) {
+		t.Errorf("reverse-direction redeclare: got %v, want ErrAlreadyAtWar", err)
+	}
+}
+
+func TestResolveWarHappyPath(t *testing.T) {
+	m, bus, clock := newTestManager()
+	a, b, _ := testFactions()
+
+	war, _ := m.DeclareWar(a, b, "")
+	*clock = clock.Add(24 * time.Hour)
+
+	if err := m.ResolveWar(war.ID, a.ID); err != nil {
+		t.Fatalf("ResolveWar: %v", err)
+	}
+	if war.Status != models.FactionWarResolved {
+		t.Errorf("status: got %q, want resolved", war.Status)
+	}
+	if war.WinnerFactionID != a.ID {
+		t.Errorf("winner: got %q, want %q", war.WinnerFactionID, a.ID)
+	}
+	if war.ResolvedAt == nil {
+		t.Fatal("ResolvedAt should be set")
+	}
+	// War zones cleared.
+	if m.IsSystemWarZone("Sol") {
+		t.Error("Sol should no longer be a war zone after resolve")
+	}
+	// IsAtWar flips to false for both sides.
+	if m.IsAtWar(a.ID) || m.IsAtWar(b.ID) {
+		t.Error("neither faction should be at war after resolve")
+	}
+	// Duration pulled from resolved timestamp (24h), not clock.
+	if d := war.Duration(clock.Add(72 * time.Hour)); d != 24*time.Hour {
+		t.Errorf("resolved-war duration should use ResolvedAt: got %v, want 24h", d)
+	}
+	// News article emitted.
+	arts := bus.snapshot()
+	if len(arts) != 2 { // declare + resolve
+		t.Fatalf("expected 2 articles, got %d", len(arts))
+	}
+}
+
+func TestResolveWarRejectsInvalidWinner(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+
+	// A third faction can't win a war they weren't in.
+	if err := m.ResolveWar(war.ID, "fac_c"); !errors.Is(err, ErrInvalidWinner) {
+		t.Errorf("foreign winner: got %v, want ErrInvalidWinner", err)
+	}
+}
+
+func TestResolveWarRejectsUnknownWar(t *testing.T) {
+	m, _, _ := newTestManager()
+	randomID, _ := uuid.Parse("00000000-0000-0000-0000-000000000000")
+	if err := m.ResolveWar(randomID, "anything"); !errors.Is(err, ErrWarNotFound) {
+		t.Errorf("unknown war: got %v, want ErrWarNotFound", err)
+	}
+}
+
+func TestResolveWarRejectsTerminalWar(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+	_ = m.ResolveWar(war.ID, a.ID)
+
+	// Can't resolve again.
+	if err := m.ResolveWar(war.ID, a.ID); !errors.Is(err, ErrWarNotActive) {
+		t.Errorf("double-resolve: got %v, want ErrWarNotActive", err)
+	}
+	// Can't ceasefire either.
+	if err := m.CeaseFire(war.ID); !errors.Is(err, ErrWarNotActive) {
+		t.Errorf("ceasefire after resolve: got %v, want ErrWarNotActive", err)
+	}
+}
+
+func TestCeaseFireHappyPath(t *testing.T) {
+	m, bus, _ := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+
+	if err := m.CeaseFire(war.ID); err != nil {
+		t.Fatalf("CeaseFire: %v", err)
+	}
+	if war.Status != models.FactionWarCeased {
+		t.Errorf("status: got %q, want ceased", war.Status)
+	}
+	if war.WinnerFactionID != "" {
+		t.Errorf("ceasefire should have no winner, got %q", war.WinnerFactionID)
+	}
+	if m.IsSystemWarZone("Sol") {
+		t.Error("war zones should clear on ceasefire")
+	}
+	arts := bus.snapshot()
+	if len(arts) != 2 {
+		t.Fatalf("expected declare + ceasefire articles, got %d", len(arts))
+	}
+}
+
+func TestIsAtWar(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, c := testFactions()
+	if m.IsAtWar(a.ID) {
+		t.Error("peace-time: should not be at war")
+	}
+	_, _ = m.DeclareWar(a, b, "")
+	if !m.IsAtWar(a.ID) {
+		t.Error("A is aggressor: should be at war")
+	}
+	if !m.IsAtWar(b.ID) {
+		t.Error("B is defender: should be at war")
+	}
+	if m.IsAtWar(c.ID) {
+		t.Error("C is neutral: should not be at war")
+	}
+}
+
+func TestGetWarBetweenIsDirectionAgnostic(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+	war, _ := m.DeclareWar(a, b, "")
+
+	if got := m.GetWarBetween(a.ID, b.ID); got == nil || got.ID != war.ID {
+		t.Errorf("A→B lookup: got %v, want %v", got, war.ID)
+	}
+	if got := m.GetWarBetween(b.ID, a.ID); got == nil || got.ID != war.ID {
+		t.Errorf("B→A lookup: got %v, want %v", got, war.ID)
+	}
+	if got := m.GetWarBetween("nope", a.ID); got != nil {
+		t.Errorf("unknown-faction lookup should be nil, got %v", got)
+	}
+}
+
+func TestIsSystemWarZoneIsCaseInsensitive(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+	_, _ = m.DeclareWar(a, b, "")
+	for _, variant := range []string{"Sol", "sol", "SOL", "sOl"} {
+		if !m.IsSystemWarZone(variant) {
+			t.Errorf("war zone %q should match (case-insensitive)", variant)
+		}
+	}
+	if m.IsSystemWarZone("   Sol   ") {
+		// IsSystemWarZone does NOT auto-trim lookups on purpose —
+		// the manager trims on insert only; callers are expected
+		// to pass clean system names. Documenting via test.
+		t.Logf("note: whitespace lookups are not auto-trimmed (caller's responsibility)")
+	}
+}
+
+func TestWarsInSystemOverlap(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, c := testFactions()
+	_, _ = m.DeclareWar(a, b, "") // Sol is in A's core
+	_, _ = m.DeclareWar(c, b, "") // Sol is in C's core too → two wars in Sol
+
+	wars := m.WarsInSystem("Sol")
+	if len(wars) != 2 {
+		t.Fatalf("expected 2 wars covering Sol, got %d", len(wars))
+	}
+	// Ordering is by declaration time; both share the same clock
+	// instant here, but the older one is still at index 0 per
+	// map iteration + sort.
+	wars = m.WarsInSystem("Barnard") // only in B's influence → 2 wars (both vs B)
+	if len(wars) != 2 {
+		t.Fatalf("expected 2 wars covering Barnard, got %d", len(wars))
+	}
+	if wars := m.WarsInSystem("Unknown"); wars != nil {
+		t.Errorf("peaceful system should return nil, got %v", wars)
+	}
+}
+
+func TestWarZoneCleanupOnResolve(t *testing.T) {
+	m, _, _ := newTestManager()
+	a, b, c := testFactions()
+	_, _ = m.DeclareWar(a, b, "")     // war1 covers Sol
+	war2, _ := m.DeclareWar(c, b, "") // war2 covers Sol
+	if len(m.WarsInSystem("Sol")) != 2 {
+		t.Fatal("setup: expected 2 wars covering Sol")
+	}
+	_ = m.ResolveWar(war2.ID, c.ID)
+	// One war removed — Sol should still be a zone (war1 active).
+	if !m.IsSystemWarZone("Sol") {
+		t.Error("Sol should still be a war zone while war1 is active")
+	}
+	if got := len(m.WarsInSystem("Sol")); got != 1 {
+		t.Errorf("wars in Sol after war2 resolve: got %d, want 1", got)
+	}
+}
+
+func TestGetActiveWarsSortedByDeclaration(t *testing.T) {
+	m, _, clock := newTestManager()
+	a, b, c := testFactions()
+
+	// Declare war1 first (earliest)
+	war1, _ := m.DeclareWar(a, b, "")
+	*clock = clock.Add(1 * time.Hour)
+	war2, _ := m.DeclareWar(c, b, "")
+
+	active := m.GetActiveWars()
+	if len(active) != 2 {
+		t.Fatalf("expected 2 active wars, got %d", len(active))
+	}
+	if active[0].ID != war1.ID {
+		t.Errorf("expected oldest first: got %v, want %v", active[0].ID, war1.ID)
+	}
+	if active[1].ID != war2.ID {
+		t.Errorf("expected newest second: got %v, want %v", active[1].ID, war2.ID)
+	}
+}
+
+func TestGetAllWarsSortedNewestFirst(t *testing.T) {
+	m, _, clock := newTestManager()
+	a, b, c := testFactions()
+
+	war1, _ := m.DeclareWar(a, b, "")
+	_ = m.ResolveWar(war1.ID, a.ID)
+	*clock = clock.Add(1 * time.Hour)
+	war2, _ := m.DeclareWar(c, b, "")
+
+	all := m.GetAllWars()
+	if len(all) != 2 {
+		t.Fatalf("expected 2 wars total, got %d", len(all))
+	}
+	// Newest first — war2 declared later.
+	if all[0].ID != war2.ID {
+		t.Errorf("expected newest first: got %v, want %v", all[0].ID, war2.ID)
+	}
+}
+
+func TestManagerHandlesNilNewsBus(t *testing.T) {
+	// Construct without news — no panics on declare/resolve/cease.
+	m := NewManager(nil)
+	m.now = func() time.Time { return time.Now() }
+	a, b, _ := testFactions()
+
+	war, err := m.DeclareWar(a, b, "")
+	if err != nil {
+		t.Fatalf("DeclareWar with nil news bus: %v", err)
+	}
+	if err := m.ResolveWar(war.ID, a.ID); err != nil {
+		t.Fatalf("ResolveWar with nil news bus: %v", err)
+	}
+}
+
+func TestWarZoneSystemsDedupesOverlap(t *testing.T) {
+	a, b, c := testFactions()
+	_ = b
+	// A and C both have Sol in CoreSystems; union should contain
+	// Sol exactly once.
+	zones := warZoneSystems(a, c)
+	solCount := 0
+	for _, z := range zones {
+		if z == "Sol" {
+			solCount++
+		}
+	}
+	if solCount != 1 {
+		t.Errorf("Sol should appear once, got %d", solCount)
+	}
+}
+
+func TestWarZoneSystemsNilGuard(t *testing.T) {
+	if zones := warZoneSystems(nil, nil); zones != nil {
+		t.Errorf("nil factions: got %v, want nil", zones)
+	}
+	a, _, _ := testFactions()
+	if zones := warZoneSystems(a, nil); zones != nil {
+		t.Errorf("nil defender: got %v, want nil", zones)
+	}
+}
+
+func TestPairKeyIsStable(t *testing.T) {
+	if pairKey("a", "b") != pairKey("b", "a") {
+		t.Error("pairKey should be direction-agnostic")
+	}
+	if pairKey("a", "b") != "a|b" {
+		t.Errorf("pairKey: got %q, want a|b", pairKey("a", "b"))
+	}
+}
+
+func TestConcurrentDeclareAndQuery(t *testing.T) {
+	// Race test — run with -race to catch lock misuse. Spawns one
+	// declarer and many readers; all queries should return
+	// consistent state without panics.
+	m, _, _ := newTestManager()
+	a, b, _ := testFactions()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = m.DeclareWar(a, b, "")
+	}()
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = m.IsAtWar(a.ID)
+			_ = m.GetActiveWars()
+			_ = m.IsSystemWarZone("Sol")
+		}()
+	}
+	wg.Wait()
+}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/chat"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/database"
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/factionwar"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/fleet"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/friends"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
@@ -43,27 +44,27 @@ var log = logger.WithComponent("server")
 
 // Server represents the SSH game server
 type Server struct {
-	config        *Config
-	port          int
-	sshConfig     *ssh.ServerConfig
-	listener      net.Listener
-	sessions      map[string]*PlayerSession
-	db            *database.DB
-	playerRepo    *database.PlayerRepository
-	systemRepo    *database.SystemRepository
-	sshKeyRepo    *database.SSHKeyRepository
-	shipRepo      *database.ShipRepository
-	marketRepo    *database.MarketRepository
-	mailRepo      *database.MailRepository
-	socialRepo    *database.SocialRepository
+	config          *Config
+	port            int
+	sshConfig       *ssh.ServerConfig
+	listener        net.Listener
+	sessions        map[string]*PlayerSession
+	db              *database.DB
+	playerRepo      *database.PlayerRepository
+	systemRepo      *database.SystemRepository
+	sshKeyRepo      *database.SSHKeyRepository
+	shipRepo        *database.ShipRepository
+	marketRepo      *database.MarketRepository
+	mailRepo        *database.MailRepository
+	socialRepo      *database.SocialRepository
 	itemRepo        *database.ItemRepository
 	achievementRepo *database.AchievementRepository
 	// Persists marketplace_auctions so listings survive restart.
 	// marketplace.Manager itself stays in-memory-shaped; this repo is
 	// the "save on state change" layer.
 	marketplaceRepo *database.MarketplaceRepository
-	metricsServer *metrics.Server
-	rateLimiter   *ratelimit.Limiter
+	metricsServer   *metrics.Server
+	rateLimiter     *ratelimit.Limiter
 
 	// Managers
 	fleetManager         *fleet.Manager
@@ -92,6 +93,10 @@ type Server struct {
 	// Phase 5D builds on this; for now the manager is tiny but wiring
 	// it server-side up front avoids a rewire later.
 	territoryManager *territory.Manager
+	// Server-wide faction war state (P5C). Declare/Resolve are
+	// currently admin-driven; in-game triggers (reputation thresholds,
+	// border incidents) land in P5C-2+.
+	factionWarManager *factionwar.Manager
 	// Server-wide tutorial progress. Persisting to DB is a future
 	// enhancement; today the shared in-memory manager at least keeps
 	// progress alive across reconnects within a single server process
@@ -356,6 +361,9 @@ func (s *Server) initDatabase() error {
 	s.pvpManager = pvp.NewManager()
 	s.territoryManager = territory.NewManager()
 	s.tutorialManager = tutorial.NewManager()
+	// Wire the news manager as the war's news bus so declaration /
+	// resolution events land in the main-menu ticker feed.
+	s.factionWarManager = factionwar.NewManager(s.newsManager)
 
 	// Start background workers for managers
 	s.fleetManager.Start()

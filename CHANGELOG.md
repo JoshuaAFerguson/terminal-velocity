@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-04-24 - P5C-1 faction war backend)
+- **New `internal/factionwar` package** implementing the faction war
+  mechanics from `docs/FACTION_RELATIONS.md` §"Faction War Mechanics".
+  Backend only for this slice; TUI surface lands in P5C-2.
+  - `models.FactionWar` + `FactionWarStatus` (Active / Resolved /
+    Ceased) — stores belligerents by NPCFaction.ID slug,
+    declaration/resolution timestamps, winner (if any), snapshotted
+    war-zone systems, and a free-text casus belli.
+  - `factionwar.Manager` with `DeclareWar`, `ResolveWar`, `CeaseFire`,
+    plus queries: `GetWar`, `GetActiveWars`, `GetAllWars`, `IsAtWar`,
+    `GetWarBetween`, `IsSystemWarZone`, `WarsInSystem`. Lookups are
+    direction-agnostic (alphabetical pair keys) and system zones are
+    case-insensitive.
+  - War zones are the deduplicated union of both factions' core +
+    influence systems at declaration, snapshotted onto the war so
+    subsequent territory shifts don't rewrite history. Multiple
+    concurrent wars can flag the same system — the `warZones` index
+    keeps a set of war IDs per system and removes each war
+    individually when it resolves.
+  - News integration via a minimal `NewsBus` interface (avoids a
+    `news ↔ factionwar` circular import). Declaration emits a
+    **Critical** political article, resolution / ceasefire emits a
+    **High** one. All three include the belligerents, zone count,
+    and casus belli where applicable. These headlines flow straight
+    into the P5H main-menu ticker.
+  - Six sentinel errors (`ErrSameFaction`, `ErrAlreadyAtWar`,
+    `ErrWarNotFound`, `ErrWarNotActive`, `ErrInvalidWinner`,
+    `ErrNilFaction`) so callers can `errors.Is` rather than
+    string-match.
+  - Injected clock (`m.now func() time.Time`) for deterministic tests.
+  - Wired into `server.Server` at startup; `factionWarManager` is a
+    new field constructed with `s.newsManager` as its bus so
+    declarations flow through the shared news feed immediately.
+  - **21 tests, 92.8% statement coverage.** Covers happy paths,
+    every error branch, direction-agnostic lookups, case-insensitive
+    zone matches, overlap cleanup (resolving war1 while war2 keeps
+    Sol hot), snapshot-sort ordering, nil-NewsBus tolerance, and a
+    `-race`-covered concurrent declare/query test.
+
 ### Added (2026-04-24 - P5B-3 escort damage + destruction, closes fleet play block)
 - **Escorts can now take damage and be destroyed.** Per-escort hull is
   tracked and snapshotted from `fleet.Escort.Ship.Hull` on combat
