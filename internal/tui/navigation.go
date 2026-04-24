@@ -180,6 +180,12 @@ func (m Model) updateNavigation(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.player != nil {
 				m.player.RecordJump()
 				m.checkAchievements()
+				// Fire the tutorial trigger on the *first* jump;
+				// HandleTrigger is idempotent so it's safe to fire
+				// every time, and TotalJumps>1 filters downstream.
+				if m.tutorialManager != nil && m.player.TotalJumps == 1 {
+					m.tutorialManager.HandleTrigger(m.playerID, models.TriggerFirstJump)
+				}
 			}
 
 			// Check for random encounter

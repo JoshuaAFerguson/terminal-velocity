@@ -434,6 +434,13 @@ func (m Model) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.achievementManager.LoadUnlocked(msg.achievements)
 		}
 
+		// Register the tutorial progress + fire the first-login trigger.
+		// The tutorial manager is currently per-session (pre-5A.1) so
+		// this effectively restarts the tutorial on every login for
+		// beta testers — fine, because the in-memory manager has no
+		// persisted progress to carry between sessions yet.
+		m.InitializeTutorials()
+
 		// Transition to main menu
 		m.screen = ScreenMainMenu
 		return m, nil

@@ -232,6 +232,11 @@ func (m Model) executeFireWeapon() (tea.Model, tea.Cmd) {
 		if m.player != nil {
 			m.player.RecordKill()
 
+			// Tutorial trigger on the first successful combat kill.
+			if m.tutorialManager != nil && m.player.TotalKills == 1 {
+				m.tutorialManager.HandleTrigger(m.playerID, models.TriggerFirstCombat)
+			}
+
 			// Check for achievement unlocks
 			m.checkAchievements()
 

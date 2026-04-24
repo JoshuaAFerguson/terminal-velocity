@@ -289,9 +289,11 @@ func (m Model) renderTutorialOverlay(screenContent string) string {
 		}
 	}
 
-	// Add controls
+	// Add controls. Ctrl-prefixed to avoid colliding with any screen's
+	// own hotkeys — plain H/S/T/D are all in use somewhere.
 	lines = append(lines, "├"+strings.Repeat("─", width-2)+"┤")
-	lines = append(lines, "│ "+helpStyle.Render("H: Hint  •  S: Skip  •  T: Hide  •  D: Disable")+strings.Repeat(" ", width-48)+" │")
+	controls := helpStyle.Render("Ctrl+K: Hint  •  Ctrl+N: Next  •  Ctrl+T: Hide")
+	lines = append(lines, "│ "+controls+strings.Repeat(" ", width-48)+" │")
 	lines = append(lines, "└"+strings.Repeat("─", width-2)+"┘")
 	lines = append(lines, "")
 

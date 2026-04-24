@@ -569,6 +569,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			// Quit from any screen
 			return m, tea.Quit
+
+		// Global tutorial shortcuts. Ctrl+T toggles the overlay;
+		// Ctrl+N marks the current step complete and advances to the
+		// next; Ctrl+K cycles hint verbosity. Ctrl-based so we don't
+		// conflict with any screen's own hot keys (h, s, n, etc. are
+		// all already in use somewhere).
+		case "ctrl+t":
+			m.tutorialModel.showOverlay = !m.tutorialModel.showOverlay
+			return m, nil
+		case "ctrl+n":
+			if m.tutorialManager != nil && m.playerID != uuid.Nil {
+				if step := m.tutorialManager.GetTutorialForScreen(m.playerID, m.getScreenName()); step != nil {
+					m.tutorialManager.CompleteStep(m.playerID, step.ID)
+				}
+			}
+			return m, nil
+		case "ctrl+k":
+			if m.tutorialModel.hintLevel < models.HintFull {
+				m.tutorialModel.hintLevel++
+			} else {
+				m.tutorialModel.hintLevel = models.HintNone
+			}
+			return m, nil
 		}
 
 	case tea.WindowSizeMsg:
@@ -751,6 +774,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the model
 func (m Model) View() string {
+	// Render the current screen, then layer the tutorial overlay (when
+	// the player has an active step that matches the screen) via
+	// ViewWithTutorial. renderTutorialOverlay no-ops when tutorials are
+	// disabled or no step matches, so we can do this unconditionally.
+	return m.ViewWithTutorial(m.viewScreen())
+}
+
+func (m Model) viewScreen() string {
 	// Show error if present (but not on login screen)
 	if m.err != nil && m.screen != ScreenLogin && m.screen != ScreenRegistration {
 		return errorView(m.err.Error())

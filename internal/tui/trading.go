@@ -161,6 +161,11 @@ func (m Model) updateTrading(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.player != nil {
 				m.player.RecordTrade(msg.profit)
 
+				// Tutorial trigger on the player's very first trade.
+				if m.tutorialManager != nil && m.player.TotalTrades == 1 {
+					m.tutorialManager.HandleTrigger(m.playerID, models.TriggerFirstTrade)
+				}
+
 				// Announce meaningful trades to the news feed. Thresholds
 				// keep the feed from drowning in routine 10-credit food
 				// buys — only profitable sales and large purchases get
