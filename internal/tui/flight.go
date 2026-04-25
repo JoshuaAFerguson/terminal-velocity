@@ -1,11 +1,11 @@
 // File: internal/tui/flight.go
 // Project: Terminal Velocity
-// Description: Real-time flight cockpit screen. Replaces the old
-//   static "space view" radar with an actual EV-style 2D viewport
-//   the player flies their ship through. Phase 1.1 of the
-//   real-time-flight redesign — solo-only, no NPCs, no projectiles
-//   yet (those land in 1.3 and 2.1 respectively).
-// Version: 1.0.0
+// Description: Real-time flight cockpit screen. Multi-pane layout
+//   with viewport in the center, ship status sidebar on the right,
+//   target/system info under the viewport, header at the top, and
+//   key reminders at the bottom. Replaces the static "space view"
+//   radar as the primary 'in your ship' screen.
+// Version: 1.1.0
 // Author: Joshua Ferguson
 // Created: 2026-04-24
 
@@ -16,43 +16,61 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/models"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/spaceflight"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // flightTickInterval is how often we advance physics and re-render.
-// 50ms = 20fps. Higher rates (e.g. 30 or 60fps) feel smoother but
-// burn more bandwidth over SSH/WebSocket — at 80x24 cells, even a
-// fully-redrawn frame is only ~2KB so 20fps is conservative-friendly
-// on slow links and tight enough that movement feels live.
-const flightTickInterval = 50 * time.Millisecond
+// 16ms ≈ 60fps. Higher than 20fps because key-repeat from a terminal
+// emits events at ~30Hz, and a slower physics tick made each rotate
+// or thrust press feel laggy. At 80x24 cells differential redraw is
+// ~1KB/frame, which is fine over the WebSocket or SSH.
+const flightTickInterval = 16 * time.Millisecond
 
 // flightTickMsg fires every flightTickInterval while ScreenFlight is
 // active. Drives the physics step + re-render. Self-terminates: the
 // top-level Update routes flight ticks away when the player exits
-// the screen, breaking the re-arm loop the same way the news ticker
-// pattern works.
+// the screen, breaking the re-arm loop.
 type flightTickMsg struct{}
 
 func flightTick() tea.Cmd {
 	return tea.Tick(flightTickInterval, func(time.Time) tea.Msg { return flightTickMsg{} })
 }
 
-// flightModel owns the per-session flight state. The ship is stored
-// here, but the same struct will eventually carry NPC ships and
-// projectiles in this system as well. Server-authoritative state
-// for multiplayer (P3.1) will live elsewhere; this is the local
-// view's source of truth for now.
+// flightModel owns the per-session flight state. Storing the ship
+// here means velocity persists across screen visits — a player who
+// pops out to check trade prices doesn't reset their inertia.
 type flightModel struct {
-	ship    spaceflight.FlightState
-	active  bool      // true while the tick loop is running
-	lastTick time.Time // wall-clock of last tick (for variable-dt physics)
+	ship       spaceflight.FlightState
+	active     bool      // true while the tick loop is running
+	lastTick   time.Time // wall-clock of last tick (variable-dt physics)
+	initialized bool     // true after first sync from the player's equipped ship
 }
 
 func newFlightModel() flightModel {
 	return flightModel{
-		ship: spaceflight.NewFlightState(),
+		ship: spaceflight.NewFlightState(spaceflight.DefaultFlightParams()),
 	}
+}
+
+// flightParamsForCurrentShip resolves the FlightParams for whatever
+// ship the player has equipped. Falls back to DefaultFlightParams
+// when no ship is loaded yet (login bootstrap, or pre-ship registration).
+//
+// Pulls Speed + Maneuverability off the ShipType, not the Ship —
+// per-ship damage state doesn't change agility. Outfit-driven
+// modifiers (engine upgrades) are P1.3+; this slice just reflects
+// the base hull.
+func (m Model) flightParamsForCurrentShip() spaceflight.FlightParams {
+	if m.currentShip == nil {
+		return spaceflight.DefaultFlightParams()
+	}
+	st := models.GetShipTypeByID(m.currentShip.TypeID)
+	if st == nil {
+		return spaceflight.DefaultFlightParams()
+	}
+	return spaceflight.FlightParamsFromShipStats(st.Speed, st.Maneuverability)
 }
 
 // updateFlight handles input + tick events. Tick advances physics by
@@ -60,6 +78,15 @@ func newFlightModel() flightModel {
 // hiccup doesn't compound into "ship suddenly across the system" —
 // only one frame's worth of motion is missed.
 func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// On first entry, sync the ship's flight params from whatever
+	// hull the player is flying. Subsequent visits preserve velocity
+	// (that's the whole point of m.flight surviving screen changes).
+	if !m.flight.initialized {
+		params := m.flightParamsForCurrentShip()
+		m.flight.ship.Params = params
+		m.flight.initialized = true
+	}
+
 	// Self-start the tick loop on first entry. Subsequent entries
 	// (after returning from a sub-screen, etc.) re-arm here too —
 	// the top-level dispatcher drops stale flightTickMsg arrivals
@@ -125,79 +152,244 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// viewFlight draws the cockpit: a scrolling viewport with the ship
-// in the center, a parallax star field, and a HUD with speed +
-// heading + key reminders.
+// viewFlight composes the full cockpit: header, viewport+sidebar,
+// info panel under the viewport, and a footer with key reminders.
 //
-// World→screen mapping: viewport center = ship position. World
-// coordinates are floating-point; we round-to-nearest-cell when
-// drawing. Stars are deterministic (hash of world coords + a small
-// offset) so the field is consistent as the ship flies through it.
+// Layout (80×24 minimum, scales up on bigger terminals):
+//
+//	┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+//	┃ Pilot: alice  Credits: 5,200 cr  Location: Sol             ┃   header
+//	┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+//	┃                                          ┃ ┏━━━━━━━━━━━━━┓ ┃
+//	┃             [ STARFIELD VIEWPORT ]       ┃ ┃ SHIP STATUS ┃ ┃
+//	┃                    ▲                     ┃ ┃ Hull   100% ┃ ┃
+//	┃                                          ┃ ┃ Shields 80% ┃ ┃   sidebar
+//	┃                                          ┃ ┃ Fuel    65% ┃ ┃
+//	┃                                          ┃ ┃ Cargo  0/30 ┃ ┃
+//	┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━┻━━━━━━━━━━━━━━━┫
+//	┃ SPD 12.3  HDG 270°  POS (123, -45)                          ┃   HUD
+//	┃ W/↑ thrust  S/↓ brake  A/← rot-L  D/→ rot-R  J jump  ESC    ┃   help
+//	┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+//
+// Width scales with terminal; sidebar is fixed at 18 cells, viewport
+// takes the remainder. On narrow terminals (<60 cols) the sidebar
+// hides and the viewport gets the full width.
 func (m Model) viewFlight() string {
-	width, height := m.flightViewportSize()
+	width := 80
+	if m.width > 80 {
+		width = m.width
+	}
+	height := 24
+	if m.height > 24 {
+		height = m.height
+	}
 
-	// Build the viewport as a 2D rune grid for easy random-access
-	// writes. strings.Builder would force linear assembly which
-	// makes "place X at row R, col C" awkward.
-	grid := make([][]rune, height)
+	// Reserved rows: 4 for header (top + title + divider), 3 for
+	// HUD/help footer (divider + 2 lines + bottom). Whatever's left
+	// becomes the playfield.
+	playHeight := height - 4 - 3
+	if playHeight < 8 {
+		playHeight = 8
+	}
+
+	// Sidebar layout: 18 cells of ship status on the right when
+	// terminal is wide enough; collapses on narrow.
+	sidebarWidth := 18
+	if width < 60 {
+		sidebarWidth = 0
+	}
+	viewportWidth := width - sidebarWidth - 2 // 2 = 1 outer L/R border each
+	if sidebarWidth > 0 {
+		viewportWidth -= 1 // inner divider between viewport and sidebar
+	}
+
+	var sb strings.Builder
+
+	// Header — same bordered style the rest of the game uses so the
+	// flight screen feels of-a-piece.
+	credits := int64(0)
+	if m.player != nil {
+		credits = m.player.Credits
+	}
+	header := DrawHeader("FLIGHT", m.currentLocationLabel(), credits, m.shieldPercent(), width)
+	sb.WriteString(header + "\n")
+
+	// Viewport grid. Built as a 2D rune slice for random-access
+	// drawing of stars + ship.
+	grid := make([][]rune, playHeight)
 	for r := range grid {
-		grid[r] = make([]rune, width)
+		grid[r] = make([]rune, viewportWidth)
 		for c := range grid[r] {
 			grid[r][c] = ' '
 		}
 	}
-
 	drawStarfield(grid, m.flight.ship.X, m.flight.ship.Y)
-
-	// Player ship at center.
-	cx, cy := width/2, height/2
+	cx, cy := viewportWidth/2, playHeight/2
 	if cy < len(grid) && cx < len(grid[cy]) {
-		// Ship glyph is potentially multi-byte; we store the rune
-		// so PadRight + cellWidth handle it correctly on render.
-		// Heading→glyph mapping lives on the physics struct.
-		shipGlyphRunes := []rune(m.flight.ship.HeadingGlyph())
-		if len(shipGlyphRunes) > 0 {
-			grid[cy][cx] = shipGlyphRunes[0]
+		shipRunes := []rune(m.flight.ship.HeadingGlyph())
+		if len(shipRunes) > 0 {
+			grid[cy][cx] = shipRunes[0]
 		}
 	}
 
-	// Compose grid into the final string.
-	var sb strings.Builder
-	for _, row := range grid {
-		sb.WriteString(string(row))
-		sb.WriteByte('\n')
+	// Sidebar — ship status panel with bars for hull/shields/fuel.
+	var sidebar []string
+	if sidebarWidth > 0 {
+		sidebar = m.renderFlightSidebar(sidebarWidth, playHeight)
 	}
 
+	// Compose viewport + sidebar side-by-side, line by line.
+	for r := 0; r < playHeight; r++ {
+		sb.WriteString(BoxVertical)
+		sb.WriteString(string(grid[r]))
+		if sidebarWidth > 0 {
+			sb.WriteString(BoxVertical)
+			if r < len(sidebar) {
+				sb.WriteString(sidebar[r])
+			} else {
+				sb.WriteString(strings.Repeat(" ", sidebarWidth))
+			}
+		}
+		sb.WriteString(BoxVertical + "\n")
+	}
+
+	// Divider between viewport block and HUD footer.
+	sb.WriteString(BoxCrossLeft)
+	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+	sb.WriteString(BoxCross + "\n")
+
+	// HUD line: speed / heading / position. Fixed-width fields so
+	// the line doesn't jitter as values change magnitude.
 	hud := fmt.Sprintf(
-		" SPD %5.1f  HDG %3d°  POS (%6.0f, %6.0f) ",
+		" SPD %5.1f   HDG %3d°   POS (%6.0f, %6.0f)",
 		m.flight.ship.Speed(),
 		m.flight.ship.HeadingDegrees(),
 		m.flight.ship.X, m.flight.ship.Y,
 	)
-	help := " W/↑ thrust  •  S/↓ brake  •  A/← turn left  •  D/→ turn right  •  J jump  •  ESC menu "
+	sb.WriteString(BoxVertical)
+	sb.WriteString(PadRight(hud, width-2))
+	sb.WriteString(BoxVertical + "\n")
 
-	// HUD row + help row sit below the viewport.
-	sb.WriteString(highlightStyle.Render(PadRight(hud, width)))
-	sb.WriteByte('\n')
-	sb.WriteString(helpStyle.Render(PadRight(help, width)))
+	// Help line.
+	help := " W/↑ thrust  •  S/↓ brake  •  A/← turn-L  •  D/→ turn-R  •  J jump  •  ESC menu"
+	sb.WriteString(BoxVertical)
+	sb.WriteString(PadRight(help, width-2))
+	sb.WriteString(BoxVertical + "\n")
+
+	// Bottom border.
+	sb.WriteString(BoxBottomLeft)
+	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+	sb.WriteString(BoxBottomRight)
 
 	return sb.String()
 }
 
-// flightViewportSize returns the cell dimensions of the play area.
-// Two rows are reserved for the HUD/help footer below the grid; the
-// rest goes to the playfield. Falls back to a reasonable 80x22 when
-// terminal size hasn't been reported yet.
-func (m Model) flightViewportSize() (width, height int) {
-	width = 80
-	height = 22
-	if m.width > width {
-		width = m.width
+// renderFlightSidebar produces the right-hand status panel: hull,
+// shields, fuel, energy bars + ship name + cargo summary. Returns a
+// slice of pre-padded lines exactly `width` cells wide and at most
+// `height` rows long; caller blits them next to the viewport.
+//
+// Bars are drawn with DrawProgressBar from ui_components; the panel
+// stays compact so on default 80-col terminals there's still 60+
+// cells of viewport.
+func (m Model) renderFlightSidebar(width, height int) []string {
+	hull, maxHull := 100, 100
+	shields, maxShields := 80, 100
+	fuel, maxFuel := 100, 100
+	cargoUsed, cargoMax := 0, 30
+	shipName := "Unknown"
+	shipType := ""
+
+	if m.currentShip != nil {
+		hull = m.currentShip.Hull
+		shields = m.currentShip.Shields
+		fuel = m.currentShip.Fuel
+		shipName = m.currentShip.Name
+		if st := models.GetShipTypeByID(m.currentShip.TypeID); st != nil {
+			maxHull = st.MaxHull
+			maxShields = st.MaxShields
+			maxFuel = st.MaxFuel
+			cargoMax = st.CargoSpace
+			shipType = st.Name
+		}
 	}
-	if m.height > height+2 {
-		height = m.height - 2
+	if maxHull < 1 {
+		maxHull = 1
 	}
-	return width, height
+	if maxShields < 1 {
+		maxShields = 1
+	}
+	if maxFuel < 1 {
+		maxFuel = 1
+	}
+
+	// Bar width: 8 cells fits "[████ ░░░]" inside the 18-cell panel
+	// after the label and percentage suffix.
+	barWidth := width - 9
+	if barWidth < 4 {
+		barWidth = 4
+	}
+
+	hullPct := pctClamped(hull, maxHull)
+	shieldsPct := pctClamped(shields, maxShields)
+	fuelPct := pctClamped(fuel, maxFuel)
+
+	lines := []string{
+		PadRight(" SHIP", width),
+		PadRight(" "+TruncateString(shipName, width-2), width),
+		PadRight(" "+helpStyle.Render(shipType), width),
+		strings.Repeat(BoxHorizontal, width),
+		PadRight(fmt.Sprintf(" Hull %s", DrawProgressBar(hullPct, 100, barWidth)), width),
+		PadRight(fmt.Sprintf("   %3d%%", hullPct), width),
+		PadRight(fmt.Sprintf(" Shld %s", DrawProgressBar(shieldsPct, 100, barWidth)), width),
+		PadRight(fmt.Sprintf("   %3d%%", shieldsPct), width),
+		PadRight(fmt.Sprintf(" Fuel %s", DrawProgressBar(fuelPct, 100, barWidth)), width),
+		PadRight(fmt.Sprintf("   %3d%%", fuelPct), width),
+		strings.Repeat(BoxHorizontal, width),
+		PadRight(fmt.Sprintf(" Cargo %d/%d", cargoUsed, cargoMax), width),
+		strings.Repeat(BoxHorizontal, width),
+		PadRight(" ENGINES", width),
+		PadRight(fmt.Sprintf(" Max  %3.0f", m.flight.ship.Params.MaxSpeed), width),
+		PadRight(fmt.Sprintf(" Acc  %3.1f", m.flight.ship.Params.ThrustImpulse), width),
+		PadRight(fmt.Sprintf(" Rot  %3.0f°", m.flight.ship.Params.RotateStep*180/3.14159), width),
+	}
+
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	for len(lines) < height {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
+	return lines
+}
+
+// shieldPercent returns the player ship's shield % for the header,
+// falling back to 80 (cosmetic default) when no ship is loaded yet.
+func (m Model) shieldPercent() int {
+	if m.currentShip == nil {
+		return 80
+	}
+	if st := models.GetShipTypeByID(m.currentShip.TypeID); st != nil && st.MaxShields > 0 {
+		return pctClamped(m.currentShip.Shields, st.MaxShields)
+	}
+	return 80
+}
+
+// pctClamped is integer percent of cur out of max, clamped to [0,100].
+// Saves callers from worrying about division-by-zero or out-of-range
+// inputs from corrupted ship data.
+func pctClamped(cur, max int) int {
+	if max <= 0 {
+		return 0
+	}
+	p := (cur * 100) / max
+	if p < 0 {
+		return 0
+	}
+	if p > 100 {
+		return 100
+	}
+	return p
 }
 
 // drawStarfield places stars at deterministic positions based on
@@ -205,16 +397,15 @@ func (m Model) flightViewportSize() (width, height int) {
 // pattern, so stars don't shimmer as the ship flies past — they
 // scroll by, which is what gives the parallax sensation.
 //
-// Density is sparse-ish (~3% of cells get a star) so the field
-// feels deep without overwhelming actual game entities (planets,
-// ships) we'll add in later phases.
+// Density is sparse (~3% of cells) so the field feels deep without
+// overwhelming actual game entities (planets, ships) we'll add in
+// later phases.
 func drawStarfield(grid [][]rune, shipX, shipY float64) {
 	if len(grid) == 0 || len(grid[0]) == 0 {
 		return
 	}
 	height := len(grid)
 	width := len(grid[0])
-	// Top-left world coordinate of the viewport.
 	worldOriginX := int(shipX) - width/2
 	worldOriginY := int(shipY) - height/2
 
@@ -222,10 +413,6 @@ func drawStarfield(grid [][]rune, shipX, shipY float64) {
 		for c := 0; c < width; c++ {
 			wx := worldOriginX + c
 			wy := worldOriginY + r
-			// Cheap hash of world coords. The mod ratio sets star
-			// density (~3% of cells); the second hash level picks
-			// which glyph (faint dot vs brighter star) so the field
-			// has visual texture instead of one repeating char.
 			h := starHash(wx, wy)
 			if h%32 == 0 {
 				if h%128 == 0 {

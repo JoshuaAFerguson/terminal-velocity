@@ -14,52 +14,115 @@ package spaceflight
 
 import "math"
 
-// FlightState is one ship's position + velocity + heading at a point
-// in time. World coordinates are floating-point so sub-cell motion
-// accumulates smoothly across ticks; the renderer quantizes to
-// terminal cells when it draws. Heading is in radians, 0 = +X (east),
-// rotating counter-clockwise (math convention, not compass).
+// FlightParams bundles the per-ship physics constants. Pulled out of
+// FlightState so we can keep ship-derived tuning alongside the
+// continuously-changing position/velocity, and so callers compose a
+// single struct from ship + outfits and hand the whole thing to
+// NewFlightState.
 //
-// Velocity is the only non-input state — heading and position derive
-// from cumulative thrust + rotate operations, but velocity persists
-// across ticks because there's no friction in space.
-type FlightState struct {
-	X, Y     float64 // world position
-	VX, VY   float64 // velocity components per second
-	Heading  float64 // radians; 0 = +X axis, +π/2 = +Y axis (down on screen)
-	MaxSpeed float64 // hard cap on |velocity| (prevents accelerating to render-breaking speeds)
+// All values are floats in world-unit-per-second terms. Tick rate is
+// the renderer's concern; physics is rate-independent (Tick takes a
+// dt argument).
+type FlightParams struct {
+	// MaxSpeed is the hard cap on |velocity|. Slow freighters cap
+	// around 90 u/s; agile interceptors approach 360.
+	MaxSpeed float64
+
+	// ThrustImpulse is the velocity delta added to vx/vy each time
+	// the player presses thrust. With terminal key-repeat at
+	// ~30Hz and a 60fps physics tick, this needs to land somewhere
+	// in the 1-3 range to feel responsive without overshooting on
+	// every press.
+	ThrustImpulse float64
+
+	// RotateStep is the heading delta per rotate press, in radians.
+	// Typical: π/12 (15°) for nimble ships, π/24 (7.5°) for slow.
+	RotateStep float64
+
+	// BrakeImpulse is the thrust opposite to current velocity when
+	// the player brakes. Roughly 75% of ThrustImpulse so braking
+	// feels useful without being instantly free.
+	BrakeImpulse float64
 }
 
-// NewFlightState returns a ship at the origin, facing "up" on a
-// terminal screen. "Up" is -Y in screen coordinates, which maps to
-// -π/2 in our math heading. Players expect ↑ to thrust toward the
-// top of their screen; this default makes that intuitive.
-func NewFlightState() FlightState {
-	return FlightState{
-		X: 0, Y: 0,
-		VX: 0, VY: 0,
-		Heading:  -math.Pi / 2, // facing -Y == screen up
-		MaxSpeed: 200.0,        // world units per second
+// DefaultFlightParams returns starter-ship-grade flight tuning. Used
+// when no ship is equipped (login screen, pre-ship registration) —
+// keeps the cockpit demo-able even before a real Ship is loaded.
+func DefaultFlightParams() FlightParams {
+	return FlightParams{
+		MaxSpeed:      150.0,
+		ThrustImpulse: 1.5,
+		RotateStep:    math.Pi / 18.0, // 10°
+		BrakeImpulse:  1.2,
 	}
 }
 
-// ThrustImpulse is one keypress of forward thrust. Applied as a
-// velocity delta along the heading direction. Magnitude is tuned for
-// arrow-key auto-repeat on a typical terminal (~20-30 events/sec when
-// held), giving roughly 3-second 0-to-cruise feel.
-const ThrustImpulse = 8.0
+// FlightParamsFromShipStats derives flight characteristics from a
+// ship's combat-stat fields. Inputs match models.ShipType ranges:
+//
+//	speed:          1-10  (existing combat initiative scale)
+//	maneuverability: 2-12 (existing combat evasion scale)
+//
+// The mapping is intentionally generous — players should feel a
+// clear difference flying a Shuttle (Speed=2) vs. an Interceptor
+// (Speed=10). Tuning room left for engine outfits to push values
+// further once equipment integration lands in P1.3+.
+func FlightParamsFromShipStats(speed, maneuverability int) FlightParams {
+	if speed < 1 {
+		speed = 1
+	}
+	if maneuverability < 1 {
+		maneuverability = 1
+	}
+	// Speed → MaxSpeed: 90 (Speed=1) to 360 (Speed=10).
+	maxSpeed := 60.0 + float64(speed)*30.0
+	// Speed → ThrustImpulse: 1.0 (slow) to 2.5 (peppy). Acceleration
+	// matters more than top speed for combat feel, so we keep this
+	// range tight.
+	thrust := 0.8 + float64(speed)*0.17
+	// Maneuverability → RotateStep: 5° (capital ships) to 20°
+	// (interceptors).
+	rotateDeg := 4.0 + float64(maneuverability)*1.3
+	rotate := rotateDeg * math.Pi / 180.0
+	return FlightParams{
+		MaxSpeed:      maxSpeed,
+		ThrustImpulse: thrust,
+		RotateStep:    rotate,
+		BrakeImpulse:  thrust * 0.8,
+	}
+}
 
-// RotateStep is one keypress of rotation. ~10° per press, so
-// auto-repeat sweeps the ship around in under a second — fast enough
-// to dogfight, slow enough to aim. Stored as radians for consistency
-// with Heading.
-const RotateStep = math.Pi / 18.0 // 10 degrees
+// FlightState is one ship's position + velocity + heading + tuning
+// at a point in time. World coordinates are floating-point so
+// sub-cell motion accumulates smoothly across ticks; the renderer
+// quantizes to terminal cells when it draws. Heading is in radians,
+// 0 = +X (east), rotating counter-clockwise (math convention, not
+// compass).
+//
+// Velocity persists across ticks (no friction). FlightParams are
+// embedded by-value rather than via pointer so a server-authoritative
+// snapshot can be passed to clients without the params field
+// becoming a shared aliased reference.
+type FlightState struct {
+	X, Y    float64 // world position
+	VX, VY  float64 // velocity components per second
+	Heading float64 // radians; 0 = +X axis, +π/2 = +Y axis (down on screen)
+	Params  FlightParams
+}
 
-// BrakeImpulse is the magnitude of a "brake" press: applies thrust
-// directly opposite to current velocity. Slightly weaker than
-// ThrustImpulse because braking is convenient, not free; players
-// still need to plan their stops.
-const BrakeImpulse = 6.0
+// NewFlightState returns a ship at the origin, facing "up" on a
+// terminal screen, with the given physics parameters. "Up" is -Y in
+// screen coordinates, which maps to -π/2 in our math heading.
+// Players expect ↑ to thrust toward the top of their screen; this
+// default makes that intuitive.
+func NewFlightState(params FlightParams) FlightState {
+	return FlightState{
+		X: 0, Y: 0,
+		VX: 0, VY: 0,
+		Heading: -math.Pi / 2, // facing -Y == screen up
+		Params:  params,
+	}
+}
 
 // Tick advances the state by `dt` seconds. Pure: returns a new
 // FlightState, doesn't mutate the receiver. dt is expected to be
@@ -81,8 +144,8 @@ func (s FlightState) Tick(dt float64) FlightState {
 // (so the ship still goes the way the player aimed) while clamping
 // magnitude.
 func (s FlightState) Thrust() FlightState {
-	s.VX += math.Cos(s.Heading) * ThrustImpulse
-	s.VY += math.Sin(s.Heading) * ThrustImpulse
+	s.VX += math.Cos(s.Heading) * s.Params.ThrustImpulse
+	s.VY += math.Sin(s.Heading) * s.Params.ThrustImpulse
 	return s.clampSpeed()
 }
 
@@ -99,7 +162,7 @@ func (s FlightState) Brake() FlightState {
 	// Direction opposite to current velocity.
 	dx := -s.VX / speed
 	dy := -s.VY / speed
-	delta := BrakeImpulse
+	delta := s.Params.BrakeImpulse
 	if delta > speed {
 		// Would overshoot — clamp to exact stop.
 		delta = speed
@@ -111,14 +174,14 @@ func (s FlightState) Brake() FlightState {
 
 // RotateLeft rotates heading counter-clockwise by RotateStep.
 func (s FlightState) RotateLeft() FlightState {
-	s.Heading -= RotateStep
+	s.Heading -= s.Params.RotateStep
 	s.Heading = normalizeAngle(s.Heading)
 	return s
 }
 
 // RotateRight rotates heading clockwise by RotateStep.
 func (s FlightState) RotateRight() FlightState {
-	s.Heading += RotateStep
+	s.Heading += s.Params.RotateStep
 	s.Heading = normalizeAngle(s.Heading)
 	return s
 }
@@ -150,10 +213,10 @@ func (s FlightState) HeadingDegrees() int {
 // Direction is preserved; only magnitude is clamped.
 func (s FlightState) clampSpeed() FlightState {
 	speed := math.Hypot(s.VX, s.VY)
-	if speed <= s.MaxSpeed {
+	if speed <= s.Params.MaxSpeed {
 		return s
 	}
-	scale := s.MaxSpeed / speed
+	scale := s.Params.MaxSpeed / speed
 	s.VX *= scale
 	s.VY *= scale
 	return s
