@@ -5,7 +5,7 @@
 //   target/system info under the viewport, header at the top, and
 //   key reminders at the bottom. Replaces the static "space view"
 //   radar as the primary 'in your ship' screen.
-// Version: 1.1.0
+// Version: 1.1.1
 // Author: Joshua Ferguson
 // Created: 2026-04-24
 
@@ -68,8 +68,9 @@ type flightModel struct {
 	lastTick      time.Time // wall-clock of last tick (variable-dt physics)
 	initialized   bool      // true after first sync from the player's equipped ship
 	planets       []planetEntity
-	planetsLoaded bool      // true once the system's planets have been fetched
-	loadedSystem  string    // ID of the system whose planets are cached
+	planetsLoaded bool          // true once the system's planets have been fetched
+	loadInFlight  bool          // true while a planet load is queued but not yet returned
+	loadedSystem  string        // ID of the system whose planets are cached
 	dockTarget    *planetEntity // nearest-in-range planet on this frame; nil when nothing dockable
 }
 
@@ -212,6 +213,28 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flight.initialized = true
 	}
 
+	// Process the planet-load completion BEFORE any gating that depends
+	// on planetsLoaded. If we let the gate run first it would re-issue
+	// the loader and silently drop this message — leaving planetsLoaded
+	// false forever, which then drops every subsequent tick and key.
+	if loaded, ok := msg.(flightDataLoadedMsg); ok {
+		if loaded.err == nil {
+			m.flight.planets = loaded.planets
+		}
+		m.flight.planetsLoaded = true
+		m.flight.loadInFlight = false
+		m.flight.loadedSystem = loaded.systemID
+		// Keep the tick chain alive — the load may have arrived on a
+		// frame where the active tick was dropped by the (now-removed)
+		// gate. Re-arm only if we somehow lost the loop.
+		if !m.flight.active {
+			m.flight.active = true
+			m.flight.lastTick = time.Now()
+			return m, flightTick()
+		}
+		return m, nil
+	}
+
 	// Self-start the tick loop on first entry. Subsequent entries
 	// (after returning from a sub-screen, etc.) re-arm here too —
 	// the top-level dispatcher drops stale flightTickMsg arrivals
@@ -225,33 +248,35 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 		kicker = flightTick()
 	}
 
-	// Load planets for the current system on first entry, and
-	// re-load whenever the player has jumped (system changed). The
-	// load is async — the data shows up in a flightDataLoadedMsg
-	// later. Until then, the viewport just shows stars + ship.
-	if m.player != nil {
+	// Load planets for the current system on first entry, and re-load
+	// whenever the player has jumped (system changed). loadInFlight
+	// dedupes — without it, every message that arrives during the
+	// pending load issues another loader, and *also* gets swallowed
+	// on the way through (no tick re-arm, no key processing).
+	var loader tea.Cmd
+	if m.player != nil && !m.flight.loadInFlight {
 		curSys := m.player.CurrentSystem.String()
 		if !m.flight.planetsLoaded || m.flight.loadedSystem != curSys {
-			loader := m.loadFlightDataCmd()
-			if kicker != nil {
-				return m, tea.Batch(kicker, loader)
-			}
-			return m, loader
+			m.flight.loadInFlight = true
+			loader = m.loadFlightDataCmd()
+		}
+	}
+
+	// Compose any standalone kicker/loader work with whatever the
+	// message switch produces, so we never drop a key or tick just
+	// because we needed to start a load in the same frame.
+	withSetup := func(cmd tea.Cmd) tea.Cmd {
+		switch {
+		case kicker == nil && loader == nil:
+			return cmd
+		case cmd == nil:
+			return tea.Batch(kicker, loader)
+		default:
+			return tea.Batch(cmd, kicker, loader)
 		}
 	}
 
 	switch msg := msg.(type) {
-	case flightDataLoadedMsg:
-		// Cache planets for the current system. err is best-effort:
-		// if loading failed, leave the cockpit empty rather than
-		// kicking the player out — they can re-enter to retry.
-		if msg.err == nil {
-			m.flight.planets = msg.planets
-		}
-		m.flight.planetsLoaded = true
-		m.flight.loadedSystem = msg.systemID
-		return m, nil
-
 	case flightTickMsg:
 		now := time.Now()
 		dt := now.Sub(m.flight.lastTick).Seconds()
@@ -266,10 +291,9 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// X" only when actually in range. Recomputed every tick is
 		// fine — N usually <10 planets per system.
 		m.flight.dockTarget = nearestDockable(m.flight.ship, m.flight.planets)
-		// Re-arm. The top-level Update drops flightTickMsg when the
-		// active screen isn't ScreenFlight, which kills the loop
-		// when the player navigates away.
-		return m, flightTick()
+		// Re-arm via withSetup so a load-in-flight Cmd produced this
+		// frame still gets dispatched alongside the next tick.
+		return m, withSetup(flightTick())
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -306,7 +330,7 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// regardless of which screen the player launched from.
 			target := nearestDockable(m.flight.ship, m.flight.planets)
 			if target == nil || target.planet == nil {
-				return m, nil
+				return m, withSetup(nil)
 			}
 			m.flight.active = false // stop the tick; we're leaving the cockpit
 			m.previousScreen = ScreenFlight
@@ -316,10 +340,7 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if kicker != nil {
-		return m, kicker
-	}
-	return m, nil
+	return m, withSetup(nil)
 }
 
 // viewFlight composes the full cockpit: header, viewport+sidebar,
