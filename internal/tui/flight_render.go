@@ -17,6 +17,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/JoshuaAFerguson/terminal-velocity/internal/spaceflight"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -335,6 +336,125 @@ func styledHealthBar(cur, max, width int, palette ...*lipgloss.Style) string {
 		sb.WriteString(styleBarEmpty.Render(strings.Repeat(ProgressEmpty, emptyW)))
 	}
 	return sb.String()
+}
+
+// renderRadar produces a compact system-overview radar sized for the
+// sidebar's top portion. The radar centers on the system origin (0,0)
+// and scales to fit every known planet plus the ship inside the panel,
+// so a glance answers "where am I in the system?". Returns exactly
+// `height` rows of `width`-cell strings — caller splices them above
+// the ship-status block in the sidebar.
+//
+// Layout per row:
+//   row 0:           " RADAR "                          (title)
+//   row 1..height-2: grid (planets + ship + target)
+//   row height-1:    horizontal divider
+//
+// Planet glyphs reuse the cellKind palette so the radar agrees with
+// the main viewport visually — a high-tech world is cyan in both
+// places, the target is orange in both, etc.
+func renderRadar(width, height int, ship spaceflight.FlightState, planets []planetEntity, targetID string) []string {
+	if width < 6 || height < 4 {
+		return nil
+	}
+	gridH := height - 2
+	gridW := width
+
+	// Compute the system extent so the radar fits everything. We keep
+	// the ship in the calculation so a player who has flown well past
+	// the planet ring still appears on the panel rather than vanishing
+	// off the edge. 1.1× padding stops dots from clinging to borders.
+	maxExtent := 800.0
+	for _, p := range planets {
+		if v := math.Abs(p.x); v > maxExtent {
+			maxExtent = v
+		}
+		if v := math.Abs(p.y); v > maxExtent {
+			maxExtent = v
+		}
+	}
+	if v := math.Abs(ship.X); v > maxExtent {
+		maxExtent = v
+	}
+	if v := math.Abs(ship.Y); v > maxExtent {
+		maxExtent = v
+	}
+	maxExtent *= 1.1
+
+	grid := make([][]rune, gridH)
+	kinds := make([][]cellKind, gridH)
+	for r := range grid {
+		grid[r] = make([]rune, gridW)
+		kinds[r] = make([]cellKind, gridW)
+		for c := range grid[r] {
+			grid[r][c] = ' '
+		}
+	}
+
+	cx, cy := gridW/2, gridH/2
+
+	// Origin tick — a faint plus marks (0,0) so the player has a
+	// stable visual anchor as the ship moves around the panel.
+	if cx >= 0 && cx < gridW && cy >= 0 && cy < gridH {
+		grid[cy][cx] = '+'
+		kinds[cy][cx] = kStarDim
+	}
+
+	// World → radar cell. Cells are anisotropic in pixel-space (chars
+	// are roughly twice as tall as wide), but we scale X and Y the
+	// same here so distances/bearings on the radar match the player's
+	// mental model from the main viewport.
+	plot := func(wx, wy float64) (int, int, bool) {
+		rx := cx + int(wx/maxExtent*float64(cx))
+		ry := cy + int(wy/maxExtent*float64(cy))
+		if rx < 0 || rx >= gridW || ry < 0 || ry >= gridH {
+			return 0, 0, false
+		}
+		return rx, ry, true
+	}
+
+	// Plot planets first; ship on top so it always wins overlap.
+	for _, p := range planets {
+		rx, ry, ok := plot(p.x, p.y)
+		if !ok {
+			continue
+		}
+		if p.id == targetID {
+			grid[ry][rx] = '◉'
+			kinds[ry][rx] = kTarget
+		} else {
+			grid[ry][rx] = '·'
+			kinds[ry][rx] = planetKind(p.techLevel)
+		}
+	}
+
+	if rx, ry, ok := plot(ship.X, ship.Y); ok {
+		runes := []rune(ship.HeadingGlyph())
+		if len(runes) > 0 {
+			grid[ry][rx] = runes[0]
+			kinds[ry][rx] = kShip
+		}
+	}
+
+	out := make([]string, 0, height)
+	out = append(out, padStyledRight(" "+HighlightStyle.Render("RADAR"), width))
+	for r := 0; r < gridH; r++ {
+		out = append(out, padStyledRight(renderStyledRow(grid[r], kinds[r]), width))
+	}
+	out = append(out, strings.Repeat(BoxHorizontal, width))
+	return out
+}
+
+// padStyledRight pads a styled string to `width` cells. lipgloss.Width
+// already strips ANSI escapes when measuring, so this is identical in
+// shape to PadRight but kept local since the radar grid is the only
+// caller that mixes per-cell styled runs into a single line.
+func padStyledRight(s string, width int) string {
+	w := lipgloss.Width(s)
+	if w >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-w)
 }
 
 // renderHudLine composes the bottom-of-viewport HUD with colored

@@ -5,7 +5,7 @@
 //   target/system info under the viewport, header at the top, and
 //   key reminders at the bottom. Replaces the static "space view"
 //   radar as the primary 'in your ship' screen.
-// Version: 1.2.0
+// Version: 1.3.0
 // Author: Joshua Ferguson
 // Created: 2026-04-24
 
@@ -597,14 +597,14 @@ func (m Model) renderFlightChat(innerWidth int) []string {
 	return out
 }
 
-// renderFlightSidebar produces the right-hand status panel: hull,
-// shields, fuel, energy bars + ship name + cargo summary. Returns a
-// slice of pre-padded lines exactly `width` cells wide and at most
-// `height` rows long; caller blits them next to the viewport.
+// renderFlightSidebar produces the right-hand status panel: a system
+// radar at the top and ship/engine status below. Returns exactly
+// `height` rows of `width`-cell strings; caller blits them next to
+// the viewport.
 //
-// Bars are drawn with DrawProgressBar from ui_components; the panel
-// stays compact so on default 80-col terminals there's still 60+
-// cells of viewport.
+// Layout: top ~9 rows are radar (title + grid + divider), the rest
+// is ship status. On terminals shorter than ~18 rows the radar is
+// dropped so the status panel still fits.
 func (m Model) renderFlightSidebar(width, height int) []string {
 	hull, maxHull := 100, 100
 	shields, maxShields := 80, 100
@@ -670,13 +670,33 @@ func (m Model) renderFlightSidebar(width, height int) []string {
 		PadRight(fmt.Sprintf(" Rot  %3.0f°", m.flight.ship.Params.RotateStep*180/3.14159), width),
 	}
 
-	if len(lines) > height {
-		lines = lines[:height]
+	// Reserve top portion for the radar when there's enough vertical
+	// room. 9 rows = title + 7-row grid + bottom divider; below that
+	// the radar isn't really legible, so drop it on small terminals
+	// rather than render a 2-row useless box.
+	radarH := 0
+	if height >= 18 {
+		radarH = 9
+	} else if height >= 14 {
+		radarH = 7
 	}
-	for len(lines) < height {
+	statusH := height - radarH
+
+	if len(lines) > statusH {
+		lines = lines[:statusH]
+	}
+	for len(lines) < statusH {
 		lines = append(lines, strings.Repeat(" ", width))
 	}
-	return lines
+
+	if radarH == 0 {
+		return lines
+	}
+	radar := renderRadar(width, radarH, m.flight.ship, m.flight.planets, m.flight.targetID)
+	if len(radar) == 0 {
+		return lines
+	}
+	return append(radar, lines...)
 }
 
 // shieldPercent returns the player ship's shield % for the header,
