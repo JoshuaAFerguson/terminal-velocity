@@ -1,14 +1,12 @@
 // File: internal/tui/main_menu.go
 // Project: Terminal Velocity
-// Description: Main menu screen - Central navigation hub for accessing all game features
-// Version: 1.1.0
+// Description: Main menu screen — top-level navigation hub. Two-tier
+//   layout (categories at top, items inside) so the player isn't
+//   staring at a 30-item flat list, plus dock-aware filtering so
+//   station services only appear when docked at a planet.
+// Version: 2.0.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
-//
-// The main menu serves as the primary navigation interface, providing access to all
-// major game systems including navigation, trading, combat, missions, quests, and
-// multiplayer features. It displays player stats in the header and presents a
-// scrollable list of menu options.
 
 package tui
 
@@ -20,83 +18,291 @@ import (
 	"github.com/google/uuid"
 )
 
-// mainMenuModel contains the state for the main menu screen.
-// It manages cursor position and the list of available menu items.
+// menuCategory groups related items so the top-level menu shows ~10
+// entries instead of 30+. Empty string is "top-level" — for items
+// like Launch / Take Off / Quit that don't belong inside a category.
+type menuCategory string
+
+const (
+	catNone     menuCategory = ""
+	catStation  menuCategory = "Station"  // visible only when docked
+	catPilot    menuCategory = "Pilot"
+	catProgress menuCategory = "Progress"
+	catSocial   menuCategory = "Social"
+	catPolitics menuCategory = "Politics"
+	catMarkets  menuCategory = "Markets"
+	catHelp     menuCategory = "Help & Settings"
+)
+
+// menuVisibility narrows when a top-level entry shows up. Most items
+// are visibleAlways; Launch swaps to Take Off when docked, and
+// dock-only entries (Take Off, the Station category) only show up
+// when the player has CurrentPlanet set.
+type menuVisibility int
+
+const (
+	showAlways    menuVisibility = iota // visible regardless of dock state
+	showWhenInFlight                    // visible only when not docked
+	showWhenDocked                      // visible only when docked
+)
+
+// orderedCategories is the canonical render order for the top-level
+// list. Driven by a slice (not iteration over a map) so categories
+// land in predictable positions regardless of Go map traversal.
+var orderedCategories = []menuCategory{
+	catStation, // first when present so it's the obvious choice on land
+	catPilot,
+	catProgress,
+	catSocial,
+	catPolitics,
+	catMarkets,
+	catHelp,
+}
+
+// mainMenuModel holds the menu's render state. openCategory != ""
+// means the user has drilled into a category and we're showing its
+// items + a "Back" entry; "" means we're at the top level showing
+// categories + action shortcuts.
 type mainMenuModel struct {
-	cursor int        // Current cursor position (0-indexed)
-	items  []menuItem // List of menu items to display
+	cursor        int
+	openCategory  menuCategory
+	items         []menuItem // single source of truth — view filters
 }
 
-// menuItem represents a single selectable option in the main menu.
-// Each item can either navigate to a screen or execute a custom action.
+// menuItem is one row in the menu tree. category="" means it's a
+// top-level action (Launch, Quit). Otherwise it lives under a
+// category and only shows up when that category is open.
 type menuItem struct {
-	label  string              // Display text for the menu item
-	screen Screen              // Target screen to navigate to (if action is nil)
-	action func(*Model) tea.Cmd // Optional custom action (e.g., quit game)
+	label      string
+	screen     Screen
+	action     func(*Model) tea.Cmd
+	category   menuCategory
+	visibility menuVisibility
+	adminOnly  bool // hide unless the player is in adminManager
 }
 
-// newMainMenuModel creates and initializes a new main menu model.
-// Sets up the complete menu with all available screens and actions.
-// Returns a mainMenuModel with cursor at position 0.
+// newMainMenuModel returns the menu's items as a single flat list
+// with category tags. The view filters this slice on render — there
+// is no pre-baked "categories" data, just a derivation from the
+// items themselves.
 func newMainMenuModel() mainMenuModel {
 	return mainMenuModel{
-		cursor: 0,
 		items: []menuItem{
-			// Launch drops the player into the real-time flight cockpit —
-			// the EV-style 2D viewport with WASD/arrow flight controls.
-			// The old static space-view radar is still reachable via the
-			// Space View entry below for players who want the menu/HUD
-			// flow until more flight features land.
-			{label: "Launch", screen: ScreenFlight},
-			{label: "Space View (legacy)", screen: ScreenSpaceView},
-			{label: "Navigation", screen: ScreenNavigation},
-			{label: "Trading", screen: ScreenTrading},
-			{label: "Cargo Hold", screen: ScreenCargo},
-			{label: "Shipyard", screen: ScreenShipyard},
-			{label: "Outfitter", screen: ScreenOutfitter},
-			{label: "Advanced Outfitting", screen: ScreenOutfitterEnhanced},
-			{label: "Ship Management", screen: ScreenShipManagement},
-			{label: "Pilot Record", screen: ScreenPilotRecord},
-			{label: "Missions", screen: ScreenMissions},
-			{label: "Quests", screen: ScreenQuests},
-			{label: "Achievements", screen: ScreenAchievements},
-			{label: "Leaderboards", screen: ScreenLeaderboards},
-			{label: "Players", screen: ScreenPlayers},
-			{label: "Chat", screen: ScreenChat},
-			{label: "Factions", screen: ScreenFactions},
-			{label: "Faction Wars", screen: ScreenFactionWars},
-			{label: "Territory Map", screen: ScreenTerritoryMap},
-			{label: "Trade", screen: ScreenTrade},
-			{label: "Marketplace", screen: ScreenMarketplace},
-			{label: "Mail", screen: ScreenMail},
-			{label: "Trade Routes", screen: ScreenTradeRoutes},
-			{label: "Notifications", screen: ScreenNotifications},
-			{label: "PvP Combat", screen: ScreenPvP},
-			{label: "News", screen: ScreenNews},
-			{label: "Help", screen: ScreenHelp},
-			{label: "Settings", screen: ScreenSettings},
-			{label: "Tutorials", screen: ScreenTutorial},
-			{label: "Admin Panel", screen: ScreenAdmin},
-			{label: "Quit", action: func(m *Model) tea.Cmd { return tea.Quit }},
+			// === Top-level action shortcuts ===
+			//
+			// Launch + Take Off are mutually exclusive based on dock
+			// state. Take Off chains takeoffCmd → ScreenFlight so the
+			// dock state clears in the DB before the player drops
+			// into the cockpit; without that, the next CurrentPlanet
+			// read would think they're still on a planet.
+			{label: "▸ Launch", screen: ScreenFlight, visibility: showWhenInFlight},
+			{
+				label:      "▸ Take Off",
+				visibility: showWhenDocked,
+				action: func(m *Model) tea.Cmd {
+					// Clear m.flight.active so the cockpit starts a
+					// fresh tick loop on entry rather than racing
+					// the takeoff DB write.
+					m.flight.active = false
+					m.screen = ScreenFlight
+					return m.takeoffCmd()
+				},
+			},
+
+			// === Station category — docked-only services ===
+			{label: "Trading", screen: ScreenTrading, category: catStation, visibility: showWhenDocked},
+			{label: "Shipyard", screen: ScreenShipyard, category: catStation, visibility: showWhenDocked},
+			{label: "Outfitter", screen: ScreenOutfitter, category: catStation, visibility: showWhenDocked},
+			{label: "Advanced Outfitting", screen: ScreenOutfitterEnhanced, category: catStation, visibility: showWhenDocked},
+			{label: "Mission Board", screen: ScreenMissions, category: catStation, visibility: showWhenDocked},
+
+			// === Pilot category — your ship + your record ===
+			{label: "Cargo Hold", screen: ScreenCargo, category: catPilot},
+			{label: "Ship Management", screen: ScreenShipManagement, category: catPilot},
+			{label: "Pilot Record", screen: ScreenPilotRecord, category: catPilot},
+			{label: "Navigation", screen: ScreenNavigation, category: catPilot},
+
+			// === Progress category — long-running goals ===
+			{label: "Quests", screen: ScreenQuests, category: catProgress},
+			{label: "Achievements", screen: ScreenAchievements, category: catProgress},
+			{label: "Leaderboards", screen: ScreenLeaderboards, category: catProgress},
+			{label: "News", screen: ScreenNews, category: catProgress},
+
+			// === Social category — communication + relationships ===
+			{label: "Chat", screen: ScreenChat, category: catSocial},
+			{label: "Mail", screen: ScreenMail, category: catSocial},
+			{label: "Players", screen: ScreenPlayers, category: catSocial},
+			{label: "Trade (Player-to-Player)", screen: ScreenTrade, category: catSocial},
+
+			// === Politics category — galactic-scale faction systems ===
+			{label: "Factions", screen: ScreenFactions, category: catPolitics},
+			{label: "Faction Wars", screen: ScreenFactionWars, category: catPolitics},
+			{label: "Territory Map", screen: ScreenTerritoryMap, category: catPolitics},
+			{label: "PvP Combat", screen: ScreenPvP, category: catPolitics},
+
+			// === Markets category — commerce + bounties ===
+			{label: "Marketplace", screen: ScreenMarketplace, category: catMarkets},
+			{label: "Trade Routes", screen: ScreenTradeRoutes, category: catMarkets},
+			{label: "Notifications", screen: ScreenNotifications, category: catMarkets},
+
+			// === Help & Settings ===
+			{label: "Help", screen: ScreenHelp, category: catHelp},
+			{label: "Tutorials", screen: ScreenTutorial, category: catHelp},
+			{label: "Settings", screen: ScreenSettings, category: catHelp},
+			{label: "Admin Panel", screen: ScreenAdmin, category: catHelp, adminOnly: true},
+
+			// === Top-level: legacy + quit ===
+			//
+			// Space View kept around so players who need the radar/
+			// HUD overview can still get there until P1.4 folds those
+			// affordances into the flight cockpit.
+			{label: "  Space View (legacy)", screen: ScreenSpaceView},
+			{label: "  Quit", action: func(m *Model) tea.Cmd { return tea.Quit }},
 		},
 	}
 }
 
-// updateMainMenu handles input and state updates for the main menu screen.
+// isDocked reports whether the player is currently landed at a
+// planet/station. Drives the showWhenDocked / showWhenInFlight
+// filter and the Launch ⇄ Take Off label swap.
+func (m Model) isDocked() bool {
+	return m.player != nil && m.player.CurrentPlanet != nil
+}
+
+// playerIsAdmin checks the admin manager for the current player. A
+// missing manager (test setups) reports false so the admin panel
+// stays hidden by default.
+func (m Model) playerIsAdmin() bool {
+	if m.adminManager == nil || m.player == nil {
+		return false
+	}
+	return m.adminManager.IsAdmin(m.playerID)
+}
+
+// visibleTopLevelItems filters the menu items down to what should
+// appear when openCategory == "". Includes:
+//   - All non-categorized items whose visibility matches dock state
+//   - One synthetic entry per category that has at least one
+//     visible item under it (so empty categories don't show up)
 //
-// Key Bindings:
-//   - q: Quit the game
-//   - up/k: Move cursor up
-//   - down/j: Move cursor down
-//   - enter/space: Select current menu item
-//
-// This function routes the player to different screens based on their selection
-// and initializes the appropriate screen state (loading data, setting up models).
+// The synthetic entries use a sentinel screen value (ScreenMainMenu)
+// and an action that opens the category. updateMainMenu detects them
+// by checking action != nil and category != "".
+func (m Model) visibleTopLevelItems() []menuItem {
+	docked := m.isDocked()
+	out := make([]menuItem, 0, len(m.mainMenu.items))
+
+	// Top-level (non-categorized) action items first.
+	for _, it := range m.mainMenu.items {
+		if it.category != catNone {
+			continue
+		}
+		if !visibilityMatches(it.visibility, docked) {
+			continue
+		}
+		out = append(out, it)
+	}
+
+	// Insert category headers for every category that has at least
+	// one visible item under it, in `orderedCategories` order.
+	admin := m.playerIsAdmin()
+	for _, cat := range orderedCategories {
+		if !categoryHasVisibleItems(m.mainMenu.items, cat, docked, admin) {
+			continue
+		}
+		thisCat := cat // closure capture
+		out = append(out, menuItem{
+			label:    "▸ " + string(cat),
+			category: thisCat,
+			action: func(m *Model) tea.Cmd {
+				// Clicking a category opens it (handled below in
+				// updateMainMenuDispatch by detecting action !=
+				// nil + category != "").
+				m.mainMenu.openCategory = thisCat
+				m.mainMenu.cursor = 0
+				return nil
+			},
+		})
+	}
+
+	return out
+}
+
+// visibleCategoryItems returns items inside the given category that
+// pass dock + admin filtering, plus a "← Back" action at the top so
+// the player can return to the top-level list without ESC.
+func (m Model) visibleCategoryItems(cat menuCategory) []menuItem {
+	docked := m.isDocked()
+	admin := m.playerIsAdmin()
+
+	out := []menuItem{
+		{
+			label: "← Back",
+			action: func(m *Model) tea.Cmd {
+				m.mainMenu.openCategory = catNone
+				m.mainMenu.cursor = 0
+				return nil
+			},
+		},
+	}
+	for _, it := range m.mainMenu.items {
+		if it.category != cat {
+			continue
+		}
+		if !visibilityMatches(it.visibility, docked) {
+			continue
+		}
+		if it.adminOnly && !admin {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out
+}
+
+func visibilityMatches(v menuVisibility, docked bool) bool {
+	switch v {
+	case showWhenDocked:
+		return docked
+	case showWhenInFlight:
+		return !docked
+	default:
+		return true
+	}
+}
+
+func categoryHasVisibleItems(items []menuItem, cat menuCategory, docked, admin bool) bool {
+	for _, it := range items {
+		if it.category != cat {
+			continue
+		}
+		if !visibilityMatches(it.visibility, docked) {
+			continue
+		}
+		if it.adminOnly && !admin {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// currentMenuView returns the slice the cursor is operating on right
+// now — top-level when openCategory is empty, sub-menu otherwise.
+// Centralizes the "what's on screen?" question so update + view
+// don't drift.
+func (m Model) currentMenuView() []menuItem {
+	if m.mainMenu.openCategory == catNone {
+		return m.visibleTopLevelItems()
+	}
+	return m.visibleCategoryItems(m.mainMenu.openCategory)
+}
+
 func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Self-start the ticker when re-entering the main menu. The
-	// top-level Update routes off-screen newsTickerMsg into
-	// stopNewsTicker, which clears the active flag; the next
-	// non-tick message here kicks it back on. The kicker runs in
+	// Self-start the news ticker when re-entering the main menu.
+	// The top-level Update routes off-screen newsTickerMsg into
+	// stopNewsTicker, which clears the active flag; the next non-
+	// tick message here kicks it back on. The kicker runs in
 	// parallel with whatever the user's message would normally
 	// produce, so we batch the two commands.
 	var kickerCmd tea.Cmd
@@ -120,174 +326,154 @@ func (m Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateMainMenuDispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case newsTickerMsg:
-		// Ticker advances only while the main menu is on-screen. When
-		// the user navigates away, the next tea.Tick is still scheduled
-		// in-flight but will arrive at a different screen's updater,
-		// which drops it silently — so the loop self-terminates.
+		// Ticker advances only while the main menu is on-screen.
+		// When the user navigates away, the next tea.Tick is
+		// scheduled in-flight but will arrive at a different
+		// screen's updater, which drops it silently — so the loop
+		// self-terminates.
 		newModel, cmd := m.updateNewsTicker()
 		return newModel, cmd
+
 	case tea.KeyMsg:
+		view := m.currentMenuView()
+
 		switch msg.String() {
 		case "q":
-			// Quit from main menu
 			return m, tea.Quit
+
+		case "esc", "backspace":
+			// ESC at top level → no-op (q quits).
+			// ESC inside a category → back to top level.
+			if m.mainMenu.openCategory != catNone {
+				m.mainMenu.openCategory = catNone
+				m.mainMenu.cursor = 0
+			}
+			return m, nil
+
 		case "up", "k":
-			// Move cursor up (vi-style navigation supported with k)
 			if m.mainMenu.cursor > 0 {
 				m.mainMenu.cursor--
 			}
+
 		case "down", "j":
-			// Move cursor down (vi-style navigation supported with j)
-			if m.mainMenu.cursor < len(m.mainMenu.items)-1 {
+			if m.mainMenu.cursor < len(view)-1 {
 				m.mainMenu.cursor++
 			}
-		case "enter", " ":
-			// Select current menu item
-			selected := m.mainMenu.items[m.mainMenu.cursor]
 
-			// If item has a custom action (like quit), execute it
+		case "enter", " ":
+			if m.mainMenu.cursor < 0 || m.mainMenu.cursor >= len(view) {
+				return m, nil
+			}
+			selected := view[m.mainMenu.cursor]
+
+			// Action items (including category openers, the Back
+			// entry, Quit, and Take Off) run their action and
+			// stop. They handle their own state mutation.
 			if selected.action != nil {
 				return m, selected.action(&m)
 			}
-			// Record that we came from the main menu so screens reachable
-			// from multiple entry points (outfitter_enhanced, etc.) can
-			// return here on Esc instead of defaulting to space view.
+
+			// Otherwise: navigate to the item's screen, with
+			// per-screen initialization for screens that need
+			// data fetched on first display.
 			m.previousScreen = ScreenMainMenu
 			m.hasPreviousScreen = true
 			m.screen = selected.screen
-
-			// Initialize screen-specific data
-			if selected.screen == ScreenNavigation {
-				m.navigation = newNavigationModel()
-				return m, m.loadConnectedSystems()
-			}
-			if selected.screen == ScreenTrading {
-				m.trading = newTradingModel()
-				return m, m.loadTradingMarket()
-			}
-			if selected.screen == ScreenCargo {
-				m.cargo = newCargoModel()
-				return m, nil
-			}
-			if selected.screen == ScreenShipyard {
-				m.shipyard = newShipyardModel()
-				return m, m.loadShipyard()
-			}
-			if selected.screen == ScreenOutfitter {
-				m.outfitter = newOutfitterModel()
-				return m, m.loadOutfitter()
-			}
-			if selected.screen == ScreenOutfitterEnhanced {
-				m.outfitterEnhanced = newOutfitterEnhancedModel()
-				// Load player inventory and loadouts
-				m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
-				m.outfitterEnhanced.loadouts = m.outfittingManager.GetPlayerLoadouts(m.playerID)
-				return m, nil
-			}
-			if selected.screen == ScreenShipManagement {
-				m.shipManagement = newShipManagementModel()
-				return m, m.loadOwnedShips()
-			}
-			if selected.screen == ScreenLeaderboards {
-				m.leaderboardsModel = newLeaderboardsModel()
-				return m, m.refreshLeaderboards()
-			}
-			if selected.screen == ScreenSettings {
-				m.settingsModel = newSettingsModel()
-				// Load player settings
-				if playerSettings, err := m.settingsManager.LoadSettings(m.playerID); err == nil {
-					m.settingsModel.settings = playerSettings
-				}
-				return m, nil
-			}
-			if selected.screen == ScreenAdmin {
-				m.adminModel = newAdminModel()
-				// Check if player is admin
-				m.adminModel.isAdmin = m.adminManager.IsAdmin(m.playerID)
-				if m.adminModel.isAdmin {
-					// Get admin role from manager
-					// For now, default to moderator
-					m.adminModel.role = "moderator"
-				}
-				return m, nil
-			}
-			if selected.screen == ScreenTutorial {
-				m.tutorialModel = newTutorialModel()
-				m.tutorialModel.viewMode = tutorialViewList
-				m.tutorialModel.allTutorials = m.tutorialManager.GetAllTutorials()
-				return m, nil
-			}
-			if selected.screen == ScreenQuests {
-				m.questsModel = newQuestsModel()
-				m.questsModel.viewMode = questViewActive
-				m.questsModel.activeQuests = m.questManager.GetActiveQuests(m.playerID)
-				m.questsModel.availableQuests = m.questManager.GetAvailableQuests(m.playerID)
-				m.questsModel.completedQuests = m.questManager.GetCompletedQuests(m.playerID)
-				return m, nil
-			}
-			if selected.screen == ScreenSpaceView {
-				// Fresh viewport state + kick off the async load so the
-				// player sees their real system/planets/nearby ships on
-				// the first frame instead of empty panels. Also arm the
-				// 2-second poll so other players jumping in/out of the
-				// system become visible without user input.
-				m.spaceView = newSpaceViewModel()
-				return m, tea.Batch(m.loadSpaceViewDataCmd(), spaceViewPollTick())
-			}
-			if selected.screen == ScreenMail {
-				m.mail.mode = mailModeInbox
-				m.mail.selectedIndex = 0
-				m.mail.loading = true
-				return m, m.loadInbox()
-			}
-			if selected.screen == ScreenChat {
-				// Kick the poll tick so messages fanned into our history
-				// by other sessions show up without requiring the user
-				// to press a key.
-				return m, chatPollTick()
-			}
-			if selected.screen == ScreenPvP {
-				// Poll so incoming challenges + accept/decline state
-				// updates surface without keystrokes. Same pattern as
-				// chat and space view.
-				return m, pvpPollTick()
-			}
-			if selected.screen == ScreenMarketplace {
-				// Poll so auctions / contracts / bounties posted by
-				// other players surface in the lists without input.
-				return m, marketplacePollTick()
-			}
-
-			return m, nil
+			return m, m.initScreenForMenuSelection(selected.screen)
 		}
 	}
 
 	return m, nil
 }
 
-// viewMainMenu renders the main menu screen.
+// initScreenForMenuSelection returns a tea.Cmd that primes the
+// destination screen (loads data, kicks off polls). Keeps the menu
+// dispatcher's switch statement contained — every per-screen
+// initialization rule lives here, not splattered across the dispatch
+// case.
 //
-// Layout:
-//   - Header: Player name, credits, and current location
-//   - Welcome message: Personalized greeting
-//   - Menu items: Scrollable list with cursor highlight
-//   - Footer: Key binding help text
-//
-// Visual Styling:
-//   - Selected item: Highlighted with ">" prefix and special styling
-//   - Unselected items: Normal styling with spacing indent
+// Returns nil when no init is needed (most screens render purely
+// from in-memory state).
+func (m *Model) initScreenForMenuSelection(screen Screen) tea.Cmd {
+	switch screen {
+	case ScreenNavigation:
+		m.navigation = newNavigationModel()
+		return m.loadConnectedSystems()
+	case ScreenTrading:
+		m.trading = newTradingModel()
+		return m.loadTradingMarket()
+	case ScreenCargo:
+		m.cargo = newCargoModel()
+	case ScreenShipyard:
+		m.shipyard = newShipyardModel()
+		return m.loadShipyard()
+	case ScreenOutfitter:
+		m.outfitter = newOutfitterModel()
+		return m.loadOutfitter()
+	case ScreenOutfitterEnhanced:
+		m.outfitterEnhanced = newOutfitterEnhancedModel()
+		m.outfitterEnhanced.inventory = m.outfittingManager.GetPlayerInventory(m.playerID)
+		m.outfitterEnhanced.loadouts = m.outfittingManager.GetPlayerLoadouts(m.playerID)
+	case ScreenShipManagement:
+		m.shipManagement = newShipManagementModel()
+		return m.loadOwnedShips()
+	case ScreenLeaderboards:
+		m.leaderboardsModel = newLeaderboardsModel()
+		return m.refreshLeaderboards()
+	case ScreenSettings:
+		m.settingsModel = newSettingsModel()
+		if m.settingsManager != nil {
+			if ps, err := m.settingsManager.LoadSettings(m.playerID); err == nil {
+				m.settingsModel.settings = ps
+			}
+		}
+	case ScreenAdmin:
+		m.adminModel = newAdminModel()
+		if m.adminManager != nil {
+			m.adminModel.isAdmin = m.adminManager.IsAdmin(m.playerID)
+			if m.adminModel.isAdmin {
+				m.adminModel.role = "moderator"
+			}
+		}
+	case ScreenTutorial:
+		m.tutorialModel = newTutorialModel()
+		m.tutorialModel.viewMode = tutorialViewList
+		if m.tutorialManager != nil {
+			m.tutorialModel.allTutorials = m.tutorialManager.GetAllTutorials()
+		}
+	case ScreenQuests:
+		m.questsModel = newQuestsModel()
+		m.questsModel.viewMode = questViewActive
+		if m.questManager != nil {
+			m.questsModel.activeQuests = m.questManager.GetActiveQuests(m.playerID)
+			m.questsModel.availableQuests = m.questManager.GetAvailableQuests(m.playerID)
+			m.questsModel.completedQuests = m.questManager.GetCompletedQuests(m.playerID)
+		}
+	case ScreenSpaceView:
+		m.spaceView = newSpaceViewModel()
+		return tea.Batch(m.loadSpaceViewDataCmd(), spaceViewPollTick())
+	case ScreenMail:
+		m.mail.mode = mailModeInbox
+		m.mail.selectedIndex = 0
+		m.mail.loading = true
+		return m.loadInbox()
+	case ScreenChat:
+		return chatPollTick()
+	case ScreenPvP:
+		return pvpPollTick()
+	case ScreenMarketplace:
+		return marketplacePollTick()
+	}
+	return nil
+}
+
 func (m Model) viewMainMenu() string {
-	// The login screen uses a full-width heavy box with centered content;
-	// keep the main menu in the same visual language so the login->menu
-	// transition doesn't feel like two different apps.
 	width := 80
 	if m.width > 80 {
 		width = m.width
 	}
 
-	// Resolve the player's current location to a readable label. The TUI
-	// caches the last-loaded system on the model, so hitting the DB on
-	// every render isn't necessary.
+	// Resolve the player's current location to a readable label.
 	systemName := "Unknown"
 	if m.player != nil {
 		if m.currentSystem != nil {
@@ -295,6 +481,9 @@ func (m Model) viewMainMenu() string {
 		} else if m.player.CurrentSystem != uuid.Nil {
 			systemName = "In transit"
 		}
+	}
+	if m.isDocked() && m.currentPlanet != nil {
+		systemName = m.currentPlanet.Name + ", " + systemName
 	}
 
 	credits := int64(0)
@@ -304,58 +493,70 @@ func (m Model) viewMainMenu() string {
 
 	var sb strings.Builder
 
-	// Top border
+	// Top border + titles.
 	sb.WriteString(BoxTopLeft)
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxTopRight + "\n")
-
-	// Title rows
 	writeFramedLine(&sb, Center("TERMINAL VELOCITY", width-2))
-	writeFramedLine(&sb, Center("= MAIN MENU =", width-2))
 
-	// Divider under the title
+	// Subtitle adapts to dock state + open category — gives the
+	// player a clear "where am I?" cue at all times.
+	subtitle := "= MAIN MENU ="
+	if m.mainMenu.openCategory != catNone {
+		subtitle = "= " + strings.ToUpper(string(m.mainMenu.openCategory)) + " ="
+	} else if m.isDocked() {
+		subtitle = "= STATION =" // visually distinct when landed
+	}
+	writeFramedLine(&sb, Center(subtitle, width-2))
+
+	// Divider under the title.
 	sb.WriteString(BoxCrossLeft)
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxCross + "\n")
 
-	// Player stats row
+	// Player stats row.
 	statsLine := fmt.Sprintf(" Pilot: %s   Credits: %s cr   Location: %s",
 		m.username, formatThousands(credits), systemName)
 	writeFramedLine(&sb, PadRight(statsLine, width-2))
 
-	// Divider before the menu list
 	sb.WriteString(BoxCrossLeft)
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxCross + "\n")
 
-	// Menu items in two columns. Paginate rows = ceil(n/2).
-	items := m.mainMenu.items
-	rows := (len(items) + 1) / 2
-	colWidth := (width - 4) / 2 // 4 = 2 outer borders + 1 gutter char + 1 padding
-	for row := 0; row < rows; row++ {
-		leftIdx := row
-		rightIdx := row + rows
-		left := renderMenuItem(items, leftIdx, m.mainMenu.cursor, colWidth)
-		right := ""
-		if rightIdx < len(items) {
-			right = renderMenuItem(items, rightIdx, m.mainMenu.cursor, colWidth)
-		} else {
-			right = strings.Repeat(" ", colWidth)
+	// Menu list — one item per row when in a sub-menu (so items
+	// have room to read), two columns at top level when there are
+	// >6 entries (older long-list density when collapsed view).
+	view := m.currentMenuView()
+	colWidth := width - 4
+	twoCol := m.mainMenu.openCategory == catNone && len(view) > 8
+	if twoCol {
+		colWidth = (width - 4) / 2
+		rows := (len(view) + 1) / 2
+		for row := 0; row < rows; row++ {
+			leftIdx := row
+			rightIdx := row + rows
+			left := renderMenuItem(view, leftIdx, m.mainMenu.cursor, colWidth)
+			right := strings.Repeat(" ", colWidth)
+			if rightIdx < len(view) {
+				right = renderMenuItem(view, rightIdx, m.mainMenu.cursor, colWidth)
+			}
+			writeFramedLine(&sb, " "+left+" "+right)
 		}
-		writeFramedLine(&sb, " "+left+" "+right)
+	} else {
+		for i := range view {
+			line := renderMenuItem(view, i, m.mainMenu.cursor, colWidth)
+			writeFramedLine(&sb, " "+line+" ")
+		}
 	}
 
-	// Empty spacer row + footer divider
+	// Spacer + footer divider.
 	writeFramedLine(&sb, strings.Repeat(" ", width-2))
 	sb.WriteString(BoxCrossLeft)
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxCross + "\n")
 
-	// Optional newsreel strip — suppressed if the news manager has no
-	// content, so the main menu doesn't show an empty row on a fresh
-	// server. The ticker content is measured in raw cells then padded
-	// by PadRight so ANSI color codes from tickerPrefix/Body don't
-	// shift the right border.
+	// Newsreel ticker — same as before, suppressed when news
+	// manager has no content.
 	ticker := m.renderNewsTicker(width - 4)
 	if ticker != "" {
 		writeFramedLine(&sb, " "+PadRight(ticker, width-3))
@@ -364,10 +565,13 @@ func (m Model) viewMainMenu() string {
 		sb.WriteString(BoxCross + "\n")
 	}
 
-	// Help text
-	writeFramedLine(&sb, Center("↑/↓ or j/k: Navigate   Enter: Select   q: Quit", width-2))
+	// Help text adapts to context.
+	help := "↑/↓: Navigate   Enter: Select   q: Quit"
+	if m.mainMenu.openCategory != catNone {
+		help = "↑/↓: Navigate   Enter: Select   ESC: Back   q: Quit"
+	}
+	writeFramedLine(&sb, Center(help, width-2))
 
-	// Bottom border
 	sb.WriteString(BoxBottomLeft)
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxBottomRight)
@@ -383,6 +587,33 @@ func writeFramedLine(sb *strings.Builder, content string) {
 	sb.WriteString(BoxVertical)
 	sb.WriteString(content)
 	sb.WriteString(BoxVertical + "\n")
+}
+
+// formatThousands turns 1234567 into "1,234,567". Used by anywhere
+// the player sees a credit balance — the comma separators read
+// faster than raw digit runs.
+func formatThousands(n int64) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	digits := fmt.Sprintf("%d", n)
+	out := ""
+	for i, r := range digits {
+		// Insert a comma every 3 digits from the right; leftmost
+		// group can be 1-3 digits depending on total length.
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			out += ","
+		}
+		out += string(r)
+	}
+	if neg {
+		out = "-" + out
+	}
+	return out
 }
 
 // renderMenuItem renders one menu item at the given cursor position, padded
@@ -404,25 +635,4 @@ func renderMenuItem(items []menuItem, idx, cursor, columnWidth int) string {
 		return rendered + strings.Repeat(" ", padSize)
 	}
 	return PadRight("  "+label, columnWidth)
-}
-
-// formatThousands formats an int64 with thousands separators ("12,345").
-// Inline rather than pulling in x/text to keep the menu render cheap.
-func formatThousands(n int64) string {
-	s := fmt.Sprintf("%d", n)
-	sign := ""
-	if strings.HasPrefix(s, "-") {
-		sign = "-"
-		s = s[1:]
-	}
-	if len(s) <= 3 {
-		return sign + s
-	}
-	var parts []string
-	for len(s) > 3 {
-		parts = append([]string{s[len(s)-3:]}, parts...)
-		s = s[:len(s)-3]
-	}
-	parts = append([]string{s}, parts...)
-	return sign + strings.Join(parts, ",")
 }

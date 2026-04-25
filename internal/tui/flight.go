@@ -456,12 +456,63 @@ func (m Model) viewFlight() string {
 	sb.WriteString(PadRight(help, width-2))
 	sb.WriteString(BoxVertical + "\n")
 
+	// Chat tail — last 3 global messages so the player sees
+	// incoming traffic without leaving the cockpit. Read-only here;
+	// the dedicated chat screen still owns input.
+	chatLines := m.renderFlightChat(width - 2)
+	if len(chatLines) > 0 {
+		sb.WriteString(BoxCrossLeft)
+		sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
+		sb.WriteString(BoxCross + "\n")
+		for _, line := range chatLines {
+			sb.WriteString(BoxVertical)
+			sb.WriteString(PadRight(line, width-2))
+			sb.WriteString(BoxVertical + "\n")
+		}
+	}
+
 	// Bottom border.
 	sb.WriteString(BoxBottomLeft)
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxBottomRight)
 
 	return sb.String()
+}
+
+// renderFlightChat returns 3 most-recent global chat messages
+// formatted to fit `innerWidth` cells. Empty slice when chat isn't
+// wired (no manager) — caller skips the chat divider entirely so
+// fresh-server cockpits don't show an empty box.
+//
+// Format: " [HH:MM] sender: message" — matches the dedicated chat
+// screen's tail style. Truncation is brutal (single-line) since
+// vertical real estate is tight; players read full history in
+// the dedicated chat screen.
+func (m Model) renderFlightChat(innerWidth int) []string {
+	if m.chatManager == nil {
+		return nil
+	}
+	const tailRows = 3
+	msgs := m.chatManager.GetRecentGlobal(tailRows)
+	if len(msgs) == 0 {
+		// Show one placeholder line so players know where messages
+		// will appear — silence is more confusing than "no traffic".
+		return []string{" " + helpStyle.Render("[chat] no recent messages")}
+	}
+	out := make([]string, 0, tailRows)
+	for _, msg := range msgs {
+		// Timestamp + sender + content. Strip leading/trailing
+		// whitespace defensively in case some sender escaped one.
+		ts := msg.Timestamp.Format("15:04")
+		line := fmt.Sprintf(" [%s] %s: %s", ts, msg.Sender, strings.TrimSpace(msg.Content))
+		out = append(out, TruncateString(line, innerWidth))
+	}
+	// Pad to tailRows so the panel doesn't jitter in height as the
+	// last few minutes of traffic comes and goes.
+	for len(out) < tailRows {
+		out = append(out, "")
+	}
+	return out
 }
 
 // renderFlightSidebar produces the right-hand status panel: hull,
