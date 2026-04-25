@@ -169,6 +169,25 @@ func (r *PlayerRepository) CreateWithSSHKey(ctx context.Context, username, email
 	return r.CreateWithEmail(ctx, username, "", email)
 }
 
+// EnsureStarterState gives a player a system + starter ship if they
+// don't have one yet. Self-heal for accounts whose initial bootstrap
+// at registration ran against an empty universe (genmap hadn't been
+// run yet) — without this, those accounts stay locked at "Unknown
+// system / no ship" forever and every screen renders weirdly.
+//
+// No-op when both fields are already set; idempotent when called
+// repeatedly (e.g., on every login). Errors propagate so the caller
+// can decide whether to fail login or continue with degraded state.
+func (r *PlayerRepository) EnsureStarterState(ctx context.Context, player *models.Player) error {
+	if player == nil {
+		return nil
+	}
+	if player.CurrentSystem != uuid.Nil && player.ShipID != uuid.Nil {
+		return nil
+	}
+	return r.bootstrapStarterState(ctx, player)
+}
+
 // bootstrapStarterState assigns a random starting system and a starter Shuttle
 // to a freshly-created player, updating the players row and the player struct
 // in place. Returns nil if it succeeds or if the universe is empty.

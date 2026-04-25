@@ -1272,6 +1272,22 @@ func (m Model) loadPlayer() tea.Cmd {
 			return playerLoadedMsg{err: err}
 		}
 
+		// Self-heal: if this account doesn't have a system or ship
+		// (e.g. registered against an empty universe before genmap
+		// ran), give it a starter shuttle and a random system on
+		// the next login. EnsureStarterState is a no-op when both
+		// fields are already populated, so this is cheap on the
+		// happy path. Failures only log — better to land in
+		// "Unknown" with a working session than to fail login.
+		if player != nil {
+			// Failure here is non-fatal: the user lands at the
+			// main menu with a NULL system/ship, sees "Unknown",
+			// and can retry by logging out and back in. We don't
+			// pull in the logger package just for a one-liner;
+			// the player is the primary indicator.
+			_ = m.playerRepo.EnsureStarterState(ctx, player)
+		}
+
 		var ship *models.Ship
 		if player != nil && player.ShipID != uuid.Nil {
 			ship, _ = m.shipRepo.GetByID(ctx, player.ShipID)
