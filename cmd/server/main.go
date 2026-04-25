@@ -1,7 +1,7 @@
 // File: cmd/server/main.go
 // Project: Terminal Velocity
 // Description: Main SSH game server entry point
-// Version: 1.1.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -82,6 +82,8 @@ import (
 
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/logger"
 	"github.com/JoshuaAFerguson/terminal-velocity/internal/server"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 var (
@@ -153,6 +155,17 @@ func main() {
 
 	log.Info("Terminal Velocity starting up")
 	log.Debug("Command line args: config=%s, port=%d, log-level=%s", *configFile, *port, *logLevel)
+
+	// Force lipgloss into 256-color mode regardless of where the
+	// container's stdout points. Per-session BubbleTea programs use
+	// the SSH channel for I/O via tea.WithOutput, but lipgloss's
+	// global renderer was initialized once at package load against
+	// os.Stdout — which inside a container isn't a TTY at all, so
+	// termenv falls back to Ascii (no color). All real clients are
+	// xterm-256color (ttyd sets it; modern SSH clients negotiate it
+	// in pty-req), so we can safely force ANSI256 here and let every
+	// session render in color.
+	lipgloss.SetColorProfile(termenv.ANSI256)
 
 	// Show version if requested
 	if *showVersion {

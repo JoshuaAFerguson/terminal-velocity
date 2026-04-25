@@ -5,7 +5,7 @@
 //   target/system info under the viewport, header at the top, and
 //   key reminders at the bottom. Replaces the static "space view"
 //   radar as the primary 'in your ship' screen.
-// Version: 1.3.0
+// Version: 1.3.1
 // Author: Joshua Ferguson
 // Created: 2026-04-24
 
@@ -423,12 +423,23 @@ func (m Model) viewFlight() string {
 		height = m.height
 	}
 
-	// Reserved rows: 4 for header (top + title + divider), 3 for
-	// HUD/help footer (divider + 2 lines + bottom). Whatever's left
-	// becomes the playfield.
-	playHeight := height - 4 - 3
-	if playHeight < 8 {
-		playHeight = 8
+	// Compute chat rows up front because they steal from playHeight.
+	// Chrome breakdown when chat is present:
+	//   3 header (top + title + cross)
+	//   playHeight viewport
+	//   1 HUD divider + 1 HUD line + 1 help line
+	//   1 chat divider + N chat lines
+	//   1 bottom border
+	// Without subtracting the chat block, the total exceeds the
+	// terminal height and the alt-screen scrolls — chopping the top.
+	chatLines := m.renderFlightChat(width - 2)
+	chatRows := 0
+	if len(chatLines) > 0 {
+		chatRows = 1 + len(chatLines) // divider + N lines
+	}
+	playHeight := height - 7 - chatRows
+	if playHeight < 6 {
+		playHeight = 6
 	}
 
 	// Sidebar layout: 18 cells of ship status on the right when
@@ -540,8 +551,8 @@ func (m Model) viewFlight() string {
 
 	// Chat tail — last 3 global messages so the player sees
 	// incoming traffic without leaving the cockpit. Read-only here;
-	// the dedicated chat screen still owns input.
-	chatLines := m.renderFlightChat(width - 2)
+	// the dedicated chat screen still owns input. Already computed
+	// at the top so playHeight could account for it.
 	if len(chatLines) > 0 {
 		sb.WriteString(BoxCrossLeft)
 		sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
