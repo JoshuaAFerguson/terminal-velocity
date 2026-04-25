@@ -5,7 +5,7 @@
 //   target/system info under the viewport, header at the top, and
 //   key reminders at the bottom. Replaces the static "space view"
 //   radar as the primary 'in your ship' screen.
-// Version: 1.1.1
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2026-04-24
 
@@ -62,6 +62,12 @@ type planetEntity struct {
 // flightModel owns the per-session flight state. Storing the ship
 // here means velocity persists across screen visits — a player who
 // pops out to check trade prices doesn't reset their inertia.
+//
+// targetID is the player-selected destination — an empty string means
+// "no target". Pressing L either picks the nearest landable as target
+// (if none set, or if the current one is no longer the closest) or
+// lands at the current target when within dockableRange. Persisting
+// it on the model means navigation guidance survives screen pops.
 type flightModel struct {
 	ship          spaceflight.FlightState
 	active        bool      // true while the tick loop is running
@@ -72,6 +78,7 @@ type flightModel struct {
 	loadInFlight  bool          // true while a planet load is queued but not yet returned
 	loadedSystem  string        // ID of the system whose planets are cached
 	dockTarget    *planetEntity // nearest-in-range planet on this frame; nil when nothing dockable
+	targetID      string        // selected target's planet ID; "" = none
 }
 
 // flightDataLoadedMsg fires once the async planet fetch completes.
@@ -199,6 +206,43 @@ func nearestDockable(ship spaceflight.FlightState, planets []planetEntity) *plan
 	return best
 }
 
+// nearestPlanet returns the closest planet at any distance. Used when
+// the player hits L without a target set — we pick the closest planet
+// in the system as their navigation goal regardless of how far it is,
+// so they always have a clear "fly toward this" destination.
+func nearestPlanet(ship spaceflight.FlightState, planets []planetEntity) *planetEntity {
+	if len(planets) == 0 {
+		return nil
+	}
+	bestDist := math.Inf(1)
+	var best *planetEntity
+	for i := range planets {
+		dx := planets[i].x - ship.X
+		dy := planets[i].y - ship.Y
+		d := math.Hypot(dx, dy)
+		if d < bestDist {
+			bestDist = d
+			best = &planets[i]
+		}
+	}
+	return best
+}
+
+// findPlanetByID returns the planet matching id, or nil. Used to
+// resolve the persisted targetID on each frame so the renderer/HUD
+// have a fresh pointer (the planet slice is rebuilt across loads).
+func findPlanetByID(planets []planetEntity, id string) *planetEntity {
+	if id == "" {
+		return nil
+	}
+	for i := range planets {
+		if planets[i].id == id {
+			return &planets[i]
+		}
+	}
+	return nil
+}
+
 // updateFlight handles input + tick events. Tick advances physics by
 // the wall-clock delta since the last tick (variable-dt) so a 200ms
 // hiccup doesn't compound into "ship suddenly across the system" —
@@ -324,19 +368,23 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "l", "L":
-			// Land at the nearest planet within dock range. Reuses
-			// the existing dockCmd from space_view so the docked
-			// state (player.CurrentPlanet, etc.) stays consistent
-			// regardless of which screen the player launched from.
-			target := nearestDockable(m.flight.ship, m.flight.planets)
-			if target == nil || target.planet == nil {
-				return m, withSetup(nil)
+			// "Do the right thing" L: if there's a planet within
+			// dock range, land at it. Otherwise set the navigation
+			// target to the nearest planet so the off-screen arrow
+			// + HUD guidance kick in. One key, no surprise — players
+			// don't have to remember a "target then commit" sequence.
+			if d := nearestDockable(m.flight.ship, m.flight.planets); d != nil && d.planet != nil {
+				m.flight.active = false // stop the tick; we're leaving the cockpit
+				m.flight.targetID = ""  // clear so the next launch starts fresh
+				m.previousScreen = ScreenFlight
+				m.hasPreviousScreen = true
+				m.screen = ScreenLanding
+				return m, m.dockCmd(d.planet)
 			}
-			m.flight.active = false // stop the tick; we're leaving the cockpit
-			m.previousScreen = ScreenFlight
-			m.hasPreviousScreen = true
-			m.screen = ScreenLanding
-			return m, m.dockCmd(target.planet)
+			if next := nearestPlanet(m.flight.ship, m.flight.planets); next != nil {
+				m.flight.targetID = next.id
+			}
+			return m, withSetup(nil)
 		}
 	}
 
@@ -405,27 +453,28 @@ func (m Model) viewFlight() string {
 	header := DrawHeader("FLIGHT", m.currentLocationLabel(), credits, m.shieldPercent(), width)
 	sb.WriteString(header + "\n")
 
-	// Viewport grid. Built as a 2D rune slice for random-access
-	// drawing of stars + ship.
+	// Viewport grid + parallel kind grid. Two slices kept in lockstep:
+	// glyphs in `grid`, color tags in `kinds`. Render walks both to
+	// emit ANSI-styled rows.
 	grid := make([][]rune, playHeight)
+	kinds := make([][]cellKind, playHeight)
 	for r := range grid {
 		grid[r] = make([]rune, viewportWidth)
+		kinds[r] = make([]cellKind, viewportWidth)
 		for c := range grid[r] {
 			grid[r][c] = ' '
 		}
 	}
-	drawStarfield(grid, m.flight.ship.X, m.flight.ship.Y)
-	// Planets first, ship last so the ship glyph wins if it
-	// happens to overlap a planet (player just landed).
-	drawPlanets(grid, m.flight.planets, m.flight.ship.X, m.flight.ship.Y)
-
-	cx, cy := viewportWidth/2, playHeight/2
-	if cy < len(grid) && cx < len(grid[cy]) {
-		shipRunes := []rune(m.flight.ship.HeadingGlyph())
-		if len(shipRunes) > 0 {
-			grid[cy][cx] = shipRunes[0]
-		}
+	drawStarfieldKinded(grid, kinds, m.flight.ship.X, m.flight.ship.Y)
+	// Planets first so the ship glyph wins if it overlaps. Pass the
+	// targetID so the targeted planet gets the highlight color.
+	drawPlanetsKinded(grid, kinds, m.flight.planets, m.flight.ship.X, m.flight.ship.Y, m.flight.targetID)
+	// Off-screen edge arrow toward the target — only drawn when the
+	// target exists and is outside the viewport.
+	if target := findPlanetByID(m.flight.planets, m.flight.targetID); target != nil {
+		drawOffScreenArrow(grid, kinds, target, m.flight.ship.X, m.flight.ship.Y)
 	}
+	drawShipGlyph(grid, kinds, m.flight.ship.HeadingGlyph())
 
 	// Sidebar — ship status panel with bars for hull/shields/fuel.
 	var sidebar []string
@@ -433,10 +482,13 @@ func (m Model) viewFlight() string {
 		sidebar = m.renderFlightSidebar(sidebarWidth, playHeight)
 	}
 
-	// Compose viewport + sidebar side-by-side, line by line.
+	// Compose viewport + sidebar side-by-side, line by line. Each row
+	// is run-length encoded by kind via renderStyledRow so a row of
+	// 60 cells with 3 stars and 1 planet only emits ~5 ANSI runs
+	// instead of 60.
 	for r := 0; r < playHeight; r++ {
 		sb.WriteString(BoxVertical)
-		sb.WriteString(string(grid[r]))
+		sb.WriteString(renderStyledRow(grid[r], kinds[r]))
 		if sidebarWidth > 0 {
 			sb.WriteString(BoxVertical)
 			if r < len(sidebar) {
@@ -453,26 +505,35 @@ func (m Model) viewFlight() string {
 	sb.WriteString(strings.Repeat(BoxHorizontal, width-2))
 	sb.WriteString(BoxCross + "\n")
 
-	// HUD line: speed / heading / position. Fixed-width fields so
-	// the line doesn't jitter as values change magnitude.
-	hud := fmt.Sprintf(
-		" SPD %5.1f   HDG %3d°   POS (%6.0f, %6.0f)",
+	// HUD line: speed / heading / position with a context-sensitive
+	// hint at the end. Hint priority: in-range "land NOW" beats the
+	// "fly to TARGET" guidance, since pressing L while in range is
+	// what actually completes the action.
+	hint := ""
+	if m.flight.dockTarget != nil {
+		hint = fmt.Sprintf("⬇ L: land at %s", m.flight.dockTarget.name)
+	} else if target := findPlanetByID(m.flight.planets, m.flight.targetID); target != nil {
+		dx := target.x - m.flight.ship.X
+		dy := target.y - m.flight.ship.Y
+		dist := math.Hypot(dx, dy)
+		// Bearing as compass-degrees-from-ship so the player can rotate
+		// to match. atan2(dy,dx) gives 0=east; we shift to 0=up so the
+		// ship's heading display and target bearing share a frame.
+		bearing := int(math.Mod(math.Atan2(dy, dx)*180/math.Pi+90+360, 360))
+		hint = fmt.Sprintf("⊕ %s  %4.0fu  %3d°", target.name, dist, bearing)
+	}
+	hud := renderHudLine(
 		m.flight.ship.Speed(),
 		m.flight.ship.HeadingDegrees(),
 		m.flight.ship.X, m.flight.ship.Y,
+		hint,
 	)
-	// Append a "Press L to land at <planet>" hint when in dock
-	// range, so the player learns the binding contextually instead
-	// of having to memorize it from the help line.
-	if m.flight.dockTarget != nil {
-		hud += fmt.Sprintf("   ⬇ L: land at %s", m.flight.dockTarget.name)
-	}
 	sb.WriteString(BoxVertical)
 	sb.WriteString(PadRight(hud, width-2))
 	sb.WriteString(BoxVertical + "\n")
 
-	// Help line.
-	help := " W/↑ thrust  •  S/↓ brake  •  A/← turn-L  •  D/→ turn-R  •  L land  •  J jump  •  ESC menu"
+	// Help line — muted so the eye lands on the HUD numbers above.
+	help := styleHelp.Render(" W/↑ thrust  •  S/↓ brake  •  A/← turn-L  •  D/→ turn-R  •  L target/land  •  J jump  •  ESC menu")
 	sb.WriteString(BoxVertical)
 	sb.WriteString(PadRight(help, width-2))
 	sb.WriteString(BoxVertical + "\n")
@@ -586,21 +647,24 @@ func (m Model) renderFlightSidebar(width, height int) []string {
 	shieldsPct := pctClamped(shields, maxShields)
 	fuelPct := pctClamped(fuel, maxFuel)
 
+	hullBar := styledHealthBar(hullPct, 100, barWidth)
+	shldBar := styledHealthBar(shieldsPct, 100, barWidth, &styleBarShield)
+	fuelBar := styledHealthBar(fuelPct, 100, barWidth, &styleBarFuel)
 	lines := []string{
-		PadRight(" SHIP", width),
+		PadRight(" "+HighlightStyle.Render("SHIP"), width),
 		PadRight(" "+TruncateString(shipName, width-2), width),
-		PadRight(" "+helpStyle.Render(shipType), width),
+		PadRight(" "+styleHudLabel.Render(shipType), width),
 		strings.Repeat(BoxHorizontal, width),
-		PadRight(fmt.Sprintf(" Hull %s", DrawProgressBar(hullPct, 100, barWidth)), width),
-		PadRight(fmt.Sprintf("   %3d%%", hullPct), width),
-		PadRight(fmt.Sprintf(" Shld %s", DrawProgressBar(shieldsPct, 100, barWidth)), width),
-		PadRight(fmt.Sprintf("   %3d%%", shieldsPct), width),
-		PadRight(fmt.Sprintf(" Fuel %s", DrawProgressBar(fuelPct, 100, barWidth)), width),
-		PadRight(fmt.Sprintf("   %3d%%", fuelPct), width),
+		PadRight(fmt.Sprintf(" Hull %s", hullBar), width),
+		PadRight(styleHudValue.Render(fmt.Sprintf("   %3d%%", hullPct)), width),
+		PadRight(fmt.Sprintf(" Shld %s", shldBar), width),
+		PadRight(styleHudValue.Render(fmt.Sprintf("   %3d%%", shieldsPct)), width),
+		PadRight(fmt.Sprintf(" Fuel %s", fuelBar), width),
+		PadRight(styleHudValue.Render(fmt.Sprintf("   %3d%%", fuelPct)), width),
 		strings.Repeat(BoxHorizontal, width),
 		PadRight(fmt.Sprintf(" Cargo %d/%d", cargoUsed, cargoMax), width),
 		strings.Repeat(BoxHorizontal, width),
-		PadRight(" ENGINES", width),
+		PadRight(" "+HighlightStyle.Render("ENGINES"), width),
 		PadRight(fmt.Sprintf(" Max  %3.0f", m.flight.ship.Params.MaxSpeed), width),
 		PadRight(fmt.Sprintf(" Acc  %3.1f", m.flight.ship.Params.ThrustImpulse), width),
 		PadRight(fmt.Sprintf(" Rot  %3.0f°", m.flight.ship.Params.RotateStep*180/3.14159), width),
@@ -644,98 +708,14 @@ func pctClamped(cur, max int) int {
 	return p
 }
 
-// drawStarfield places stars at deterministic positions based on
-// world coordinates. The same world cell always shows the same
-// pattern, so stars don't shimmer as the ship flies past — they
-// scroll by, which is what gives the parallax sensation.
-//
-// Density is sparse (~3% of cells) so the field feels deep without
-// overwhelming actual game entities (planets, ships) we'll add in
-// later phases.
-func drawStarfield(grid [][]rune, shipX, shipY float64) {
-	if len(grid) == 0 || len(grid[0]) == 0 {
-		return
-	}
-	height := len(grid)
-	width := len(grid[0])
-	worldOriginX := int(shipX) - width/2
-	worldOriginY := int(shipY) - height/2
-
-	for r := 0; r < height; r++ {
-		for c := 0; c < width; c++ {
-			wx := worldOriginX + c
-			wy := worldOriginY + r
-			h := starHash(wx, wy)
-			if h%32 == 0 {
-				if h%128 == 0 {
-					grid[r][c] = '*'
-				} else {
-					grid[r][c] = '·'
-				}
-			}
-		}
-	}
-}
-
 // starHash is a small integer hash over (x, y). Output quality
 // matters less than determinism — same input → same star. xorshift-
 // flavored mix is fine; we don't need cryptographic distribution.
+// Used by drawStarfieldKinded in flight_render.go.
 func starHash(x, y int) uint32 {
 	h := uint32(x*73856093) ^ uint32(y*19349663)
 	h ^= h >> 13
 	h *= 0x5bd1e995
 	h ^= h >> 15
 	return h
-}
-
-// drawPlanets places each planet in the system at its world position
-// (offset against the ship's camera-centered view), with the name
-// label rendered to the right of the planet glyph if it fits.
-//
-// Planets that sit outside the viewport are skipped; ones that would
-// clip the edge get the glyph drawn at the edge cell so the player
-// has some indication of which direction they should fly. Names are
-// truncated rather than wrapped — clean horizontal labels read
-// faster at flight speed than two-line ones.
-func drawPlanets(grid [][]rune, planets []planetEntity, shipX, shipY float64) {
-	if len(grid) == 0 || len(grid[0]) == 0 || len(planets) == 0 {
-		return
-	}
-	height := len(grid)
-	width := len(grid[0])
-	cx, cy := width/2, height/2
-
-	for _, p := range planets {
-		// Screen position relative to camera (which centers on ship).
-		sx := cx + int(p.x-shipX)
-		sy := cy + int(p.y-shipY)
-		// Skip when entirely off-screen. We could clamp glyphs to
-		// the edge for off-screen indicators, but a clean nothing-
-		// drawn keeps the viewport readable until P1.4 adds
-		// dedicated arrow-pointers.
-		if sx < 0 || sx >= width || sy < 0 || sy >= height {
-			continue
-		}
-		// Glyph: solid filled circle reads as a planet at any font
-		// size and contrasts with the · and * starfield.
-		grid[sy][sx] = '●'
-
-		// Name label: place to the right with a one-cell gap. Skip
-		// if the right edge would clip — looks worse than no label.
-		labelStart := sx + 2
-		if labelStart >= width {
-			continue
-		}
-		labelMax := width - labelStart
-		name := p.name
-		if len(name) > labelMax {
-			name = name[:labelMax]
-		}
-		for i, r := range name {
-			if labelStart+i >= width {
-				break
-			}
-			grid[sy][labelStart+i] = r
-		}
-	}
 }
