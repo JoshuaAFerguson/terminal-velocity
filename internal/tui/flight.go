@@ -12,7 +12,9 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -38,14 +40,45 @@ func flightTick() tea.Cmd {
 	return tea.Tick(flightTickInterval, func(time.Time) tea.Msg { return flightTickMsg{} })
 }
 
+// planetEntity is the flight-layer projection of a models.Planet.
+// We compute world (X,Y) once on load — either using the persisted
+// values when they're non-zero, or hashing the planet UUID to a
+// deterministic position when the universe generator left them at
+// (0,0). Caching here means the renderer doesn't recompute every
+// frame.
+//
+// The full *models.Planet is stashed via planet so the L-key
+// dock path can pass it straight to dockCmd without re-fetching
+// from the repo.
+type planetEntity struct {
+	id          string
+	name        string
+	x, y        float64 // world coordinates
+	techLevel   int
+	hasServices bool
+	planet      *models.Planet
+}
+
 // flightModel owns the per-session flight state. Storing the ship
 // here means velocity persists across screen visits — a player who
 // pops out to check trade prices doesn't reset their inertia.
 type flightModel struct {
-	ship       spaceflight.FlightState
-	active     bool      // true while the tick loop is running
-	lastTick   time.Time // wall-clock of last tick (variable-dt physics)
-	initialized bool     // true after first sync from the player's equipped ship
+	ship          spaceflight.FlightState
+	active        bool      // true while the tick loop is running
+	lastTick      time.Time // wall-clock of last tick (variable-dt physics)
+	initialized   bool      // true after first sync from the player's equipped ship
+	planets       []planetEntity
+	planetsLoaded bool      // true once the system's planets have been fetched
+	loadedSystem  string    // ID of the system whose planets are cached
+	dockTarget    *planetEntity // nearest-in-range planet on this frame; nil when nothing dockable
+}
+
+// flightDataLoadedMsg fires once the async planet fetch completes.
+// Sent by loadFlightDataCmd after a successful systemRepo lookup.
+type flightDataLoadedMsg struct {
+	systemID string
+	planets  []planetEntity
+	err      error
 }
 
 func newFlightModel() flightModel {
@@ -71,6 +104,98 @@ func (m Model) flightParamsForCurrentShip() spaceflight.FlightParams {
 		return spaceflight.DefaultFlightParams()
 	}
 	return spaceflight.FlightParamsFromShipStats(st.Speed, st.Maneuverability)
+}
+
+// loadFlightDataCmd fetches the planets for the player's current
+// system and projects them to flight-world coordinates. Returns
+// flightDataLoadedMsg so the model can cache the result. Async
+// because the system repo hits the DB; we don't want to stall a
+// flight tick on it.
+func (m Model) loadFlightDataCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.player == nil || m.systemRepo == nil || m.player.CurrentSystem.String() == "00000000-0000-0000-0000-000000000000" {
+			return flightDataLoadedMsg{}
+		}
+		ctx := context.Background()
+		raw, err := m.systemRepo.GetPlanetsBySystem(ctx, m.player.CurrentSystem)
+		if err != nil {
+			return flightDataLoadedMsg{err: err}
+		}
+		out := make([]planetEntity, 0, len(raw))
+		for _, p := range raw {
+			x, y := planetPosition(p)
+			out = append(out, planetEntity{
+				id:          p.ID.String(),
+				name:        p.Name,
+				x:           x,
+				y:           y,
+				techLevel:   p.TechLevel,
+				hasServices: len(p.Services) > 0,
+				planet:      p,
+			})
+		}
+		return flightDataLoadedMsg{
+			systemID: m.player.CurrentSystem.String(),
+			planets:  out,
+		}
+	}
+}
+
+// planetPosition resolves a Planet's world coordinates. Falls back to
+// a UUID-derived deterministic position when the persisted X,Y are
+// (0,0) — which is currently every planet in any universe generated
+// before the generator was teaching about in-system layout. Hash
+// → angle in [0, 2π) and distance in [400, 1800] u from system
+// center. Distinct planets land on distinct angles since the hash
+// has full UUID entropy; a system with 5 planets gets them spread
+// around the center, not bunched.
+func planetPosition(p *models.Planet) (x, y float64) {
+	if p.X != 0 || p.Y != 0 {
+		return p.X, p.Y
+	}
+	// Hash the UUID bytes into two uint64s — one drives angle, the
+	// other drives distance. Splitting like this keeps the angle
+	// and distance distributions independent.
+	idBytes := p.ID
+	var hAngle, hDist uint64
+	for i := 0; i < 8; i++ {
+		hAngle = hAngle*1099511628211 ^ uint64(idBytes[i])
+	}
+	for i := 8; i < 16; i++ {
+		hDist = hDist*1099511628211 ^ uint64(idBytes[i])
+	}
+	angle := float64(hAngle%65536) / 65536.0 * 2 * math.Pi
+	dist := 400 + float64(hDist%1400)
+	x = math.Cos(angle) * dist
+	y = math.Sin(angle) * dist
+	return x, y
+}
+
+// dockableRange is how close (world units) the player must be to a
+// planet to dock. Tuned generous because flight controls are still
+// somewhat coarse — players should be able to coast in and tag the
+// L key without precision pixel-hunting.
+const dockableRange = 80.0
+
+// nearestDockable returns the closest planet within dockableRange,
+// or nil. Caller uses this for both the HUD prompt ("Press L to
+// land at <name>") and the actual L-key handling.
+func nearestDockable(ship spaceflight.FlightState, planets []planetEntity) *planetEntity {
+	if len(planets) == 0 {
+		return nil
+	}
+	bestDist := dockableRange
+	var best *planetEntity
+	for i := range planets {
+		dx := planets[i].x - ship.X
+		dy := planets[i].y - ship.Y
+		d := math.Hypot(dx, dy)
+		if d <= bestDist {
+			bestDist = d
+			best = &planets[i]
+		}
+	}
+	return best
 }
 
 // updateFlight handles input + tick events. Tick advances physics by
@@ -100,7 +225,33 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 		kicker = flightTick()
 	}
 
+	// Load planets for the current system on first entry, and
+	// re-load whenever the player has jumped (system changed). The
+	// load is async — the data shows up in a flightDataLoadedMsg
+	// later. Until then, the viewport just shows stars + ship.
+	if m.player != nil {
+		curSys := m.player.CurrentSystem.String()
+		if !m.flight.planetsLoaded || m.flight.loadedSystem != curSys {
+			loader := m.loadFlightDataCmd()
+			if kicker != nil {
+				return m, tea.Batch(kicker, loader)
+			}
+			return m, loader
+		}
+	}
+
 	switch msg := msg.(type) {
+	case flightDataLoadedMsg:
+		// Cache planets for the current system. err is best-effort:
+		// if loading failed, leave the cockpit empty rather than
+		// kicking the player out — they can re-enter to retry.
+		if msg.err == nil {
+			m.flight.planets = msg.planets
+		}
+		m.flight.planetsLoaded = true
+		m.flight.loadedSystem = msg.systemID
+		return m, nil
+
 	case flightTickMsg:
 		now := time.Now()
 		dt := now.Sub(m.flight.lastTick).Seconds()
@@ -111,6 +262,10 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.flight.ship = m.flight.ship.Tick(dt)
 		m.flight.lastTick = now
+		// Refresh dock target so the HUD shows "Press L to land at
+		// X" only when actually in range. Recomputed every tick is
+		// fine — N usually <10 planets per system.
+		m.flight.dockTarget = nearestDockable(m.flight.ship, m.flight.planets)
 		// Re-arm. The top-level Update drops flightTickMsg when the
 		// active screen isn't ScreenFlight, which kills the loop
 		// when the player navigates away.
@@ -143,6 +298,21 @@ func (m Model) updateFlight(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.hasPreviousScreen = true
 			m.screen = ScreenNavigation
 			return m, nil
+
+		case "l", "L":
+			// Land at the nearest planet within dock range. Reuses
+			// the existing dockCmd from space_view so the docked
+			// state (player.CurrentPlanet, etc.) stays consistent
+			// regardless of which screen the player launched from.
+			target := nearestDockable(m.flight.ship, m.flight.planets)
+			if target == nil || target.planet == nil {
+				return m, nil
+			}
+			m.flight.active = false // stop the tick; we're leaving the cockpit
+			m.previousScreen = ScreenFlight
+			m.hasPreviousScreen = true
+			m.screen = ScreenLanding
+			return m, m.dockCmd(target.planet)
 		}
 	}
 
@@ -224,6 +394,10 @@ func (m Model) viewFlight() string {
 		}
 	}
 	drawStarfield(grid, m.flight.ship.X, m.flight.ship.Y)
+	// Planets first, ship last so the ship glyph wins if it
+	// happens to overlap a planet (player just landed).
+	drawPlanets(grid, m.flight.planets, m.flight.ship.X, m.flight.ship.Y)
+
 	cx, cy := viewportWidth/2, playHeight/2
 	if cy < len(grid) && cx < len(grid[cy]) {
 		shipRunes := []rune(m.flight.ship.HeadingGlyph())
@@ -266,12 +440,18 @@ func (m Model) viewFlight() string {
 		m.flight.ship.HeadingDegrees(),
 		m.flight.ship.X, m.flight.ship.Y,
 	)
+	// Append a "Press L to land at <planet>" hint when in dock
+	// range, so the player learns the binding contextually instead
+	// of having to memorize it from the help line.
+	if m.flight.dockTarget != nil {
+		hud += fmt.Sprintf("   ⬇ L: land at %s", m.flight.dockTarget.name)
+	}
 	sb.WriteString(BoxVertical)
 	sb.WriteString(PadRight(hud, width-2))
 	sb.WriteString(BoxVertical + "\n")
 
 	// Help line.
-	help := " W/↑ thrust  •  S/↓ brake  •  A/← turn-L  •  D/→ turn-R  •  J jump  •  ESC menu"
+	help := " W/↑ thrust  •  S/↓ brake  •  A/← turn-L  •  D/→ turn-R  •  L land  •  J jump  •  ESC menu"
 	sb.WriteString(BoxVertical)
 	sb.WriteString(PadRight(help, width-2))
 	sb.WriteString(BoxVertical + "\n")
@@ -434,4 +614,56 @@ func starHash(x, y int) uint32 {
 	h *= 0x5bd1e995
 	h ^= h >> 15
 	return h
+}
+
+// drawPlanets places each planet in the system at its world position
+// (offset against the ship's camera-centered view), with the name
+// label rendered to the right of the planet glyph if it fits.
+//
+// Planets that sit outside the viewport are skipped; ones that would
+// clip the edge get the glyph drawn at the edge cell so the player
+// has some indication of which direction they should fly. Names are
+// truncated rather than wrapped — clean horizontal labels read
+// faster at flight speed than two-line ones.
+func drawPlanets(grid [][]rune, planets []planetEntity, shipX, shipY float64) {
+	if len(grid) == 0 || len(grid[0]) == 0 || len(planets) == 0 {
+		return
+	}
+	height := len(grid)
+	width := len(grid[0])
+	cx, cy := width/2, height/2
+
+	for _, p := range planets {
+		// Screen position relative to camera (which centers on ship).
+		sx := cx + int(p.x-shipX)
+		sy := cy + int(p.y-shipY)
+		// Skip when entirely off-screen. We could clamp glyphs to
+		// the edge for off-screen indicators, but a clean nothing-
+		// drawn keeps the viewport readable until P1.4 adds
+		// dedicated arrow-pointers.
+		if sx < 0 || sx >= width || sy < 0 || sy >= height {
+			continue
+		}
+		// Glyph: solid filled circle reads as a planet at any font
+		// size and contrasts with the · and * starfield.
+		grid[sy][sx] = '●'
+
+		// Name label: place to the right with a one-cell gap. Skip
+		// if the right edge would clip — looks worse than no label.
+		labelStart := sx + 2
+		if labelStart >= width {
+			continue
+		}
+		labelMax := width - labelStart
+		name := p.name
+		if len(name) > labelMax {
+			name = name[:labelMax]
+		}
+		for i, r := range name {
+			if labelStart+i >= width {
+				break
+			}
+			grid[sy][labelStart+i] = r
+		}
+	}
 }
