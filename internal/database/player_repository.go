@@ -2,7 +2,7 @@
 // Project: Terminal Velocity
 // Description: Repository for player account management including authentication,
 //              credits, reputation, and account lifecycle operations
-// Version: 1.1.0
+// Version: 1.2.0
 // Author: Joshua Ferguson
 // Created: 2025-01-07
 
@@ -191,20 +191,52 @@ func (r *PlayerRepository) EnsureStarterState(ctx context.Context, player *model
 // bootstrapStarterState assigns a random starting system and a starter Shuttle
 // to a freshly-created player, updating the players row and the player struct
 // in place. Returns nil if it succeeds or if the universe is empty.
+//
+// Spawn-system selection is tiered so a new pilot lands somewhere they can
+// actually do things. We prefer systems with a shipyard (so they can repair/
+// upgrade hulls), then with an outfitter (equipment), then any system with a
+// landable planet, then — only as a last-resort safety net for malformed
+// universes — any system at all. Each query stops at the first match;
+// ORDER BY random() on a 100-row table is cheap and we run this exactly
+// once per account.
 func (r *PlayerRepository) bootstrapStarterState(ctx context.Context, player *models.Player) error {
-	// Pick a random system from what's been generated. ORDER BY random() on a
-	// ~100-row table is cheap; we run this exactly once per account.
-	var systemID uuid.UUID
-	err := r.db.QueryRowContext(ctx,
-		`SELECT id FROM star_systems ORDER BY random() LIMIT 1`).Scan(&systemID)
-	if err == sql.ErrNoRows {
-		// Universe not generated yet — leave the player unbound. They'll pick
-		// up a system the first time one gets generated if the registration
-		// flow handles that, or an admin can set one manually.
-		return fmt.Errorf("no systems in universe (run genmap -save first)")
+	starterSystemQueries := []string{
+		// Tier 1: full-service starter — shipyard + by extension every
+		// lower-tier service is present (services are tech-gated additive).
+		`SELECT s.id FROM star_systems s WHERE EXISTS (
+			SELECT 1 FROM planets p
+			WHERE p.system_id = s.id AND 'shipyard' = ANY(p.services)
+		) ORDER BY random() LIMIT 1`,
+		// Tier 2: mid-tech starter — outfitter for equipment upgrades.
+		`SELECT s.id FROM star_systems s WHERE EXISTS (
+			SELECT 1 FROM planets p
+			WHERE p.system_id = s.id AND 'outfitter' = ANY(p.services)
+		) ORDER BY random() LIMIT 1`,
+		// Tier 3: any system with at least one landable target.
+		`SELECT s.id FROM star_systems s WHERE EXISTS (
+			SELECT 1 FROM planets p WHERE p.system_id = s.id
+		) ORDER BY random() LIMIT 1`,
+		// Tier 4: last resort — any system. Indicates the universe is
+		// malformed (systems with no planets) but we'd rather strand the
+		// player in space than fail registration.
+		`SELECT id FROM star_systems ORDER BY random() LIMIT 1`,
 	}
-	if err != nil {
-		return fmt.Errorf("pick starter system: %w", err)
+
+	var systemID uuid.UUID
+	var err error
+	for _, q := range starterSystemQueries {
+		err = r.db.QueryRowContext(ctx, q).Scan(&systemID)
+		if err == nil {
+			break
+		}
+		if err != sql.ErrNoRows {
+			return fmt.Errorf("pick starter system: %w", err)
+		}
+	}
+	if systemID == uuid.Nil {
+		// Universe genuinely empty (no systems at all) — leave the player
+		// unbound; an admin can set one manually or re-run genmap -save.
+		return fmt.Errorf("no systems in universe (run genmap -save first)")
 	}
 
 	// Look up the canonical shuttle definition. StandardShipTypes[0] is the
